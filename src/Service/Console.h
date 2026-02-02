@@ -1,0 +1,32 @@
+#pragma once
+#include <Arduino.h>
+
+/******** 控制台事件 ********/
+typedef enum
+{
+    /*格式：CMD_<模块>_<操作>，
+    其中<操作>应与Console解析的命令一致*/
+    
+    CMD_NONE = 0,
+
+    CMD_SYS_INFO,
+    CMD_SYS_REBOOT,
+
+    CMD_OTA_OTA,
+
+} command_type_t;
+
+typedef struct
+{
+    command_type_t type;
+
+    char arg1[32];
+    char arg2[32];
+
+} command_msg_t;
+
+/******** 接口 ********/
+void console_init();
+
+/******** 获取队列句柄 ********/
+QueueHandle_t console_get_queue();
