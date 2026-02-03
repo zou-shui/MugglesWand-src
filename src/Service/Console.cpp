@@ -18,6 +18,7 @@ static void console_print_help()
     Serial.println("help    - Show command list");
     Serial.println("info    - Show system information");
     Serial.println("reboot  - Restart device");
+    Serial.println("sleep   - Enter deep sleep mode");
     Serial.println("ota     - Enter OTA mode");
 }
 
@@ -38,7 +39,10 @@ static void console_parse(char *cmd)
     {
         msg.type = CMD_SYS_REBOOT;
     }
-
+    else if (!strcmp(cmd, "sleep"))
+    {
+        msg.type = CMD_SYS_SLEEP;
+    }
     else if (!strcmp(cmd, "ota"))
     {
         msg.type = CMD_OTA_OTA;

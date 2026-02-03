@@ -7,6 +7,7 @@
 
 #include "Config.h"
 #include "OTA.h"
+#include "Sleep.h"
 
 static QueueHandle_t cmd_queue;
 
@@ -41,6 +42,10 @@ static void dispatcher_task(void *param)
             case CMD_OTA_OTA:
                 // 可以先关闭其它task，再OTA
                 OTA_begin();
+                break;
+
+            case CMD_SYS_SLEEP:
+                sleep_enter();
                 break;
 
             default:

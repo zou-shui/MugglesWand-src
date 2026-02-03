@@ -2,6 +2,7 @@
 #include "Service/Console.h"
 #include "Service/Dispatcher.h"
 #include "Service/OTA.h"
+#include "Service/Sleep.h"
 
 void setup()
 {
@@ -9,6 +10,7 @@ void setup()
 
   console_init();
   dispatcher_init();
+  sleep_init();
 }
 
 void loop()
