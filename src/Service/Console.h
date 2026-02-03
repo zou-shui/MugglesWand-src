@@ -16,6 +16,7 @@ typedef enum
     CMD_OTA_OTA,
 
     CMD_WS2812_FLOW,
+    CMD_WS2812_LAST,
 
 } command_type_t;
 

@@ -21,6 +21,7 @@ static void console_print_help()
     Serial.println("sleep    - Enter deep sleep mode");
     Serial.println("ota      - Enter OTA mode");
     Serial.println("flow [s] - Trigger WS2812 flowing animation, optional speed (1-10)");
+    Serial.println("last     - Toggle WS2812 last LED on/off");
 }
 
 /************ 串口命令解析 ************/
@@ -59,6 +60,10 @@ static void console_parse(char *cmd)
         token = strtok(NULL, " "); // 参数1
         if (token != NULL)
             msg.arg1 = atoi(token);
+    }
+    else if (!strcmp(token, "last"))
+    {
+        msg.type = CMD_WS2812_LAST;
     }
 
     else if (!strcmp(token, "help"))

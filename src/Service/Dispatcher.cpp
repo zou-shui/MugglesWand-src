@@ -52,6 +52,8 @@ static void dispatcher_task(void *param)
             case CMD_WS2812_FLOW:
                 HAL::ws2812_trigger_flowing(0xFFFFFF, msg.arg1 == 0 ? 6 : msg.arg1, 5);
                 break;
+            case CMD_WS2812_LAST:
+                HAL::ws2812_toggle_last_led(0xFFFFFF);
             default:
                 break;
             }

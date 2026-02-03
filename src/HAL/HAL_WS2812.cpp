@@ -13,6 +13,7 @@ typedef enum
 {
     ANIM_NONE = 0,
     ANIM_FLOW,
+    ANIM_LAST_ON,
 } anim_type_t;
 
 typedef struct
@@ -112,6 +113,20 @@ static void render_flowing_frame(void)
     FastLED.show();
 }
 
+// 最后一个灯常亮
+static void render_last_led(void)
+{
+    fill_solid(leds, WS2812_LED_COUNT, CRGB::Black);
+
+    uint8_t r = (current_anim.color >> 16) & 0xFF;
+    uint8_t g = (current_anim.color >> 8) & 0xFF;
+    uint8_t b = current_anim.color & 0xFF;
+
+    leds[WS2812_LED_COUNT - 1] = CRGB(r, g, b);
+
+    FastLED.show();
+}
+
 // 主任务循环
 static void ws2812_task(void *pvParameters)
 {
@@ -133,6 +148,11 @@ static void ws2812_task(void *pvParameters)
                     render_flowing_frame();
                     break;
 
+                case ANIM_LAST_ON:
+                    render_last_led();
+                    // 常亮模式不自动退出
+                    vTaskDelay(pdMS_TO_TICKS(50)); // 降低CPU占用
+                    break;
                 default:
                     current_anim.type = ANIM_NONE;
                     break;
@@ -146,15 +166,39 @@ static void ws2812_task(void *pvParameters)
                 }
             }
 
-            // 动画完成后可选：保持最后一帧或自动熄灭
-            // 这里选择自动熄灭
-            fill_solid(leds, WS2812_LED_COUNT, CRGB::Black);
-            FastLED.show();
+            if (current_anim.type != ANIM_LAST_ON)
+            {
+                fill_solid(leds, WS2812_LED_COUNT, CRGB::Black);
+                FastLED.show();
+            }
         }
     }
 }
 
 // ==================== 接口实现 ====================
+void HAL::ws2812_toggle_last_led(uint32_t color)
+{
+    if (anim_semaphore == NULL)
+        return;
+
+    // 如果已经处于最后灯常亮 → 关闭
+    if (current_anim.type == ANIM_LAST_ON)
+    {
+        current_anim.type = ANIM_NONE;
+
+        fill_solid(leds, WS2812_LED_COUNT, CRGB::Black);
+        FastLED.show();
+        return;
+    }
+
+    // 否则开启最后一个灯常亮
+    current_anim.type = ANIM_LAST_ON;
+    current_anim.color = color;
+
+    // 唤醒任务
+    xSemaphoreGive(anim_semaphore);
+}
+
 
 void HAL::ws2812_trigger_flowing(uint32_t color, uint8_t speed_factor, uint8_t tail_length)
 {
