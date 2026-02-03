@@ -14,12 +14,13 @@ static uint8_t rx_index = 0;
 /************ 显示帮助信息 ************/
 static void console_print_help()
 {
-    Serial.println("=== Magic Wand Console ===");
-    Serial.println("help    - Show command list");
-    Serial.println("info    - Show system information");
-    Serial.println("reboot  - Restart device");
-    Serial.println("sleep   - Enter deep sleep mode");
-    Serial.println("ota     - Enter OTA mode");
+    Serial.println("===== Magic Wand Console =====");
+    Serial.println("help     - Show command list");
+    Serial.println("info     - Show system information");
+    Serial.println("reboot   - Restart device");
+    Serial.println("sleep    - Enter deep sleep mode");
+    Serial.println("ota      - Enter OTA mode");
+    Serial.println("flow [s] - Trigger WS2812 flowing animation, optional speed (1-10)");
 }
 
 /************ 串口命令解析 ************/
@@ -31,15 +32,20 @@ static void console_parse(char *cmd)
     command_msg_t msg;
     memset(&msg, 0, sizeof(msg));
 
-    if (!strcmp(cmd, "info"))
+    // 使用 strtok 分割字符串
+    char *token = strtok(cmd, " "); // 第一个单词是命令
+    if (token == NULL)
+        return;
+
+    if (!strcmp(token, "info"))
     {
         msg.type = CMD_SYS_INFO;
     }
-    else if (!strcmp(cmd, "reboot"))
+    else if (!strcmp(token, "reboot"))
     {
         msg.type = CMD_SYS_REBOOT;
     }
-    else if (!strcmp(cmd, "sleep"))
+    else if (!strcmp(token, "sleep"))
     {
         msg.type = CMD_SYS_SLEEP;
     }
@@ -47,8 +53,15 @@ static void console_parse(char *cmd)
     {
         msg.type = CMD_OTA_OTA;
     }
+    else if (!strcmp(token, "flow"))
+    {
+        msg.type = CMD_WS2812_FLOW;
+        token = strtok(NULL, " "); // 参数1
+        if (token != NULL)
+            msg.arg1 = atoi(token);
+    }
 
-    else if (!strcmp(cmd, "help"))
+    else if (!strcmp(token, "help"))
     {
         console_print_help();
         return;

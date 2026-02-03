@@ -3,6 +3,21 @@
 #include "Service/Dispatcher.h"
 #include "Service/OTA.h"
 #include "Service/Sleep.h"
+#include "HAL/HAL.h"
+
+/*
+核心 0: 系统 + 串口/Dispatcher
+- Wi-Fi / BLE
+- Serial console parser
+- Dispatcher
+- OTA (临时创建)
+
+核心 1: 实时/计算密集任务
+- WS2812 animation
+- MPU6050 sampling
+- Gesture recognition
+- IR remote
+*/
 
 void setup()
 {
@@ -11,6 +26,8 @@ void setup()
   console_init();
   dispatcher_init();
   sleep_init();
+
+  HAL::ws2812_init();
 }
 
 void loop()

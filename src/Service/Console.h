@@ -15,14 +15,16 @@ typedef enum
 
     CMD_OTA_OTA,
 
+    CMD_WS2812_FLOW,
+
 } command_type_t;
 
 typedef struct
 {
     command_type_t type;
 
-    char arg1[32];
-    char arg2[32];
+    int32_t arg1;
+    int32_t arg2;
 
 } command_msg_t;
 

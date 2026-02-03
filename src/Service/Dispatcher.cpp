@@ -8,6 +8,7 @@
 #include "Config.h"
 #include "OTA.h"
 #include "Sleep.h"
+#include "HAL/HAL.h"
 
 static QueueHandle_t cmd_queue;
 
@@ -39,15 +40,18 @@ static void dispatcher_task(void *param)
                 ESP.restart();
                 break;
 
+            case CMD_SYS_SLEEP:
+                sleep_enter();
+                break;
+
             case CMD_OTA_OTA:
                 // 可以先关闭其它task，再OTA
                 OTA_begin();
                 break;
 
-            case CMD_SYS_SLEEP:
-                sleep_enter();
+            case CMD_WS2812_FLOW:
+                HAL::ws2812_trigger_flowing(0xFFFFFF, msg.arg1 == 0 ? 6 : msg.arg1, 5);
                 break;
-
             default:
                 break;
             }
@@ -67,5 +71,5 @@ void dispatcher_init()
         NULL,
         3, // 优先级高于 console
         NULL,
-        1);
+        0);
 }
