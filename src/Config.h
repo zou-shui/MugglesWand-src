@@ -16,7 +16,7 @@
 #define PIN_IMU_INT 12 // IMU中断引脚
 
 // WS2812
-#define PIN_WS2812 8        // WS2812 数据引脚
+#define PIN_WS2812 8         // WS2812 数据引脚
 #define WS2812_LED_COUNT 160 // WS2812 灯珠数量
 // #define PIN_WS2812 39       // WS2812 数据引脚
 // #define WS2812_LED_COUNT 60 // WS2812 灯珠数量

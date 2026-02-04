@@ -28,6 +28,7 @@ void setup()
   sleep_init();
 
   HAL::ws2812_init();
+  HAL::power_init();
 }
 
 void loop()
