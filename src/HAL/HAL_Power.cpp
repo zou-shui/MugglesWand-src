@@ -74,7 +74,7 @@ char HAL::power_get_battery_percent(void)
     float voltage = power_get_battery_voltage(); // 获取电池电压
 
     // 定义满电和低电阈值
-    const float VOLTAGE_MAX = 4.20f;
+    const float VOLTAGE_MAX = 4.15f;
     const float VOLTAGE_MIN = 3.60f;
 
     // 计算百分比

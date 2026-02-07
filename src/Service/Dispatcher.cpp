@@ -62,6 +62,10 @@ static void dispatcher_task(void *param)
                 HAL::mpu6050_start();
                 break;
 
+            case CMD_CONS_STOP:
+                HAL::mpu6050_delete();
+                break;
+
             default:
                 break;
             }

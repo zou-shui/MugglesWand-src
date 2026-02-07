@@ -20,6 +20,7 @@ typedef enum
 
     CMD_MPU6050_IMU,
 
+    CMD_CONS_STOP, // 停止所有打印活动
 } command_type_t;
 
 typedef struct
