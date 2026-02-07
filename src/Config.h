@@ -3,8 +3,7 @@
 // Project Information
 #define PROJECT_NAME "MagicWand"
 #define FIRMWARE_VER "1.0"
-#define BUILD_DATE __DATE__
-#define BUILD_TIME __TIME__
+#define BUILD_TIME __DATE__ "  " __TIME__
 
 // OTA的热点
 #define OTA_AP_SSID "MagicWand-OTA"

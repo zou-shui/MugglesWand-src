@@ -68,6 +68,25 @@ float HAL::power_get_battery_voltage(void)
     return bat_voltage;
 }
 
+/************ 计算电池剩余百分比 ************/
+char HAL::power_get_battery_percent(void)
+{
+    float voltage = power_get_battery_voltage(); // 获取电池电压
+
+    // 定义满电和低电阈值
+    const float VOLTAGE_MAX = 4.20f;
+    const float VOLTAGE_MIN = 3.60f;
+
+    // 计算百分比
+    char percent = (char)((voltage - VOLTAGE_MIN) / (VOLTAGE_MAX - VOLTAGE_MIN) * 100.0f + 0.5f);
+
+    // 限制在 0~100%
+    if (percent > 100) percent = 100;
+    if (percent < 0) percent = 0;
+
+    return percent;
+}
+
 /************ 读取充电状态 ************/
 
 bool HAL::power_is_charging(void)

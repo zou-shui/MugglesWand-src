@@ -27,13 +27,16 @@ static void dispatcher_task(void *param)
             case CMD_SYS_INFO:
                 Serial.printf("Version: ");
                 Serial.println(FIRMWARE_VER);
-                Serial.printf("Build Date: ");
-                Serial.println(BUILD_DATE);
                 Serial.printf("Build Time: ");
                 Serial.println(BUILD_TIME);
                 Serial.printf("Core Temperature: %d°C\n", (int)temperatureRead());
-                Serial.printf("Battery Voltage: %.2fV\n", HAL::power_get_battery_voltage());
-                Serial.printf("Charging: %s\n", HAL::power_is_charging() ? "Yes" : "No");
+                Serial.printf("System Uptime: %d seconds\n", millis() / 1000);
+                Serial.printf(
+                    "Battery: %d%%, %.2f V, %s\n",
+                    HAL::power_get_battery_percent(),
+                    HAL::power_get_battery_voltage(),
+                    HAL::power_is_charging() ? "Charging" : "Discharging");
+
                 break;
             case CMD_SYS_REBOOT:
                 Serial.println("Rebooting...");
