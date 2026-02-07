@@ -18,6 +18,8 @@ typedef enum
     CMD_WS2812_FLOW,
     CMD_WS2812_LAST,
 
+    CMD_MPU6050_IMU,
+
 } command_type_t;
 
 typedef struct

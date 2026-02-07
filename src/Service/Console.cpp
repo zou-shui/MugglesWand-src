@@ -22,6 +22,7 @@ static void console_print_help()
     Serial.println("ota      - Enter OTA mode");
     Serial.println("flow [s] - Trigger WS2812 flowing animation, optional speed (1-10)");
     Serial.println("last     - Toggle WS2812 last LED on/off");
+    Serial.println("imu      - Print MPU6050 IMU data");
 }
 
 /************ 串口命令解析 ************/
@@ -64,6 +65,10 @@ static void console_parse(char *cmd)
     else if (!strcmp(token, "last"))
     {
         msg.type = CMD_WS2812_LAST;
+    }
+    else if (!strcmp(token, "imu"))
+    {
+        msg.type = CMD_MPU6050_IMU;
     }
 
     else if (!strcmp(token, "help"))

@@ -15,5 +15,11 @@ namespace HAL
     void ws2812_toggle_last_led(uint32_t color);
     void ws2812_stop(void);
     void ws2812_set_solid(uint32_t color);
+    void ws2812_delete(void);
 
+    // MPU6050
+    void mpu6050_init(void);
+    void mpu6050_start(void);
+    void mpu6050_loop(void);
+    void mpu6050_delete(void);
 }

@@ -33,20 +33,18 @@ static void dispatcher_task(void *param)
                 Serial.println(BUILD_TIME);
                 Serial.printf("Core Temperature: %d°C\n", (int)temperatureRead());
                 Serial.printf("Battery Voltage: %.2fV\n", HAL::power_get_battery_voltage());
+                Serial.printf("Charging: %s\n", HAL::power_is_charging() ? "Yes" : "No");
                 break;
-
             case CMD_SYS_REBOOT:
                 Serial.println("Rebooting...");
-                delay(500);
                 ESP.restart();
                 break;
-
             case CMD_SYS_SLEEP:
                 sleep_enter();
                 break;
 
             case CMD_OTA_OTA:
-                // 可以先关闭其它task，再OTA
+                HAL::mpu6050_delete();
                 OTA_begin();
                 break;
 
@@ -55,6 +53,12 @@ static void dispatcher_task(void *param)
                 break;
             case CMD_WS2812_LAST:
                 HAL::ws2812_toggle_last_led(0xFFFFFF);
+                break;
+
+            case CMD_MPU6050_IMU:
+                HAL::mpu6050_start();
+                break;
+
             default:
                 break;
             }

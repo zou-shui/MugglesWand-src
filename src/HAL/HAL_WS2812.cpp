@@ -199,7 +199,6 @@ void HAL::ws2812_toggle_last_led(uint32_t color)
     xSemaphoreGive(anim_semaphore);
 }
 
-
 void HAL::ws2812_trigger_flowing(uint32_t color, uint8_t speed_factor, uint8_t tail_length)
 {
     if (anim_semaphore == NULL)
@@ -244,6 +243,15 @@ void HAL::ws2812_set_solid(uint32_t color)
 
     fill_solid(leds, WS2812_LED_COUNT, CRGB(r, g, b));
     FastLED.show();
+}
+
+void HAL_ws2812_delete()
+{
+    if (ws2812_task_handle != NULL)
+    {
+        vTaskDelete(ws2812_task_handle);
+        ws2812_task_handle = NULL;
+    }
 }
 
 void HAL::ws2812_init(void)
