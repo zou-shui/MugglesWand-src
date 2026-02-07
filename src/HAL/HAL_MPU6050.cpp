@@ -38,18 +38,34 @@ float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravit
 uint8_t teapotPacket[14] = {'$', 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x00, '\r', '\n'};
 
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
-void dmpDataReady()
+
+void IRAM_ATTR dmpDataReady()
 {
-    mpuInterrupt = true;
+    if (!mpu6050_task_handle)
+        return;
+
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xTaskNotifyFromISR(
+        mpu6050_task_handle,
+        0,
+        eNoAction,
+        &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken)
+        portYIELD_FROM_ISR();
 }
 
 static void mpu6050_task(void *pvParameters)
 {
     while (1)
     {
-        // if programming failed, don't try to do anything
         if (!dmpReady)
-            return;
+        {
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+            continue;
+        }
+        // 阻塞等中断，0 = 一直等
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
         // read a packet from FIFO
         if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
         { // Get the Latest packet
@@ -138,14 +154,16 @@ static void mpu6050_task(void *pvParameters)
             teapotPacket[11]++; // packetCount, loops at 0xFF on purpose
 #endif
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
 void HAL::mpu6050_delete()
 {
-    if (mpu6050_task_handle != NULL)
+    if (mpu6050_task_handle)
     {
+        detachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN));
+        mpu.setDMPEnabled(false);
+
         vTaskDelete(mpu6050_task_handle);
         mpu6050_task_handle = NULL;
     }
@@ -179,8 +197,8 @@ void HAL::mpu6050_start()
     if (devStatus == 0)
     {
         // Calibration Time: generate offsets and calibrate our MPU6050
-        mpu.CalibrateAccel(6);
-        mpu.CalibrateGyro(6);
+        // mpu.CalibrateAccel(6);
+        // mpu.CalibrateGyro(6);
         Serial.println();
         mpu.PrintActiveOffsets();
         // turn on the DMP, now that it's ready
@@ -188,9 +206,9 @@ void HAL::mpu6050_start()
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        Serial.print(F("Enabling interrupt detection"));
+        Serial.print(F("Enabling interrupt detection "));
         Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
+        Serial.println(F("..."));
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
