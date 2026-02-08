@@ -7,7 +7,7 @@ namespace HAL
     // Power
     void power_init(void);
     float power_get_battery_voltage(void);
-    int8_t power_get_battery_percent(void);
+    int power_get_battery_percent(void);
     bool power_is_charging(void);
 
     // WS2812
@@ -19,8 +19,6 @@ namespace HAL
     void ws2812_delete(void);
 
     // MPU6050
-    void mpu6050_init(void);
     void mpu6050_start(void);
-    void mpu6050_loop(void);
     void mpu6050_delete(void);
 }

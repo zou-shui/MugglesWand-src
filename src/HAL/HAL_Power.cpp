@@ -73,12 +73,12 @@ float HAL::power_get_battery_voltage(void)
 }
 
 /************ 计算电池剩余百分比 ************/
-int8_t HAL::power_get_battery_percent(void)
+int HAL::power_get_battery_percent(void)
 {
     float voltage = power_get_battery_voltage(); // 获取电池电压
 
     // 计算百分比
-    int8_t percent = (int8_t)((voltage - VOLTAGE_MIN) / (VOLTAGE_MAX - VOLTAGE_MIN) * 100.0f + 0.5f);
+    int percent = (int)((voltage - VOLTAGE_MIN) / (VOLTAGE_MAX - VOLTAGE_MIN) * 100.0f + 0.5f);
 
     // 限制在 0~100%
     if (percent > 100)
