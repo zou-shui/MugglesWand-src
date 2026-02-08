@@ -1,4 +1,6 @@
 #include "Sleep.h"
+#include <Arduino.h>
+#include "esp_sleep.h"
 #include "Config.h"
 
 /************ GPIO 唤醒 ************/
