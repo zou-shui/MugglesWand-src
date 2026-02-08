@@ -7,7 +7,7 @@ namespace HAL
     // Power
     void power_init(void);
     float power_get_battery_voltage(void);
-    char power_get_battery_percent(void);
+    int8_t power_get_battery_percent(void);
     bool power_is_charging(void);
 
     // WS2812

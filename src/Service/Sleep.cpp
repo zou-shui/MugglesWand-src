@@ -1,3 +1,6 @@
+/*
+    提供进入深度睡眠的功能
+*/
 #include "Sleep.h"
 #include <Arduino.h>
 #include "esp_sleep.h"

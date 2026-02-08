@@ -3,6 +3,10 @@
 
 /************ 硬件参数配置 ************/
 
+// 定义满电和低电阈值
+#define VOLTAGE_MAX 3.90f
+#define VOLTAGE_MIN 3.30f
+
 // ADC 参数
 #define ADC_WIDTH ADC_WIDTH_12Bit
 #define ADC_ATTEN ADC_ATTEN_DB_12
@@ -69,20 +73,18 @@ float HAL::power_get_battery_voltage(void)
 }
 
 /************ 计算电池剩余百分比 ************/
-char HAL::power_get_battery_percent(void)
+int8_t HAL::power_get_battery_percent(void)
 {
     float voltage = power_get_battery_voltage(); // 获取电池电压
 
-    // 定义满电和低电阈值
-    const float VOLTAGE_MAX = 4.15f;
-    const float VOLTAGE_MIN = 3.60f;
-
     // 计算百分比
-    char percent = (char)((voltage - VOLTAGE_MIN) / (VOLTAGE_MAX - VOLTAGE_MIN) * 100.0f + 0.5f);
+    int8_t percent = (int8_t)((voltage - VOLTAGE_MIN) / (VOLTAGE_MAX - VOLTAGE_MIN) * 100.0f + 0.5f);
 
     // 限制在 0~100%
-    if (percent > 100) percent = 100;
-    if (percent < 0) percent = 0;
+    if (percent > 100)
+        percent = 100;
+    if (percent < 0)
+        percent = 0;
 
     return percent;
 }

@@ -1,5 +1,5 @@
 /*
-用于解析串口控制台命令输入，供Dispatcher.cpp处理
+    用于解析串口控制台命令输入，供Dispatcher.cpp处理
 */
 #include "Console.h"
 
@@ -27,7 +27,7 @@ static void console_print_help()
 }
 
 /************ 串口命令解析 ************/
-static void console_parse(char *cmd)
+void console_parse(char *cmd)
 {
     Serial.print("\n> ");
     Serial.println(cmd);

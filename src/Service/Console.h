@@ -34,6 +34,7 @@ typedef struct
 
 /******** 接口 ********/
 void console_init();
+void console_parse(char *cmd);
 
 /******** 获取队列句柄 ********/
 QueueHandle_t console_get_queue();

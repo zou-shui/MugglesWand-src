@@ -3,6 +3,7 @@
 #include "Service/Dispatcher.h"
 #include "Service/OTA.h"
 #include "Service/Sleep.h"
+#include "Service/BLE.h"
 #include "HAL/HAL.h"
 
 /*
@@ -26,6 +27,7 @@ void setup()
   console_init();
   dispatcher_init();
   sleep_init();
+  ble_init();
 
   HAL::ws2812_init();
   HAL::power_init();

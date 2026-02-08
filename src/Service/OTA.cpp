@@ -1,3 +1,6 @@
+/*
+    OTA服务，用于通过WiFi进行固件更新
+*/
 #include "OTA.h"
 #include "Config.h"
 #include <WiFi.h>
