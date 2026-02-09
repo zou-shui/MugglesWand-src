@@ -20,6 +20,8 @@ typedef enum
 
     CMD_MPU6050_IMU,
 
+    CMD_BLE_BLE,
+
     CMD_CONS_STOP, // 停止所有打印活动
 } command_type_t;
 

@@ -27,10 +27,10 @@ void setup()
   console_init();
   dispatcher_init();
   sleep_init();
-  ble_init();
 
   HAL::ws2812_init();
   HAL::power_init();
+  HAL::mpu6050_start();
 }
 
 void loop()

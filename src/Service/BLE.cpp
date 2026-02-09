@@ -26,7 +26,7 @@ class ServerCallbacks : public NimBLEServerCallbacks
 
     void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override
     {
-        Serial.printf("[BLE] Client disconnected - start advertising\n");
+        Serial.printf("[BLE] Client disconnected\n");
         NimBLEDevice::startAdvertising();
     }
 
@@ -93,8 +93,30 @@ static void ble_task(void *param)
     }
 }
 
-void ble_init(void)
+void ble_toggle(void) 
 {
+    static bool ble_running = false;
+
+    if (ble_running)
+    {
+        // 删除 BLE 任务
+        if (ble_task_handle != nullptr)
+        {
+            vTaskDelete(ble_task_handle);
+            ble_task_handle = nullptr;
+        }
+
+        // 释放 NimBLE 资源
+        NimBLEDevice::deinit();
+
+        ble_running = false;
+        Serial.println("[BLE] Service stopped");
+        return; // 直接返回，不再执行初始化代码
+    }
+    ble_running = true;
+
+    Serial.println("[BLE] Initializing BLE service...");
+    // ========== 初始化 BLE ==========
     NimBLEDevice::init("MagicWand");
 
     // 创建服务器
@@ -127,6 +149,8 @@ void ble_init(void)
     pAdvertising->enableScanResponse(false);
     pAdvertising->start();
 
+    Serial.println("[BLE] Service started, advertising as 'MagicWand'");
+    // 创建 BLE 处理任务
     xTaskCreatePinnedToCore(
         ble_task,
         "ble_task",

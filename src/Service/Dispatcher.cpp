@@ -3,7 +3,8 @@
 */
 #include <Arduino.h>
 #include "dispatcher.h"
-#include "Service/Console.h"
+#include "Console.h"
+#include "BLE.h"
 
 #include "Config.h"
 #include "OTA.h"
@@ -60,6 +61,10 @@ static void dispatcher_task(void *param)
 
             case CMD_MPU6050_IMU:
                 HAL::mpu6050_start();
+                break;
+
+            case CMD_BLE_BLE:
+                ble_toggle();
                 break;
 
             case CMD_CONS_STOP:
