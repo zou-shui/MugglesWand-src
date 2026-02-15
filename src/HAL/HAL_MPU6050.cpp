@@ -1,38 +1,15 @@
 #include "HAL.h"
-#include "I2Cdev.h"
 #include "HAL_MPU6050.hpp"
-#include "Wire.h"
+#include <cmath>
 
 MyMPU6050 mpu;
+MyMPU6050::Data_t data;
 
 TaskHandle_t mpu6050_task_handle = NULL;
 
 #define INTERRUPT_PIN PIN_IMU_INT
 
-// MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// orientation/motion vars
-Quaternion q;        // [w, x, y, z]         quaternion container
-VectorInt16 aa;      // [x, y, z]            accel sensor measurements
-VectorInt16 gy;      // [x, y, z]            gyro sensor measurements
-VectorInt16 aaReal;  // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld; // [x, y, z]            world-frame accel sensor measurements
-VectorFloat gravity; // [x, y, z]            gravity vector
-float euler[3];      // [psi, theta, phi]    Euler angle container
-float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
-// packet structure for InvenSense teapot demo
-uint8_t teapotPacket[14] = {'$', 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x00, '\r', '\n'};
-
-volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
-
-void IRAM_ATTR dmpDataReady()
+void IRAM_ATTR mpuDataReady()
 {
     if (!mpu6050_task_handle)
         return;
@@ -51,32 +28,78 @@ static void mpu6050_task(void *pvParameters)
 {
     uint32_t count = 0;
     uint32_t lastTime = 0;
+
+    float prevTheta = 0.0f;
+    bool firstSample = true;
+    bool reDelta = false;
+
     while (1)
     {
-        if (!dmpReady)
-        {
-            vTaskDelay(100 / portTICK_PERIOD_MS);
-            continue;
-        }
-        // 阻塞等中断，0 = 一直等
+        // 阻塞等中断
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        // read a packet from FIFO
-        if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
+        // 统计频率（每秒打印一次）
+        // count++;
+        // uint32_t now = millis();
+        // if (now - lastTime >= 1000)
+        // {
+        //     Serial.printf("[STAT] 频率: %d Hz\n", count);
+        //     count = 0;
+        //     lastTime = now;
+        // }
+
+        mpu.getAllData(data);
+        // Serial.printf("%f,%f,%f,%f,%f,%f\n", data.Ax, data.Ay, data.Az, data.Gx, data.Gy, data.Gz);
+        // Serial.printf("%d,%d,%d,%d,%d,%d\n", data.Accel_X_RAW, data.Accel_Y_RAW, data.Accel_Z_RAW,
+        //               data.Gyro_X_RAW, data.Gyro_Y_RAW, data.Gyro_Z_RAW);
+
+        float magnitude = 0.0f;
+        float theta = 0.0f;
+        float delta = 0.0f;
+
+        // ==============================
+        // 1️⃣ 旋转强度
+        // ==============================
+        magnitude = sqrtf(data.Gx * data.Gx + data.Gz * data.Gz);
+
+        // ==============================
+        // 2️⃣ 方向
+        // ==============================
+        const float threshold = 0.5f; // 旋转强度小于此值时认为没有明确方向
+
+        if (magnitude > threshold)
         {
-            mpu.dmpGetAccel(&aa, fifoBuffer);
-            mpu.dmpGetGyro(&gy, fifoBuffer);
-            Serial.printf("%d,%d,%d,%d,%d,%d\n", aa.x, aa.y, aa.z, gy.x, gy.y, gy.z);
-            // 统计频率（每秒打印一次）
-        //     count++;
-        //     uint32_t now = millis();
-        //     if (now - lastTime >= 1000)
-        //     {
-        //         Serial.printf("[STAT] 频率: %d Hz\n", count);
-        //         count = 0;
-        //         lastTime = now;
-        //     }
+            theta = -atan2f(data.Gz, data.Gx);
+
+            // ==============================
+            // 3️⃣ 方向变化率
+            // ==============================
+
+            if (!firstSample && !reDelta)
+            {
+                delta = theta - prevTheta;
+
+                // 角度归一化到 (-π, π]
+                if (delta > M_PI)
+                    delta -= 2.0f * M_PI;
+                else if (delta < -M_PI)
+                    delta += 2.0f * M_PI;
+            }
+            reDelta = false;
         }
+        else
+        {
+            // 如果接近零向量，方向保持不变
+            theta = prevTheta;
+            // 且下一次如果有明确方向时，不进行 delta 计算（避免抖动）
+            reDelta = true;
+        }
+        
+
+        prevTheta = theta;
+        firstSample = false;
+
+        Serial.printf("%f,%f,%f\n", magnitude, theta, delta);
     }
 }
 
@@ -85,7 +108,6 @@ void HAL::mpu6050_delete()
     if (mpu6050_task_handle)
     {
         detachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN));
-        mpu.setDMPEnabled(false);
 
         vTaskDelete(mpu6050_task_handle);
         mpu6050_task_handle = NULL;
@@ -94,40 +116,21 @@ void HAL::mpu6050_delete()
 
 void HAL::mpu6050_start()
 {
+    if (mpu6050_task_handle != NULL)
+    {
+        Serial.println("[MPU6050] Task already running");
+        return;
+    }
     Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
     Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
 
     mpu.initialize();
+    mpu.setGyroUnitDPS(false); // 使用 rad/s
+
     pinMode(INTERRUPT_PIN, INPUT);
 
-    // load and configure the DMP
-    devStatus = mpu.dmpInitialize();
-
-    if (devStatus == 0)
-    {
-        // turn on the DMP, now that it's ready
-        mpu.setDMPEnabled(true);
-
-        // enable interrupt detection
-        attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
-        mpuIntStatus = mpu.getIntStatus();
-
-        // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        dmpReady = true;
-
-        // get expected DMP packet size for later comparison
-        packetSize = mpu.dmpGetFIFOPacketSize();
-    }
-    else
-    {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
-    }
+    // enable interrupt detection
+    attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), mpuDataReady, RISING);
 
     // 创建 FreeRTOS 任务
     xTaskCreatePinnedToCore(
