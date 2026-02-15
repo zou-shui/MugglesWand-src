@@ -1,6 +1,7 @@
 #include "HAL.h"
 #include "HAL_MPU6050.hpp"
 #include <cmath>
+#include "Model/gesture_buffer.h"
 
 MyMPU6050 mpu;
 MyMPU6050::Data_t data;
@@ -32,7 +33,8 @@ static void mpu6050_task(void *pvParameters)
     float prevTheta = 0.0f;
     bool firstSample = true;
     bool reDelta = false;
-
+    // 初始化缓冲区
+    initGestureBuffer();
     while (1)
     {
         // 阻塞等中断
@@ -94,12 +96,13 @@ static void mpu6050_task(void *pvParameters)
             // 且下一次如果有明确方向时，不进行 delta 计算（避免抖动）
             reDelta = true;
         }
-        
 
         prevTheta = theta;
         firstSample = false;
 
-        Serial.printf("%f,%f\n", magnitude, delta);
+        // Serial.printf("%f,%f\n", magnitude, delta);
+        // 添加到缓冲区（自动触发推理）
+        addSample(magnitude, delta);
     }
 }
 
@@ -140,5 +143,5 @@ void HAL::mpu6050_start()
         NULL,
         3,
         &mpu6050_task_handle,
-        1);
+        0);
 }

@@ -19,6 +19,7 @@
 - Gesture recognition
 - IR remote
 */
+extern void inference_task(void *pvParameters);
 
 void setup()
 {
@@ -31,6 +32,17 @@ void setup()
   HAL::ws2812_init();
   HAL::power_init();
   HAL::mpu6050_start();
+
+  // 创建推理任务（较低优先级，绑定到核心1）
+  xTaskCreatePinnedToCore(
+      inference_task,
+      "Inference",
+      8192, // 需要较大栈空间
+      NULL,
+      2, // 中等优先级
+      NULL,
+      1 // 核心1
+  );
 }
 
 void loop()
