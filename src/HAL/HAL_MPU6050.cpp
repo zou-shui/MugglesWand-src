@@ -99,7 +99,7 @@ static void mpu6050_task(void *pvParameters)
         prevTheta = theta;
         firstSample = false;
 
-        Serial.printf("%f,%f,%f\n", magnitude, theta, delta);
+        Serial.printf("%f,%f\n", magnitude, delta);
     }
 }
 
