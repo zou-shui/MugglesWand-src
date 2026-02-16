@@ -141,7 +141,7 @@ void HAL::mpu6050_start()
         "MPU6050_Task",
         4096,
         NULL,
-        3,
+        4,
         &mpu6050_task_handle,
         0);
 }

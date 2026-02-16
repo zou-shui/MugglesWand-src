@@ -5,21 +5,21 @@
 #include "Service/Sleep.h"
 #include "Service/BLE.h"
 #include "HAL/HAL.h"
+#include "Model/gesture_inference.h"
 
 /*
-核心 0: 系统 + 串口/Dispatcher
+核心 0:
 - Wi-Fi / BLE
 - Serial console parser
 - Dispatcher
+- MPU6050 sampling
 - OTA (临时创建)
 
-核心 1: 实时/计算密集任务
+核心 1:
 - WS2812 animation
-- MPU6050 sampling
-- Gesture recognition
-- IR remote
+- Gesture reference
+
 */
-extern void inference_task(void *pvParameters);
 
 void setup()
 {
@@ -33,16 +33,7 @@ void setup()
   HAL::power_init();
   HAL::mpu6050_start();
 
-  // 创建推理任务（较低优先级，绑定到核心1）
-  xTaskCreatePinnedToCore(
-      inference_task,
-      "Inference",
-      8192, // 需要较大栈空间
-      NULL,
-      2, // 中等优先级
-      NULL,
-      1 // 核心1
-  );
+  inference_init();
 }
 
 void loop()

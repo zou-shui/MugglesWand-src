@@ -1,15 +1,12 @@
-#include "gesture_buffer.h"
-#include "gesture_model.h" // 你的模型头文件
+#include "gesture_inference.h"
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
+#include "gesture_buffer.h"
+#include "gesture_model.h" // 你的模型头文件
 
-constexpr int kNumClasses = 5; // 输出类别数
-
-// 归一化参数（需要与你的训练数据一致）
-constexpr float kMean[2] = {2.89347857f, 0.01675318f}; // 替换为实际的 mean 值
-constexpr float kStd[2] = {2.98847213f, 0.16172716f};  // 替换为实际的 std 值
+TaskHandle_t inference_task_handle = NULL;
 
 namespace
 {
@@ -44,33 +41,6 @@ void inference_task(void *pvParameters)
     // 注册到缓冲区系统
     g_gesture_buffer.inference_task = xTaskGetCurrentTaskHandle();
 
-    // 初始化TFLite
-    model = tflite::GetModel(gesture_model_tflite);
-    if (model->version() != TFLITE_SCHEMA_VERSION)
-    {
-        Serial.println("Model version mismatch!");
-        vTaskDelete(NULL);
-        return;
-    }
-
-    static tflite::AllOpsResolver resolver;
-    static tflite::MicroInterpreter static_interpreter(
-        model, resolver, tensor_arena, kTensorArenaSize, &error_reporter);
-    interpreter = &static_interpreter;
-
-    if (interpreter->AllocateTensors() != kTfLiteOk)
-    {
-        Serial.println("AllocateTensors failed!");
-        vTaskDelete(NULL);
-        return;
-    }
-
-    input = interpreter->input(0);
-    output = interpreter->output(0);
-
-    Serial.println("Inference task ready");
-
-    // 主循环
     while (1)
     {
         // 等待缓冲区准备好
@@ -122,7 +92,7 @@ void inference_task(void *pvParameters)
             float inference_time = (end_time - start_time) / 1000.0f; // ms
 
             // 输出结果
-            Serial.printf("[Gesture] Class: %d, Time: %.2f ms\n",
+            Serial.printf("%d,%.2f\n",
                           predicted_class, inference_time);
 
             // TODO: 在这里执行手势对应的动作
@@ -131,4 +101,43 @@ void inference_task(void *pvParameters)
             releaseBuffer(buf_idx);
         }
     }
+}
+
+void inference_init()
+{
+    // 初始化TFLite
+    model = tflite::GetModel(gesture_model_tflite);
+    if (model->version() != TFLITE_SCHEMA_VERSION)
+    {
+        Serial.println("Model version mismatch!");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    static tflite::AllOpsResolver resolver;
+    static tflite::MicroInterpreter static_interpreter(
+        model, resolver, tensor_arena, kTensorArenaSize, &error_reporter);
+    interpreter = &static_interpreter;
+
+    if (interpreter->AllocateTensors() != kTfLiteOk)
+    {
+        Serial.println("AllocateTensors failed!");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    input = interpreter->input(0);
+    output = interpreter->output(0);
+
+    Serial.println("[CNN] Inference task ready");
+
+    // 创建推理任务
+    xTaskCreatePinnedToCore(
+        inference_task,
+        "Inference",
+        8192,
+        NULL,
+        2,
+        &inference_task_handle,
+        1);
 }

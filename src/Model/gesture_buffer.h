@@ -3,7 +3,7 @@
 
 // 缓冲区配置
 constexpr int kWindowSize = 100; // 模型输入长度
-constexpr int kSlideStep = 25;   // 滑动步长（每25点推理一次，75%重叠）
+constexpr int kSlideStep = 5;    // 滑动步长（每5点推理一次）
 constexpr int kNumFeatures = 2;  // 特征数 magnitude + delta
 
 // 双缓冲结构
