@@ -10,6 +10,7 @@
 #include "OTA.h"
 #include "Sleep.h"
 #include "HAL/HAL.h"
+#include "Model/gesture_inference.h"
 
 static QueueHandle_t cmd_queue;
 
@@ -49,6 +50,7 @@ static void dispatcher_task(void *param)
 
             case CMD_OTA_OTA:
                 HAL::mpu6050_delete();
+                inference_deinit();
                 OTA_begin();
                 break;
 
@@ -61,6 +63,7 @@ static void dispatcher_task(void *param)
 
             case CMD_MPU6050_IMU:
                 HAL::mpu6050_start();
+                inference_init();
                 break;
 
             case CMD_BLE_BLE:
@@ -69,6 +72,7 @@ static void dispatcher_task(void *param)
 
             case CMD_CONS_STOP:
                 HAL::mpu6050_delete();
+                inference_deinit();
                 break;
 
             default:

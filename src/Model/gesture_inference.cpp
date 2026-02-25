@@ -6,6 +6,12 @@
 #include "gesture_buffer.h"
 #include "gesture_model.h" // 你的模型头文件
 
+constexpr int kNumClasses = 5; // 输出类别数
+
+// 归一化参数（需要与你的训练数据一致）
+constexpr float kMean[2] = {2.86185933f, 0.01604925f}; // 替换为实际的 mean 值
+constexpr float kStd[2] = {2.96900795f, 0.16098918f};  // 替换为实际的 std 值
+
 TaskHandle_t inference_task_handle = NULL;
 
 namespace
@@ -18,6 +24,8 @@ namespace
 
     constexpr int kTensorArenaSize = 50 * 1024;
     uint8_t tensor_arena[kTensorArenaSize];
+
+    volatile bool g_inference_running = false; // 标志位，表示推理任务是否正在运行
 }
 
 void handleGesture(int gesture_id)
@@ -38,10 +46,11 @@ void handleGesture(int gesture_id)
 
 void inference_task(void *pvParameters)
 {
+    g_inference_running = true;
     // 注册到缓冲区系统
     g_gesture_buffer.inference_task = xTaskGetCurrentTaskHandle();
 
-    while (1)
+    while (g_inference_running)
     {
         // 等待缓冲区准备好
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -101,6 +110,29 @@ void inference_task(void *pvParameters)
             releaseBuffer(buf_idx);
         }
     }
+    vTaskDelete(NULL);
+}
+
+void inference_deinit()
+{
+    if (inference_task_handle != NULL)
+    {
+        g_inference_running = false;
+
+        // 唤醒任务（防止卡在 ulTaskNotifyTake）
+        xTaskNotifyGive(inference_task_handle);
+
+        // 等待任务自己删除
+        vTaskDelay(pdMS_TO_TICKS(50));
+
+        inference_task_handle = NULL;
+    }
+
+    // 清空指针（可选但推荐）
+    interpreter = nullptr;
+    model = nullptr;
+    input = nullptr;
+    output = nullptr;
 }
 
 void inference_init()
@@ -128,8 +160,6 @@ void inference_init()
 
     input = interpreter->input(0);
     output = interpreter->output(0);
-
-    Serial.println("[CNN] Inference task ready");
 
     // 创建推理任务
     xTaskCreatePinnedToCore(
