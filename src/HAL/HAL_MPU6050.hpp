@@ -34,14 +34,13 @@ public:
     // 自定义初始化
     void initialize()
     {
+        setSleepEnabled(false);
         setClockSource(MPU6050_CLOCK_PLL_XGYRO);
         setFullScaleGyroRange(MPU6050_GYRO_FS_2000);
         setFullScaleAccelRange(MPU6050_ACCEL_FS_16);
-        setIntEnabled(1);
         setDLPFMode(MPU6050_DLPF_BW_20); // 低通滤波器，启用后 Gyroscope Output Rate 将降低为 1kHz，不启用则为 8kHz
         setRate(9);                      // 采样率 = Gyroscope Output Rate / (1 + rate)
-        setSleepEnabled(false);
-
+        setIntEnabled(1);
         // 更新分辨率系数
         updateResolutions();
     }
