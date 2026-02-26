@@ -57,6 +57,7 @@ public:
         resetAllRegister();
         setSleepEnabled(false);
 
+        setClockSource(MPU6050_CLOCK_INTERNAL);
         setFullScaleAccelRange(MPU6050_ACCEL_FS_16);
 
         // 禁用不需要的传感器
@@ -65,25 +66,22 @@ public:
         setStandbyZGyroEnabled(true);
         setTempSensorEnabled(false);
 
-        // 配置 DLPF（必须在循环模式前设置）
-        setDLPFMode(MPU6050_DLPF_BW_20);
+        setDLPFMode(MPU6050_DLPF_BW_20); // 低通滤波器，启用后 Gyroscope Output Rate 将降低为 1kHz，不启用则为 8kHz
+        setRate(9);                      // 采样率 = Gyroscope Output Rate / (1 + rate)
+        setDHPFMode(MPU6050_DHPF_0P63);  // 高通滤波器，去除重力分量，适合运动检测
 
         // 运动检测参数
         setMotionDetectionThreshold(motionThreshold);
         setMotionDetectionDuration(duration);
 
         // 中断配置
-        setInterruptMode(0);       // 高电平有效
-        setInterruptDrive(0);      // 推挽
-        setInterruptLatch(1);      // 锁存
-        setInterruptLatchClear(1); // 读取清除
+        setInterruptMode(0);  // 高电平有效
+        setInterruptDrive(0); // 推挽
+        // setInterruptLatch(1);      // 锁存
+        // setInterruptLatchClear(1); // 读取清除
 
         // 启用运动检测中断
         setIntMotionEnabled(true);
-
-        // 进入循环模式（低功耗关键）
-        setWakeCycleEnabled(true);
-        setWakeFrequency(3);
 
         getIntStatus(); // 清除中断标志
     }

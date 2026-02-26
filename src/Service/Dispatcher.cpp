@@ -47,7 +47,7 @@ static void dispatcher_task(void *param)
             case CMD_SYS_SLEEP:
                 inference_deinit();
                 HAL::mpu6050_delete();
-                HAL::mpu6050_motion_interrupt_enable(2, 1);
+                HAL::mpu6050_motion_interrupt_enable(4, 20);
                 sleep_enter();
                 break;
 
