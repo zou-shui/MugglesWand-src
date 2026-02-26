@@ -45,12 +45,15 @@ static void dispatcher_task(void *param)
                 ESP.restart();
                 break;
             case CMD_SYS_SLEEP:
+                inference_deinit();
+                HAL::mpu6050_delete();
+                HAL::mpu6050_motion_interrupt_enable(2, 1);
                 sleep_enter();
                 break;
 
             case CMD_OTA_OTA:
-                HAL::mpu6050_delete();
                 inference_deinit();
+                HAL::mpu6050_delete();
                 OTA_begin();
                 break;
 
@@ -71,8 +74,9 @@ static void dispatcher_task(void *param)
                 break;
 
             case CMD_CONS_STOP:
-                HAL::mpu6050_delete();
                 inference_deinit();
+                HAL::mpu6050_delete();
+
                 break;
 
             default:

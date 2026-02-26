@@ -108,13 +108,25 @@ static void mpu6050_task(void *pvParameters)
 
 void HAL::mpu6050_delete()
 {
-    if (mpu6050_task_handle)
-    {
-        detachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN));
+    if (!mpu6050_task_handle)
+        return;
 
-        vTaskDelete(mpu6050_task_handle);
-        mpu6050_task_handle = NULL;
-    }
+    detachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN));
+
+    vTaskDelete(mpu6050_task_handle);
+    mpu6050_task_handle = NULL;
+    mpu.resetAllRegister();
+}
+
+void HAL::mpu6050_motion_interrupt_enable(uint8_t threshold, uint8_t timeOut)
+{
+    mpu.enableMotionInterrupt(threshold, timeOut);
+}
+
+void HAL::mpu6050_init()
+{
+    Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
+    Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
 }
 
 void HAL::mpu6050_start()
@@ -124,9 +136,6 @@ void HAL::mpu6050_start()
         Serial.println("[MPU6050] Task already running");
         return;
     }
-    Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
-    Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-
     mpu.initialize();
     mpu.setGyroUnitDPS(false); // 使用 rad/s
 

@@ -34,6 +34,7 @@ public:
     // 自定义初始化
     void initialize()
     {
+        resetAllRegister();
         setSleepEnabled(false);
         setClockSource(MPU6050_CLOCK_PLL_XGYRO);
         setFullScaleGyroRange(MPU6050_GYRO_FS_2000);
@@ -43,6 +44,48 @@ public:
         setIntEnabled(1);
         // 更新分辨率系数
         updateResolutions();
+    }
+
+    void resetAllRegister()
+    {
+        reset();
+        delay(100);
+    }
+
+    void enableMotionInterrupt(uint8_t motionThreshold, uint8_t duration)
+    {
+        resetAllRegister();
+        setSleepEnabled(false);
+
+        setFullScaleAccelRange(MPU6050_ACCEL_FS_16);
+
+        // 禁用不需要的传感器
+        setStandbyXGyroEnabled(true);
+        setStandbyYGyroEnabled(true);
+        setStandbyZGyroEnabled(true);
+        setTempSensorEnabled(false);
+
+        // 配置 DLPF（必须在循环模式前设置）
+        setDLPFMode(MPU6050_DLPF_BW_20);
+
+        // 运动检测参数
+        setMotionDetectionThreshold(motionThreshold);
+        setMotionDetectionDuration(duration);
+
+        // 中断配置
+        setInterruptMode(0);       // 高电平有效
+        setInterruptDrive(0);      // 推挽
+        setInterruptLatch(1);      // 锁存
+        setInterruptLatchClear(1); // 读取清除
+
+        // 启用运动检测中断
+        setIntMotionEnabled(true);
+
+        // 进入循环模式（低功耗关键）
+        setWakeCycleEnabled(true);
+        setWakeFrequency(3);
+
+        getIntStatus(); // 清除中断标志
     }
 
     // 一键读取所有数据到结构体
