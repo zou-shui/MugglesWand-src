@@ -24,8 +24,6 @@ namespace
 
     constexpr int kTensorArenaSize = 50 * 1024;
     uint8_t tensor_arena[kTensorArenaSize];
-
-    volatile bool g_inference_running = false; // 标志位，表示推理任务是否正在运行
 }
 
 void handleGesture(int gesture_id)
@@ -46,11 +44,10 @@ void handleGesture(int gesture_id)
 
 void inference_task(void *pvParameters)
 {
-    g_inference_running = true;
     // 注册到缓冲区系统
     g_gesture_buffer.inference_task = xTaskGetCurrentTaskHandle();
 
-    while (g_inference_running)
+    while (1)
     {
         // 等待缓冲区准备好
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -110,25 +107,16 @@ void inference_task(void *pvParameters)
             releaseBuffer(buf_idx);
         }
     }
-    vTaskDelete(NULL);
 }
 
 void inference_deinit()
 {
     if (inference_task_handle != NULL)
     {
-        g_inference_running = false;
-
-        // 唤醒任务（防止卡在 ulTaskNotifyTake）
-        xTaskNotifyGive(inference_task_handle);
-
-        // 等待任务自己删除
-        vTaskDelay(pdMS_TO_TICKS(50));
-
+        vTaskDelete(inference_task_handle);
         inference_task_handle = NULL;
     }
-
-    // 清空指针（可选但推荐）
+    // 清空指针
     interpreter = nullptr;
     model = nullptr;
     input = nullptr;
