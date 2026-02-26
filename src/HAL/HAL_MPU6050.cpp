@@ -106,7 +106,7 @@ static void mpu6050_task(void *pvParameters)
     }
 }
 
-void HAL::mpu6050_delete()
+void HAL::mpu6050_stop()
 {
     if (!mpu6050_task_handle)
         return;

@@ -25,7 +25,6 @@ static void dispatcher_task(void *param)
         {
             switch (msg.type)
             {
-
             case CMD_SYS_INFO:
                 Serial.printf("Version: ");
                 Serial.println(FIRMWARE_VER);
@@ -46,14 +45,14 @@ static void dispatcher_task(void *param)
                 break;
             case CMD_SYS_SLEEP:
                 inference_deinit();
-                HAL::mpu6050_delete();
+                HAL::mpu6050_stop();
                 HAL::mpu6050_motion_interrupt_enable(4, 20);
                 sleep_enter();
                 break;
 
             case CMD_OTA_OTA:
                 inference_deinit();
-                HAL::mpu6050_delete();
+                HAL::mpu6050_stop();
                 OTA_begin();
                 break;
 
@@ -75,8 +74,7 @@ static void dispatcher_task(void *param)
 
             case CMD_CONS_STOP:
                 inference_deinit();
-                HAL::mpu6050_delete();
-
+                HAL::mpu6050_stop();
                 break;
 
             default:
