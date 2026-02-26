@@ -125,6 +125,12 @@ void inference_deinit()
 
 void inference_init()
 {
+    if (inference_task_handle != NULL)
+    {
+        Serial.println("[CNN] Task already running");
+        return;
+    }
+
     // 初始化TFLite
     model = tflite::GetModel(gesture_model_tflite);
     if (model->version() != TFLITE_SCHEMA_VERSION)
