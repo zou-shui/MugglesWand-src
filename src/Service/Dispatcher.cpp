@@ -36,7 +36,7 @@ static void dispatcher_task(void *param)
                     "Battery: %d%%, %.2f V, %s\n",
                     HAL::power_get_battery_percent(),
                     HAL::power_get_battery_voltage(),
-                    HAL::power_is_charging() ? "Charging" : "Discharging");
+                    HAL::power_is_charging() ? "CHARGE" : "DISCHARGE");
 
                 break;
             case CMD_SYS_REBOOT:
