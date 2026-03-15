@@ -75,7 +75,7 @@ public:
         setMotionDetectionDuration(duration);
 
         // 中断配置
-        setInterruptMode(0);  // 高电平有效
+        setInterruptMode(1);  // 低电平有效
         setInterruptDrive(0); // 推挽
         // setInterruptLatch(1);      // 锁存
         // setInterruptLatchClear(1); // 读取清除
