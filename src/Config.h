@@ -31,4 +31,3 @@
 
 // 按键
 #define PIN_KEY 14         // 按键引脚
-#define TURN_OFF_TIME 3000 // 长按关机时间（ms）

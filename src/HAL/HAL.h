@@ -1,5 +1,5 @@
 #pragma once
-#include "Arduino.h"
+#include <Arduino.h>
 #include "Config.h"
 
 namespace HAL
@@ -19,9 +19,12 @@ namespace HAL
     void ws2812_delete(void);
 
     // MPU6050
-    void mpu6050_init();    
+    void mpu6050_init();
     void mpu6050_start(void);
     void mpu6050_stop(void);
     void mpu6050_motion_interrupt_enable(uint8_t threshold, uint8_t timeOut);
+
+    // Button
+    void button_init(void);
 
 }

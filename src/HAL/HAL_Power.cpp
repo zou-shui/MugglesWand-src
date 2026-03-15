@@ -76,34 +76,6 @@ bool HAL::power_is_charging(void)
     return (level == LOW);
 }
 
-static void power_task(void *param)
-{
-    uint32_t pressStart = 0;
-
-    while (1)
-    {
-        if (digitalRead(PIN_KEY) == LOW) // 按下
-        {
-            if (pressStart == 0)
-                pressStart = millis();
-
-            if (millis() - pressStart > TURN_OFF_TIME)
-            {
-                Serial.println("[Power] Off");
-
-                digitalWrite(PIN_PWR_EN, LOW); // 关闭电源
-                esp_deep_sleep_start();        // 马上停止所有程序
-            }
-        }
-        else
-        {
-            pressStart = 0;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(50)); // 50ms扫描
-    }
-}
-
 /************ 初始化 ************/
 void HAL::power_init(void)
 {
@@ -111,7 +83,11 @@ void HAL::power_init(void)
     pinMode(PIN_PWR_EN, OUTPUT);
     digitalWrite(PIN_PWR_EN, HIGH);        // 使能电源
     gpio_hold_dis((gpio_num_t)PIN_PWR_EN); // 释放引脚，允许修改引脚状态
-    Serial.println("[Power] Enabled");
+    while (digitalRead(PIN_KEY) == LOW)
+    {
+        Serial.println("[Power] Enabled, release the button to turn on.");
+        delay(100);
+    }
 
     // ---------- 充电检测引脚 ----------
     pinMode(PIN_BATTERY_CHG_DET, INPUT_PULLUP);
@@ -128,14 +104,5 @@ void HAL::power_init(void)
         DEFAULT_VREF,
         &adc_chars);
 
-    // 长按关机任务
-    xTaskCreatePinnedToCore(
-        power_task,
-        "power_task",
-        2048,
-        NULL,
-        1,
-        NULL,
-        0);
     Serial.println("[HAL] Power module init done");
 }
