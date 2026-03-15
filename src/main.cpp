@@ -13,6 +13,7 @@
 - Serial console parser
 - Dispatcher
 - MPU6050 sampling
+- Power task
 - OTA (临时创建)
 
 核心 1:
@@ -25,11 +26,12 @@ void setup()
 {
   Serial.begin(115200);
 
+  HAL::power_init();
+
   console_init();
   dispatcher_init();
 
   HAL::ws2812_init();
-  HAL::power_init();
   HAL::mpu6050_init();
   HAL::mpu6050_start();
 

@@ -25,28 +25,6 @@
 
 static esp_adc_cal_characteristics_t adc_chars;
 
-/************ 初始化 ************/
-
-void HAL::power_init(void)
-{
-    // ---------- 充电检测引脚 ----------
-    pinMode(PIN_BATTERY_CHG_DET, INPUT_PULLUP);
-
-    // ---------- ADC 初始化 ----------
-    analogReadResolution(12);
-    analogSetPinAttenuation(PIN_BATTERY_VOLTAGE, ADC_ATTENDB_MAX);
-
-    // ADC 校准
-    esp_adc_cal_characterize(
-        ADC_UNIT_1,
-        ADC_ATTEN,
-        ADC_WIDTH,
-        DEFAULT_VREF,
-        &adc_chars);
-
-    Serial.println("[HAL] Power module init done");
-}
-
 /************ 读取电池电压 ************/
 
 float HAL::power_get_battery_voltage(void)
@@ -96,4 +74,68 @@ bool HAL::power_is_charging(void)
     int level = digitalRead(PIN_BATTERY_CHG_DET);
 
     return (level == LOW);
+}
+
+static void power_task(void *param)
+{
+    uint32_t pressStart = 0;
+
+    while (1)
+    {
+        if (digitalRead(PIN_KEY) == LOW) // 按下
+        {
+            if (pressStart == 0)
+                pressStart = millis();
+
+            if (millis() - pressStart > TURN_OFF_TIME)
+            {
+                Serial.println("[Power] Off");
+
+                digitalWrite(PIN_PWR_EN, LOW); // 关闭电源
+                esp_deep_sleep_start();        // 马上停止所有程序
+            }
+        }
+        else
+        {
+            pressStart = 0;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50)); // 50ms扫描
+    }
+}
+
+/************ 初始化 ************/
+void HAL::power_init(void)
+{
+    /*电源使能保持*/
+    pinMode(PIN_PWR_EN, OUTPUT);
+    digitalWrite(PIN_PWR_EN, HIGH);        // 使能电源
+    gpio_hold_dis((gpio_num_t)PIN_PWR_EN); // 释放引脚，允许修改引脚状态
+    Serial.println("[Power] Enabled");
+
+    // ---------- 充电检测引脚 ----------
+    pinMode(PIN_BATTERY_CHG_DET, INPUT_PULLUP);
+
+    // ---------- ADC 初始化 ----------
+    analogReadResolution(12);
+    analogSetPinAttenuation(PIN_BATTERY_VOLTAGE, ADC_ATTENDB_MAX);
+
+    // ADC 校准
+    esp_adc_cal_characterize(
+        ADC_UNIT_1,
+        ADC_ATTEN,
+        ADC_WIDTH,
+        DEFAULT_VREF,
+        &adc_chars);
+
+    // 长按关机任务
+    xTaskCreatePinnedToCore(
+        power_task,
+        "power_task",
+        2048,
+        NULL,
+        1,
+        NULL,
+        0);
+    Serial.println("[HAL] Power module init done");
 }

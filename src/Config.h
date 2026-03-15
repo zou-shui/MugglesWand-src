@@ -2,7 +2,7 @@
 
 // Project Information
 #define PROJECT_NAME "MagicWand"
-#define FIRMWARE_VER "1.1"
+#define FIRMWARE_VER "2.0"  // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
 // OTA的热点
@@ -15,8 +15,8 @@
 #define PIN_IMU_INT 12 // IMU中断引脚
 
 // WS2812
-#define PIN_WS2812 8         // WS2812 数据引脚
-#define WS2812_LED_COUNT 160 // WS2812 灯珠数量
+#define PIN_WS2812 39       // WS2812 数据引脚
+#define WS2812_LED_COUNT 42 // WS2812 灯珠数量
 // #define PIN_WS2812 39       // WS2812 数据引脚
 // #define WS2812_LED_COUNT 60 // WS2812 灯珠数量
 
@@ -27,3 +27,8 @@
 // 电池
 #define PIN_BATTERY_VOLTAGE 18 // 电池电压检测引脚
 #define PIN_BATTERY_CHG_DET 17 // 充电状态检测引脚
+#define PIN_PWR_EN 21          // 电源使能引脚
+
+// 按键
+#define PIN_KEY 14         // 按键引脚
+#define TURN_OFF_TIME 3000 // 长按关机时间（ms）
