@@ -1,5 +1,5 @@
 /*
-    处理控制台命令
+    处理来自Console或其他模块的命令，并执行相应的操作
 */
 #include <Arduino.h>
 #include "dispatcher.h"
@@ -37,17 +37,22 @@ static void dispatcher_task(void *param)
                     HAL::power_get_battery_percent(),
                     HAL::power_get_battery_voltage(),
                     HAL::power_is_charging() ? "CHARGE" : "DISCHARGE");
-
-                break;
-            case CMD_SYS_REBOOT:
-                Serial.println("Rebooting...");
-                ESP.restart();
                 break;
             case CMD_SYS_SLEEP:
                 inference_deinit();
                 HAL::mpu6050_stop();
                 HAL::mpu6050_motion_interrupt_enable(4, 20);
+                HAL::ws2812_stop(); // 休眠前清除灯珠状态，避免下次启动时灯珠的不确定状态
                 sleep_enter();
+                break;
+            case CMD_SYS_REBOOT:
+                Serial.println("Rebooting...");
+                ESP.restart();
+                break;
+            case CMD_SYS_SHUTDOWN:
+                Serial.println("Shutting down...");
+                HAL::ws2812_stop(); // 关机前清除灯珠状态，避免下次开机时灯珠的不确定状态
+                HAL::power_stop();
                 break;
 
             case CMD_OTA_OTA:
@@ -55,27 +60,28 @@ static void dispatcher_task(void *param)
                 HAL::mpu6050_stop();
                 OTA_begin();
                 break;
-
-            case CMD_WS2812_FLOW:
-                HAL::ws2812_trigger_flowing(0xFFFFFF, msg.arg1 == 0 ? 6 : msg.arg1, 5);
+            case CMD_BLE_BLE:
+                ble_toggle();
                 break;
-            case CMD_WS2812_LAST:
-                HAL::ws2812_toggle_last_led(0xFFFFFF);
-                break;
-
             case CMD_MPU6050_IMU:
                 HAL::mpu6050_start();
                 inference_init();
                 break;
-
-            case CMD_BLE_BLE:
-                ble_toggle();
-                break;
-
             case CMD_CONS_STOP:
                 inference_deinit();
                 HAL::mpu6050_stop();
                 break;
+
+            case CMD_WS2812_BREA:
+                HAL::ws2812_trigger_breathe(msg.arg1, msg.arg2);
+                break;
+            case CMD_WS2812_FLOW:
+                HAL::ws2812_trigger_flow(0xFFFFFF, msg.arg1, msg.arg2);
+                break;
+            case CMD_WS2812_LAST:
+                HAL::ws2812_toggle_last_led(msg.arg1);
+                break;
+
 
             default:
                 break;

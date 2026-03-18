@@ -76,6 +76,12 @@ bool HAL::power_is_charging(void)
     return (level == LOW);
 }
 
+void HAL::power_stop(void)
+{
+    digitalWrite(PIN_PWR_EN, LOW); // 关闭电源
+    esp_deep_sleep_start();        // 马上停止所有程序（防止未松手时程序持续运行）
+}
+
 /************ 初始化 ************/
 void HAL::power_init(void)
 {

@@ -14,6 +14,9 @@ static void button_task(void *param)
     static uint8_t pressCount = 0;
     static uint32_t lastReleaseTime = 0;
 
+    command_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+
     while (1)
     {
         bool pressed = digitalRead(PIN_KEY) == LOW;
@@ -27,10 +30,8 @@ static void button_task(void *param)
             if (!longPressTriggered && millis() - pressStart > TURN_OFF_TIME)
             {
                 longPressTriggered = true;
-                Serial.println("[Power] OFF");
-
-                digitalWrite(PIN_PWR_EN, LOW); // 关闭电源
-                esp_deep_sleep_start();        // 马上停止所有程序
+                msg.type = CMD_SYS_SHUTDOWN;
+                xQueueSend(cmd_queue, &msg, portMAX_DELAY);
             }
         }
         else
@@ -46,7 +47,6 @@ static void button_task(void *param)
                     lastReleaseTime = millis();
                 }
             }
-
             pressStart = 0;
             longPressTriggered = false;
         }
@@ -54,9 +54,6 @@ static void button_task(void *param)
         // 检查是否超过多次按键窗口
         if (pressCount > 0 && (millis() - lastReleaseTime > MULTI_PRESS_INTERVAL))
         {
-            command_msg_t msg;
-            memset(&msg, 0, sizeof(msg));
-
             // 根据 pressCount 执行不同功能
             switch (pressCount)
             {
@@ -80,7 +77,6 @@ static void button_task(void *param)
             pressCount = 0;                             // 重置计数
             xQueueSend(cmd_queue, &msg, portMAX_DELAY); // 发送消息到控制台处理
         }
-
         vTaskDelay(pdMS_TO_TICKS(20)); // 20ms扫描
     }
 }

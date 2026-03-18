@@ -2,10 +2,11 @@
 
 #include <FastLED.h>
 #include <semphr.h>
+#include <cmath>
 
 // ==================== 配置宏 ====================
 
-#define ANIMATION_INTERVAL_MS 1 // 基础刷新间隔
+#define ANIMATION_INTERVAL_MS 10 // 基础刷新间隔
 
 // ==================== 数据结构 ====================
 
@@ -14,6 +15,7 @@ typedef enum
     ANIM_NONE = 0,
     ANIM_FLOW,
     ANIM_LAST_ON,
+    ANIM_BREATHE,
 } anim_type_t;
 
 typedef struct
@@ -22,8 +24,8 @@ typedef struct
     uint32_t color;
     uint8_t speed_factor;
     uint8_t tail_length;
-    uint16_t param1; // 通用参数1（用于流水灯的位置）
-    int8_t param2;   // 通用参数2（用于流水灯的速度）
+    uint16_t param1; // 通用参数1
+    int8_t param2;   // 通用参数2
 } anim_state_t;
 
 // ==================== 静态变量 ====================
@@ -36,17 +38,10 @@ static anim_state_t current_anim = {ANIM_NONE, 0, 0, 0, 0, 0};
 // ==================== 内部函数 ====================
 
 // 流水灯动画一帧渲染
-static void render_flowing_frame(void)
+static void render_flow_frame(void)
 {
-    // 先慢后快的非线性速度曲线
-    // 使用指数加速：speed = base_speed + (position * acceleration)
-    float progress = (float)current_anim.param1 / (WS2812_LED_COUNT * 3);
-    if (progress > 1.0f)
-        progress = 1.0f;
-
-    // 非线性速度计算：起始慢，后面指数增长
-    float speed_multiplier = 0.3f + (progress * progress * 0.7f);
-    int base_step = (current_anim.speed_factor * speed_multiplier);
+    // 恒定速度
+    int base_step = current_anim.speed_factor;
     if (base_step < 1)
         base_step = 1;
 
@@ -58,7 +53,7 @@ static void render_flowing_frame(void)
     if (current_pos >= WS2812_LED_COUNT + current_anim.tail_length)
     {
         // 动画完成
-        current_anim.type = ANIM_NONE;
+        current_anim.type = ANIM_NONE; // 退出动画
         return;
     }
 
@@ -97,19 +92,6 @@ static void render_flowing_frame(void)
         }
     }
 
-    // 偶尔在前面添加一点微光（营造预告感）
-    if (current_pos < WS2812_LED_COUNT - 1)
-    {
-        int preview_pos = current_pos + 1;
-        if (preview_pos < WS2812_LED_COUNT)
-        {
-            leds[preview_pos] = CRGB(
-                (uint8_t)(r * 0.05f),
-                (uint8_t)(g * 0.05f),
-                (uint8_t)(b * 0.05f));
-        }
-    }
-
     FastLED.show();
 }
 
@@ -123,6 +105,33 @@ static void render_last_led(void)
     uint8_t b = current_anim.color & 0xFF;
 
     leds[WS2812_LED_COUNT - 1] = CRGB(r, g, b);
+
+    FastLED.show();
+}
+
+// 呼吸灯动画一帧渲染
+static void render_breathe_frame(void)
+{
+    static uint32_t breathe_start_time = 0;
+
+    if (breathe_start_time == 0)
+    {
+        breathe_start_time = millis();
+    }
+
+    uint32_t elapsed = millis() - breathe_start_time;
+    float phase = (float)elapsed / current_anim.param1 * 2 * M_PI;
+    float brightness = (sin(phase) + 1.0f) / 2.0f;
+
+    fill_solid(leds, WS2812_LED_COUNT, CRGB::Black);
+
+    uint8_t r = (current_anim.color >> 16) & 0xFF;
+    uint8_t g = (current_anim.color >> 8) & 0xFF;
+    uint8_t b = current_anim.color & 0xFF;
+
+    leds[0].r = (uint8_t)(r * brightness);
+    leds[0].g = (uint8_t)(g * brightness);
+    leds[0].b = (uint8_t)(b * brightness);
 
     FastLED.show();
 }
@@ -145,7 +154,7 @@ static void ws2812_task(void *pvParameters)
                 switch (current_anim.type)
                 {
                 case ANIM_FLOW:
-                    render_flowing_frame();
+                    render_flow_frame();
                     break;
 
                 case ANIM_LAST_ON:
@@ -153,6 +162,12 @@ static void ws2812_task(void *pvParameters)
                     // 常亮模式不自动退出
                     vTaskDelay(pdMS_TO_TICKS(50)); // 降低CPU占用
                     break;
+
+                case ANIM_BREATHE:
+                    render_breathe_frame();
+                    // 呼吸灯模式不自动退出
+                    break;
+
                 default:
                     current_anim.type = ANIM_NONE;
                     break;
@@ -176,10 +191,54 @@ static void ws2812_task(void *pvParameters)
 }
 
 // ==================== 接口实现 ====================
+void HAL::ws2812_trigger_breathe(uint32_t color, uint16_t period_ms)
+{
+    if (anim_semaphore == NULL)
+        return;
+    if (color == 0)
+        color = 0xFFFFFF; // 默认白色
+    if (period_ms == 0)
+        period_ms = 3000; // 默认3秒
+
+    // 填充动画参数
+    current_anim.type = ANIM_BREATHE;
+    current_anim.color = color;
+    current_anim.param1 = period_ms; // 呼吸周期
+
+    // 发送信号通知任务执行动画
+    xSemaphoreGive(anim_semaphore);
+}
+
+void HAL::ws2812_trigger_flow(uint32_t color, uint8_t speed_factor, uint8_t tail_length)
+{
+    if (anim_semaphore == NULL)
+        return;
+    if (speed_factor == 0)
+        speed_factor = 17;
+    if (speed_factor > 50)
+        speed_factor = 50;
+    if (tail_length == 0)
+        tail_length = 20;
+    if (tail_length > 50)
+        tail_length = 50;
+
+    // 填充动画参数
+    current_anim.type = ANIM_FLOW;
+    current_anim.color = color;
+    current_anim.speed_factor = speed_factor;
+    current_anim.tail_length = tail_length;
+    current_anim.param1 = 0; // 位置归零
+
+    // 发送信号通知任务执行动画
+    xSemaphoreGive(anim_semaphore);
+}
+
 void HAL::ws2812_toggle_last_led(uint32_t color)
 {
     if (anim_semaphore == NULL)
         return;
+    if (color == 0)
+        color = 0xFFFFFF; // 默认白色
 
     // 如果已经处于最后灯常亮 → 关闭
     if (current_anim.type == ANIM_LAST_ON)
@@ -199,54 +258,10 @@ void HAL::ws2812_toggle_last_led(uint32_t color)
     xSemaphoreGive(anim_semaphore);
 }
 
-void HAL::ws2812_trigger_flowing(uint32_t color, uint8_t speed_factor, uint8_t tail_length)
+void HAL::ws2812_stop()
 {
-    if (anim_semaphore == NULL)
-        return;
-    if (speed_factor == 0)
-        speed_factor = 1;
-    if (speed_factor > 10)
-        speed_factor = 10;
-    if (tail_length == 0)
-        tail_length = 3;
-    if (tail_length > 10)
-        tail_length = 10;
-
-    // 填充动画参数
-    current_anim.type = ANIM_FLOW;
-    current_anim.color = color;
-    current_anim.speed_factor = speed_factor;
-    current_anim.tail_length = tail_length;
-    current_anim.param1 = 0; // 位置归零
-    current_anim.param2 = 0; // 速度归零
-
-    // 发送信号通知任务执行动画
-    xSemaphoreGive(anim_semaphore);
-}
-
-void HAL::ws2812_stop(void)
-{
-    current_anim.type = ANIM_NONE;
-
-    fill_solid(leds, WS2812_LED_COUNT, CRGB::Black);
+    FastLED.clear();
     FastLED.show();
-}
-
-void HAL::ws2812_set_solid(uint32_t color)
-{
-    // 停止任何动画
-    current_anim.type = ANIM_NONE;
-
-    uint8_t r = (color >> 16) & 0xFF;
-    uint8_t g = (color >> 8) & 0xFF;
-    uint8_t b = color & 0xFF;
-
-    fill_solid(leds, WS2812_LED_COUNT, CRGB(r, g, b));
-    FastLED.show();
-}
-
-void HAL_ws2812_delete()
-{
     if (ws2812_task_handle != NULL)
     {
         vTaskDelete(ws2812_task_handle);
@@ -279,4 +294,7 @@ void HAL::ws2812_init(void)
         2,
         &ws2812_task_handle,
         1);
+
+    leds[0] = CRGB::Green;
+    FastLED.show(); // 由于其后紧接电源保持，故该灯亮起约等于已开机，提示用户可以松开按键了
 }
