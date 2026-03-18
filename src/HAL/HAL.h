@@ -16,6 +16,7 @@ namespace HAL
     void ws2812_trigger_breathe(uint32_t color, uint16_t period_ms);
     void ws2812_trigger_flow(uint32_t color, uint8_t speed_factor, uint8_t tail_length);
     void ws2812_toggle_last_led(uint32_t color);
+    void ws2812_trigger_charge(uint8_t battery_percentage);
     void ws2812_stop(void);
 
     // MPU6050

@@ -1,11 +1,12 @@
 #include "HAL.h"
 #include <esp_adc_cal.h>
+#include "Service/Console.h"
 
 /************ 硬件参数配置 ************/
 
 // 定义满电和低电阈值
-#define VOLTAGE_MAX 3.90f
-#define VOLTAGE_MIN 3.30f
+#define VOLTAGE_MAX 4.10f
+#define VOLTAGE_MIN 3.40f
 
 // ADC 参数
 #define ADC_WIDTH ADC_WIDTH_12Bit
@@ -22,8 +23,63 @@
 #define BAT_ADC_SAMPLE_COUNT 10
 
 /************ 内部变量 ************/
-
 static esp_adc_cal_characteristics_t adc_chars;
+static QueueHandle_t cmd_queue;
+
+/************ FreeRTOS 任务 ************/
+void power_task(void *pvParameters)
+{
+    static int lastPercent = -1;     // 初始化为-1，确保第一次调用
+    static bool wasCharging = false; // 跟踪上一次充电状态
+
+    if (!HAL::power_is_charging())
+    {
+        wasCharging = true; // 如果当前未充电，设置为充电状态以便触发推理
+    }
+
+    while (true)
+    {
+        command_msg_t msg;
+        memset(&msg, 0, sizeof(msg));
+
+        bool ChargeStatu = HAL::power_is_charging();
+
+        if (ChargeStatu)
+        {
+            // 获取当前电量百分比并可视化
+            int currentPercent = HAL::power_get_battery_percent();
+
+            if (!wasCharging) // 只有从未充电状态切换到充电状态时执行一次
+            {
+                // 关闭推理任务
+                msg.type = CMD_CONS_STOP;
+                xQueueSend(cmd_queue, &msg, portMAX_DELAY);
+                wasCharging = true;
+                HAL::ws2812_trigger_charge(currentPercent); // 充电时直接显示当前电量百分比
+            }
+
+            if (abs(currentPercent - lastPercent) >= 2 || lastPercent == -1)
+            {
+                HAL::ws2812_trigger_charge(currentPercent);
+                lastPercent = currentPercent;
+            }
+        }
+        else
+        {
+            if (wasCharging) // 只有从充电状态切换到未充电状态时执行一次
+            {
+                // 启动推理任务
+                msg.type = CMD_MPU6050_IMU;
+                xQueueSend(cmd_queue, &msg, portMAX_DELAY);
+
+                lastPercent = -1; // 充电断开时重置百分比，确保下次充电时能正确触发动画
+                HAL::ws2812_trigger_breathe(0, 0);
+                wasCharging = false;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 每秒检查一次
+    }
+}
 
 /************ 读取电池电压 ************/
 
@@ -110,5 +166,15 @@ void HAL::power_init(void)
         DEFAULT_VREF,
         &adc_chars);
 
+    xTaskCreatePinnedToCore(
+        power_task,
+        "power_task",
+        2048,
+        NULL,
+        1,
+        NULL,
+        0);
+
+    cmd_queue = console_get_queue();
     Serial.println("[HAL] Power module init done");
 }

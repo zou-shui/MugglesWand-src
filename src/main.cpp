@@ -26,19 +26,14 @@ void setup()
 {
   Serial.begin(115200);
 
-  HAL::ws2812_init();
-  HAL::power_init();
-
   console_init();
   dispatcher_init();
 
   HAL::button_init();
   HAL::mpu6050_init();
-  HAL::mpu6050_start();
+  HAL::ws2812_init();
 
-  inference_init();
-
-  HAL::ws2812_trigger_breathe(0, 0); // 启动呼吸灯动画，使用默认参数
+  HAL::power_init();
 }
 
 void loop()

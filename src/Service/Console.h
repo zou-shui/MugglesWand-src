@@ -22,6 +22,7 @@ typedef enum
     CMD_WS2812_BREA,
     CMD_WS2812_FLOW,
     CMD_WS2812_LAST,
+    CMD_WS2812_BATT,
 
 } command_type_t;
 

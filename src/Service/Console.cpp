@@ -102,6 +102,13 @@ void console_parse(char *cmd)
         if (token != NULL)
             msg.arg1 = atoi(token);
     }
+    else if (!strcmp(token, "batt"))
+    {
+        msg.type = CMD_WS2812_BATT;
+        token = strtok(NULL, " "); // 参数1
+        if (token != NULL)
+            msg.arg1 = atoi(token);
+    }
     else if (!strcmp(token, "help"))
     {
         console_print_help();

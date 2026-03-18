@@ -81,7 +81,8 @@ static void dispatcher_task(void *param)
             case CMD_WS2812_LAST:
                 HAL::ws2812_toggle_last_led(msg.arg1);
                 break;
-
+            case CMD_WS2812_BATT:
+                HAL::ws2812_trigger_charge(msg.arg1);
 
             default:
                 break;

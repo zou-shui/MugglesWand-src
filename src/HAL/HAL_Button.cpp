@@ -14,11 +14,11 @@ static void button_task(void *param)
     static uint8_t pressCount = 0;
     static uint32_t lastReleaseTime = 0;
 
-    command_msg_t msg;
-    memset(&msg, 0, sizeof(msg));
-
     while (1)
     {
+        command_msg_t msg;
+        memset(&msg, 0, sizeof(msg));
+
         bool pressed = digitalRead(PIN_KEY) == LOW;
 
         if (pressed)
