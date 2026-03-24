@@ -24,7 +24,6 @@
 
 /************ 内部变量 ************/
 static esp_adc_cal_characteristics_t adc_chars;
-static QueueHandle_t cmd_queue;
 
 /************ FreeRTOS 任务 ************/
 void power_task(void *pvParameters)
@@ -39,9 +38,6 @@ void power_task(void *pvParameters)
 
     while (true)
     {
-        command_msg_t msg;
-        memset(&msg, 0, sizeof(msg));
-
         bool ChargeStatu = HAL::power_is_charging();
 
         if (ChargeStatu)
@@ -52,8 +48,7 @@ void power_task(void *pvParameters)
             if (!wasCharging) // 只有从未充电状态切换到充电状态时执行一次
             {
                 // 关闭推理任务
-                msg.type = CMD_CONS_STOP;
-                xQueueSend(cmd_queue, &msg, portMAX_DELAY);
+                command_send(CMD_CONS_STOP);
                 wasCharging = true;
                 HAL::ws2812_trigger_charge(currentPercent); // 充电时直接显示当前电量百分比
             }
@@ -69,9 +64,7 @@ void power_task(void *pvParameters)
             if (wasCharging) // 只有从充电状态切换到未充电状态时执行一次
             {
                 // 启动推理任务
-                msg.type = CMD_MPU6050_IMU;
-                xQueueSend(cmd_queue, &msg, portMAX_DELAY);
-
+                command_send(CMD_MPU6050_IMU);
                 lastPercent = -1; // 充电断开时重置百分比，确保下次充电时能正确触发动画
                 HAL::ws2812_trigger_breathe(0, 0);
                 wasCharging = false;
@@ -175,6 +168,5 @@ void HAL::power_init(void)
         NULL,
         0);
 
-    cmd_queue = console_get_queue();
     Serial.println("[HAL] Power module init done");
 }

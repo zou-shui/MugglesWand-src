@@ -38,6 +38,7 @@ typedef struct
 /******** 接口 ********/
 void console_init();
 void console_parse(char *cmd);
+void command_send(command_type_t type, int32_t arg1 = 0, int32_t arg2 = 0);
 
 /******** 获取队列句柄 ********/
 QueueHandle_t console_get_queue();

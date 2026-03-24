@@ -119,7 +119,29 @@ void console_parse(char *cmd)
         Serial.println("Unknown command");
         return;
     }
-    xQueueSend(cmd_queue, &msg, portMAX_DELAY);
+
+    command_send(msg.type, msg.arg1, msg.arg2);
+}
+
+/************ 发送命令 ************/
+void command_send(command_type_t type, int32_t arg1, int32_t arg2)
+{
+    if (cmd_queue == NULL)
+    {
+        Serial.println("[Console] cmd_queue is not initialized");
+        return;
+    }
+
+    command_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = type;
+    msg.arg1 = arg1;
+    msg.arg2 = arg2;
+
+    if (xQueueSend(cmd_queue, &msg, portMAX_DELAY) != pdTRUE)
+    {
+        Serial.println("[Console] xQueueSend failed");
+    }
 }
 
 /************ Console Task ************/
