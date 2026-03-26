@@ -38,11 +38,10 @@ void setup()
   console_init();
   dispatcher_init();
 
-  HAL::button_init();
   HAL::mpu6050_init();
   HAL::ws2812_init();
-
   HAL::power_init();
+  HAL::button_init();
 }
 
 void loop()
