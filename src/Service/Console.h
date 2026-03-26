@@ -9,16 +9,23 @@ typedef enum
 
     CMD_NONE = 0,
 
+    // 系统命令
     CMD_SYS_INFO,
     CMD_SYS_SLEEP,
     CMD_SYS_REBOOT,
     CMD_SYS_SHUTDOWN,
 
+    // 用户命令
+    CMD_USR_INFERENCE,
+    CMD_USR_CHARGE,
+
+    // 其他模块命令
     CMD_OTA_OTA,
     CMD_BLE_BLE,
     CMD_MPU6050_IMU,
     CMD_CONS_STOP, // 停止所有打印活动
-
+    
+    // 灯带命令
     CMD_WS2812_BREA,
     CMD_WS2812_FLOW,
     CMD_WS2812_LAST,

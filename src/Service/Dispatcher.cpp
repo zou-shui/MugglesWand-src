@@ -55,6 +55,17 @@ static void dispatcher_task(void *param)
                 HAL::power_stop();
                 break;
 
+            case CMD_USR_INFERENCE:
+                HAL::mpu6050_start();
+                inference_init();
+                HAL::ws2812_trigger_breathe(0, 0);
+                break;
+            case CMD_USR_CHARGE:
+                inference_deinit();
+                HAL::mpu6050_stop();
+                HAL::ws2812_trigger_charge(HAL::power_get_battery_percent());
+                break;
+
             case CMD_OTA_OTA:
                 inference_deinit();
                 HAL::mpu6050_stop();

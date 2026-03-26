@@ -20,6 +20,8 @@ static void console_print_help()
     Serial.println("sleep         - Enter deep sleep mode");
     Serial.println("reboot        - Restart device");
     Serial.println("shutdown      - Turn off the power");
+    Serial.println("inference     - Enter gesture inference mode");
+    Serial.println("charge        - Enter charge mode");
     Serial.println("ota           - Enter OTA mode");
     Serial.println("ble           - Toggle BLE service on/off");
     Serial.println("imu           - Print MPU6050 IMU data");
@@ -59,6 +61,16 @@ void console_parse(char *cmd)
     {
         msg.type = CMD_SYS_SHUTDOWN;
     }
+
+    else if (!strcmp(token, "inference"))
+    {
+        msg.type = CMD_USR_INFERENCE;
+    }
+    else if (!strcmp(token, "charge"))
+    {
+        msg.type = CMD_USR_CHARGE;
+    }
+
     else if (!strcmp(token, "ota"))
     {
         msg.type = CMD_OTA_OTA;

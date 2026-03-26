@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "Config.h"
+#include "esp_task_wdt.h"
 
 namespace HAL
 {

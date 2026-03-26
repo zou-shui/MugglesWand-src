@@ -33,13 +33,13 @@ void power_task(void *pvParameters)
 
     if (!HAL::power_is_charging())
     {
-        wasCharging = true; // 如果当前未充电，设置为充电状态以便触发推理
+        wasCharging = true; // 如果刚开机时未充电，将过去设置为充电状态以便触发推理
     }
 
     while (true)
     {
+        //======================充电和推理状态自动切换======================
         bool ChargeStatu = HAL::power_is_charging();
-
         if (ChargeStatu)
         {
             // 获取当前电量百分比并可视化
@@ -47,15 +47,13 @@ void power_task(void *pvParameters)
 
             if (!wasCharging) // 只有从未充电状态切换到充电状态时执行一次
             {
-                // 关闭推理任务
-                command_send(CMD_CONS_STOP);
                 wasCharging = true;
-                HAL::ws2812_trigger_charge(currentPercent); // 充电时直接显示当前电量百分比
+                command_send(CMD_USR_CHARGE); // 发送充电状态命令，参数为当前电量百分比
             }
 
             if (abs(currentPercent - lastPercent) >= 2 || lastPercent == -1)
             {
-                HAL::ws2812_trigger_charge(currentPercent);
+                HAL::ws2812_trigger_charge(currentPercent); // 电量变化量超过2%更新动画
                 lastPercent = currentPercent;
             }
         }
@@ -63,12 +61,17 @@ void power_task(void *pvParameters)
         {
             if (wasCharging) // 只有从充电状态切换到未充电状态时执行一次
             {
-                // 启动推理任务
-                command_send(CMD_MPU6050_IMU);
                 lastPercent = -1; // 充电断开时重置百分比，确保下次充电时能正确触发动画
-                HAL::ws2812_trigger_breathe(0, 0);
                 wasCharging = false;
+                command_send(CMD_USR_INFERENCE); // 发送推理状态命令
             }
+        }
+
+        //===========================低电量保护===========================
+        if (!ChargeStatu && HAL::power_get_battery_percent() <= 5)
+        {
+            Serial.println("[Power] Battery critically low, shutting down...");
+            command_send(CMD_SYS_SHUTDOWN); // 发送关机命令
         }
         vTaskDelay(pdMS_TO_TICKS(1000)); // 每秒检查一次
     }
@@ -141,6 +144,7 @@ void HAL::power_init(void)
     while (digitalRead(PIN_KEY) == LOW)
     {
         Serial.println("[Power] Enabled, release the button to turn on.");
+        esp_task_wdt_reset(); // 喂狗，防止看门狗重启
         delay(100);
     }
 
