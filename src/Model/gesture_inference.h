@@ -1,4 +1,5 @@
 #pragma once
 
 void inference_init();
-void inference_deinit();
+void inference_start();
+void inference_stop();

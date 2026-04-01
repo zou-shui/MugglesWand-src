@@ -38,6 +38,8 @@ void setup()
   console_init();
   dispatcher_init();
 
+  inference_init();
+
   HAL::mpu6050_init();
   HAL::ws2812_init();
   HAL::power_init();

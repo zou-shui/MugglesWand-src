@@ -39,7 +39,7 @@ static void dispatcher_task(void *param)
                     HAL::power_is_charging() ? "CHARGE" : "DISCHARGE");
                 break;
             case CMD_SYS_SLEEP:
-                inference_deinit();
+                inference_stop();
                 HAL::mpu6050_stop();
                 HAL::mpu6050_motion_interrupt_enable(4, 20);
                 HAL::ws2812_stop(); // 休眠前清除灯珠状态，避免下次启动时灯珠的不确定状态
@@ -57,17 +57,17 @@ static void dispatcher_task(void *param)
 
             case CMD_USR_INFERENCE:
                 HAL::mpu6050_start();
-                inference_init();
+                inference_start();
                 HAL::ws2812_trigger_breathe(0, 0);
                 break;
             case CMD_USR_CHARGE:
-                inference_deinit();
+                inference_stop();
                 HAL::mpu6050_stop();
                 HAL::ws2812_trigger_charge(HAL::power_get_battery_percent());
                 break;
 
             case CMD_OTA_OTA:
-                inference_deinit();
+                inference_stop();
                 HAL::mpu6050_stop();
                 OTA_begin();
                 break;
@@ -76,10 +76,10 @@ static void dispatcher_task(void *param)
                 break;
             case CMD_MPU6050_IMU:
                 HAL::mpu6050_start();
-                inference_init();
+                inference_start();
                 break;
             case CMD_CONS_STOP:
-                inference_deinit();
+                inference_stop();
                 HAL::mpu6050_stop();
                 break;
 

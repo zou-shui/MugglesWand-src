@@ -109,21 +109,16 @@ void inference_task(void *pvParameters)
     }
 }
 
-void inference_deinit()
+void inference_stop()
 {
     if (inference_task_handle != NULL)
     {
         vTaskDelete(inference_task_handle);
         inference_task_handle = NULL;
     }
-    // 清空指针
-    interpreter = nullptr;
-    model = nullptr;
-    input = nullptr;
-    output = nullptr;
 }
 
-void inference_init()
+void inference_start()
 {
     if (inference_task_handle != NULL)
     {
@@ -131,31 +126,12 @@ void inference_init()
         return;
     }
 
-    // 初始化TFLite
-    model = tflite::GetModel(gesture_model_tflite);
-    if (model->version() != TFLITE_SCHEMA_VERSION)
+    if (interpreter == nullptr || input == nullptr || output == nullptr)
     {
-        Serial.println("Model version mismatch!");
-        vTaskDelete(NULL);
+        Serial.println("[CNN] Not initialized");
         return;
     }
 
-    static tflite::AllOpsResolver resolver;
-    static tflite::MicroInterpreter static_interpreter(
-        model, resolver, tensor_arena, kTensorArenaSize, &error_reporter);
-    interpreter = &static_interpreter;
-
-    if (interpreter->AllocateTensors() != kTfLiteOk)
-    {
-        Serial.println("AllocateTensors failed!");
-        vTaskDelete(NULL);
-        return;
-    }
-
-    input = interpreter->input(0);
-    output = interpreter->output(0);
-
-    // 创建推理任务
     xTaskCreatePinnedToCore(
         inference_task,
         "Inference",
@@ -164,4 +140,37 @@ void inference_init()
         2,
         &inference_task_handle,
         1);
+}
+
+void inference_init()
+{
+    if (interpreter != nullptr)
+    {
+        Serial.println("[CNN] Already initialized");
+        return;
+    }
+
+    // 初始化TFLite
+    model = tflite::GetModel(gesture_model_tflite);
+    if (model->version() != TFLITE_SCHEMA_VERSION)
+    {
+        Serial.println("Model version mismatch!");
+        return;
+    }
+
+    static tflite::AllOpsResolver resolver;
+    static tflite::MicroInterpreter static_interpreter(
+        model, resolver, tensor_arena, kTensorArenaSize, &error_reporter);
+    interpreter = &static_interpreter;
+
+    // 分配张量
+    if (interpreter->AllocateTensors() != kTfLiteOk)
+    {
+        Serial.println("AllocateTensors failed!");
+        return;
+    }
+
+    // 获取输入输出张量
+    input = interpreter->input(0);
+    output = interpreter->output(0);
 }
