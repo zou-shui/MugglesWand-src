@@ -14,8 +14,8 @@
 - Serial console parser
 - Dispatcher
 - MPU6050 sampling
-- Power task
 - OTA (临时创建)
+- Power task
 
 核心 1:
 - WS2812 animation
@@ -40,9 +40,9 @@ void setup()
 
   inference_init();
 
-  HAL::mpu6050_init();
   HAL::ws2812_init();
   HAL::power_init();
+  HAL::mpu6050_init();
   HAL::button_init();
 }
 
