@@ -1,6 +1,3 @@
-#ifndef POWER_SLEEP_H
-#define POWER_SLEEP_H
+#pragma once
 
 void sleep_enter();
-
-#endif

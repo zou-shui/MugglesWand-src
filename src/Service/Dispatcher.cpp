@@ -1,9 +1,9 @@
 /*
-    处理来自Console或其他模块的命令，并执行相应的操作
+    处理来自CommandBus的命令，并执行相应的操作
 */
 #include <Arduino.h>
 #include "dispatcher.h"
-#include "Console.h"
+#include "CommandBus.h"
 #include "BLE.h"
 
 #include "Config.h"
@@ -32,16 +32,16 @@ static void dispatcher_task(void *param)
                 Serial.println(BUILD_TIME);
                 Serial.printf("Core Temperature: %d°C\n", (int)temperatureRead());
                 Serial.printf("System Uptime: %d seconds\n", millis() / 1000);
-                Serial.printf(
-                    "Battery: %d%%, %.2f V, %s\n",
-                    HAL::power_get_battery_percent(),
-                    HAL::power_get_battery_voltage(),
-                    HAL::power_is_charging() ? "CHARGE" : "DISCHARGE");
+                Serial.printf("Battery: %.2f V, %.1f%%, %s\n",
+                              HAL::MAX17048_getVoltage(),
+                              HAL::MAX17048_getSOC(),
+                              HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging");
+
                 break;
             case CMD_SYS_SLEEP:
                 inference_stop();
-                HAL::mpu6050_stop();
-                HAL::mpu6050_motion_interrupt_enable(4, 20);
+                HAL::ICM42670P_stop();
+                HAL::ICM42670_WakeOnMotion();
                 HAL::ws2812_stop(); // 休眠前清除灯珠状态，避免下次启动时灯珠的不确定状态
                 sleep_enter();
                 break;
@@ -52,35 +52,35 @@ static void dispatcher_task(void *param)
             case CMD_SYS_SHUTDOWN:
                 Serial.println("Shutting down...");
                 HAL::ws2812_stop(); // 关机前清除灯珠状态，避免下次开机时灯珠的不确定状态
-                HAL::power_stop();
+                HAL::power_off();
                 break;
 
             case CMD_USR_INFERENCE:
-                HAL::mpu6050_start();
+                HAL::ICM42670P_start();
                 inference_start();
                 HAL::ws2812_trigger_breathe(0, 0);
                 break;
             case CMD_USR_CHARGE:
                 inference_stop();
-                HAL::mpu6050_stop();
-                HAL::ws2812_trigger_charge(HAL::power_get_battery_percent());
+                HAL::ICM42670P_stop();
+                HAL::ws2812_trigger_charge(HAL::MAX17048_getSOC());
                 break;
 
             case CMD_OTA_OTA:
                 inference_stop();
-                HAL::mpu6050_stop();
+                HAL::ICM42670P_stop();
                 OTA_begin();
                 break;
             case CMD_BLE_BLE:
                 ble_toggle();
                 break;
             case CMD_MPU6050_IMU:
-                HAL::mpu6050_start();
+                HAL::ICM42670P_start();
                 inference_start();
                 break;
             case CMD_CONS_STOP:
                 inference_stop();
-                HAL::mpu6050_stop();
+                HAL::ICM42670P_stop();
                 break;
 
             case CMD_WS2812_BREA:
@@ -103,9 +103,14 @@ static void dispatcher_task(void *param)
 }
 
 /************ Init ************/
-void dispatcher_init()
+bool dispatcher_init()
 {
-    cmd_queue = console_get_queue();
+    cmd_queue = command_get_queue();
+    if (cmd_queue == NULL)
+    {
+        Serial.println("[Dispatcher] Failed to get command queue.");
+        return false;
+    }
 
     xTaskCreatePinnedToCore(
         dispatcher_task,
@@ -115,4 +120,5 @@ void dispatcher_init()
         3, // 优先级高于 console
         NULL,
         0);
+    return true;
 }

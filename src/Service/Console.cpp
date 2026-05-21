@@ -1,12 +1,11 @@
 /*
-    用于解析串口控制台命令输入，供Dispatcher.cpp处理
+    解析串口控制台命令输入，并将命令通过CommandBus发送给Dispatcher处理
 */
+#include <Arduino.h>
 #include "Console.h"
+#include "CommandBus.h"
 
-#define CONSOLE_QUEUE_SIZE 8
 #define CONSOLE_BUF_SIZE 64
-
-static QueueHandle_t cmd_queue;
 
 static char rx_buf[CONSOLE_BUF_SIZE];
 static uint8_t rx_index = 0;
@@ -132,35 +131,12 @@ void console_parse(char *cmd)
         return;
     }
 
-    command_send(msg.type, msg.arg1, msg.arg2);
-}
-
-/************ 发送命令 ************/
-void command_send(command_type_t type, int32_t arg1, int32_t arg2)
-{
-    if (cmd_queue == NULL)
-    {
-        Serial.println("[Console] cmd_queue is not initialized");
-        return;
-    }
-
-    command_msg_t msg;
-    memset(&msg, 0, sizeof(msg));
-    msg.type = type;
-    msg.arg1 = arg1;
-    msg.arg2 = arg2;
-
-    if (xQueueSend(cmd_queue, &msg, portMAX_DELAY) != pdTRUE)
-    {
-        Serial.println("[Console] xQueueSend failed");
-    }
+    command_publish(msg.type, msg.arg1, msg.arg2);
 }
 
 /************ Console Task ************/
 static void console_task(void *param)
 {
-    Serial.println("[Console] Ready");
-
     while (1)
     {
         while (Serial.available())
@@ -192,17 +168,9 @@ static void console_task(void *param)
     }
 }
 
-/************ Getter ************/
-QueueHandle_t console_get_queue()
-{
-    return cmd_queue;
-}
-
 /************ Init ************/
 void console_init()
 {
-    cmd_queue = xQueueCreate(CONSOLE_QUEUE_SIZE, sizeof(command_msg_t));
-
     xTaskCreatePinnedToCore(
         console_task,
         "console_task",

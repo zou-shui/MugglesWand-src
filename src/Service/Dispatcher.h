@@ -1,3 +1,3 @@
 #pragma once
 
-void dispatcher_init();
+bool dispatcher_init();

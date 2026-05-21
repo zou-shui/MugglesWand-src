@@ -1,16 +1,26 @@
 #pragma once
-#include <Arduino.h>
-#include "Config.h"
-#include "esp_task_wdt.h"
+#include <stdint.h>
 
+// 所有硬件API的声明都在这里
 namespace HAL
 {
+    // Button
+    void button_init(void);
+
+    // IMU (ICM42670P)
+    bool ICM42670P_init(void);
+    void ICM42670P_start(void);
+    void ICM42670P_stop(void);
+    void ICM42670_WakeOnMotion();
+
+    // MAX17048
+    bool MAX17048_init(void);
+    float MAX17048_getVoltage(void);
+    float MAX17048_getSOC(void);
+    bool MAX17048_getChargeStatus(void);
+
     // Power
-    void power_init(void);
-    float power_get_battery_voltage(void);
-    int power_get_battery_percent(void);
-    bool power_is_charging(void);
-    void power_stop(void);
+    void power_off(void);
 
     // WS2812
     void ws2812_init(void);
@@ -19,14 +29,5 @@ namespace HAL
     void ws2812_toggle_last_led(uint32_t color);
     void ws2812_trigger_charge(uint8_t battery_percentage);
     void ws2812_stop(void);
-
-    // MPU6050
-    void mpu6050_init();
-    void mpu6050_start(void);
-    void mpu6050_stop(void);
-    void mpu6050_motion_interrupt_enable(uint8_t threshold, uint8_t timeOut);
-
-    // Button
-    void button_init(void);
 
 }

@@ -1,5 +1,10 @@
+/*
+    按键事件处理和长按关机实现
+*/
 #include "HAL.h"
-#include "Service/Console.h"
+#include <Arduino.h>
+#include "Config.h"
+#include "Service/CommandBus.h"
 
 #define TURN_OFF_TIME 3000       // 长按关机时间（ms）
 #define MULTI_PRESS_INTERVAL 500 // 两次按下最大间隔 (ms)
@@ -25,7 +30,7 @@ static void button_task(void *param)
             if (!longPressTriggered && millis() - pressStart > TURN_OFF_TIME)
             {
                 longPressTriggered = true;
-                command_send(CMD_SYS_SHUTDOWN); // 发送关机命令
+                command_publish(CMD_SYS_SHUTDOWN); // 发送关机命令
             }
         }
         else
@@ -53,11 +58,11 @@ static void button_task(void *param)
             {
             case 1:
                 Serial.println("[Button] 1 short press action");
-                command_send(CMD_BLE_BLE); // 发送 BLE 切换命令
+                command_publish(CMD_BLE_BLE); // 发送 BLE 切换命令
                 break;
             case 2:
                 Serial.println("[Button] 2 short press action");
-                command_send(CMD_OTA_OTA); // 发送 OTA 切换命令
+                command_publish(CMD_OTA_OTA); // 发送 OTA 切换命令
                 break;
             case 3:
                 Serial.println("[Button] 3 short press action");
@@ -76,9 +81,8 @@ static void button_task(void *param)
 
 void HAL::button_init(void)
 {
-    pinMode(PIN_KEY, INPUT);
+    pinMode(PIN_KEY, INPUT_PULLUP);
 
-    // 长按关机任务
     xTaskCreatePinnedToCore(
         button_task,
         "button_task",

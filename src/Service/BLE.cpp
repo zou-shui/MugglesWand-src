@@ -79,10 +79,10 @@ static void ble_task(void *param)
                     // 获取电池状态并发送通知
                     char data[21];
                     memset(data, 0, sizeof(data));
-                    snprintf(data, sizeof(data), "%d%%,%.2fV,%s",
-                             HAL::power_get_battery_percent(),
-                             HAL::power_get_battery_voltage(),
-                             HAL::power_is_charging() ? "CHARGE" : "DISCHARGE");
+                    snprintf(data, sizeof(data), "%.2f%%,%.2fV,%s",
+                             HAL::MAX17048_getSOC(),
+                             HAL::MAX17048_getVoltage(),
+                             HAL::MAX17048_getChargeStatus() ? "CHARGE" : "DISCHARGE");
 
                     // 设置特征值并通知客户端
                     pChr->setValue(data);
@@ -94,7 +94,7 @@ static void ble_task(void *param)
     }
 }
 
-void ble_toggle(void) 
+void ble_toggle(void)
 {
     static bool ble_running = false;
 
@@ -139,9 +139,6 @@ void ble_toggle(void)
         CHARACTERISTIC_UUID_RX,
         NIMBLE_PROPERTY::WRITE);
     pRxCharacteristic->setCallbacks(&chrCallbacks);
-
-    // 启动服务
-    pService->start();
 
     // 开始广播
     NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();

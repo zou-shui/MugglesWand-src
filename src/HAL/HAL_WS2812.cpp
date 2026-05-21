@@ -1,5 +1,9 @@
+/*
+    WS2812动画实现
+*/
 #include "HAL.h"
-
+#include <Arduino.h>
+#include "Config.h"
 #include <FastLED.h>
 #include <semphr.h>
 #include <cmath>
