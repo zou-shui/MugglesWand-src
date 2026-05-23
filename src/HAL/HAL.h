@@ -17,6 +17,7 @@ namespace HAL
     bool MAX17048_init(void);
     float MAX17048_getVoltage(void);
     float MAX17048_getSOC(void);
+    float MAX17048_getChangeRate(void);
     bool MAX17048_getChargeStatus(void);
 
     // Power

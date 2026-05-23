@@ -79,10 +79,10 @@ static void ble_task(void *param)
                     // 获取电池状态并发送通知
                     char data[21];
                     memset(data, 0, sizeof(data));
-                    snprintf(data, sizeof(data), "%.2f%%,%.2fV,%s",
-                             HAL::MAX17048_getSOC(),
-                             HAL::MAX17048_getVoltage(),
-                             HAL::MAX17048_getChargeStatus() ? "CHARGE" : "DISCHARGE");
+                    snprintf(data, sizeof(data), "%.2fV,%.1f%%,%.1f%%/h\n",
+                              HAL::MAX17048_getVoltage(),
+                              HAL::MAX17048_getSOC(),
+                              HAL::MAX17048_getChangeRate());
 
                     // 设置特征值并通知客户端
                     pChr->setValue(data);

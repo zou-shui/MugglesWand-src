@@ -32,10 +32,11 @@ static void dispatcher_task(void *param)
                 Serial.println(BUILD_TIME);
                 Serial.printf("Core Temperature: %d°C\n", (int)temperatureRead());
                 Serial.printf("System Uptime: %d seconds\n", millis() / 1000);
-                Serial.printf("Battery: %.2f V, %.1f%%, %s\n",
+                Serial.printf("Battery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
                               HAL::MAX17048_getVoltage(),
                               HAL::MAX17048_getSOC(),
-                              HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging");
+                              HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
+                              HAL::MAX17048_getChangeRate());
 
                 break;
             case CMD_SYS_SLEEP:

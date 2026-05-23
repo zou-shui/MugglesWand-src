@@ -19,6 +19,11 @@ float HAL::MAX17048_getSOC()
     return lipo.getSOC();
 }
 
+float HAL::MAX17048_getChangeRate()
+{
+    return lipo.getChangeRate();
+}
+
 bool HAL::MAX17048_getChargeStatus()
 {
     return lipo.getChangeRate() > 0 ? 1 : 0;
