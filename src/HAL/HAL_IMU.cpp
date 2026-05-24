@@ -106,7 +106,7 @@ void event_cb(inv_imu_sensor_event_t *evt)
         }
 
         // 压入神经网络训练缓冲区
-        // recordGestureData(valid_gx, valid_gz);
+        // addSample(valid_gx, valid_gz);
 
         // 串口输出：[对齐后的GX], [对齐后的GZ], [实时修正自旋角(度)]
         Serial.printf("%f,%f,%f\n", valid_gx, valid_gz, corrected_angle_deg);

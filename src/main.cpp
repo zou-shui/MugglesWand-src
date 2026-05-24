@@ -4,7 +4,7 @@
 #include "Service/Dispatcher.h"
 #include "Service/OTA.h"
 #include "Service/Sleep.h"
-#include "Service/BLE.h"
+#include "Service/BLE_uart.h"
 #include "HAL/HAL.h"
 #include "Model/gesture_inference.h"
 
@@ -31,6 +31,7 @@ void setup()
   command_init();
   console_init();
   dispatcher_init();
+  ble_init("MagicWand");
 
   inference_init();
 

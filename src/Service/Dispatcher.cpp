@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include "dispatcher.h"
 #include "CommandBus.h"
-#include "BLE.h"
+#include "BLE_uart.h"
 
 #include "Config.h"
 #include "OTA.h"
@@ -18,6 +18,7 @@ static QueueHandle_t cmd_queue;
 static void dispatcher_task(void *param)
 {
     command_msg_t msg;
+    char buffer[256];
 
     while (1)
     {
@@ -26,17 +27,18 @@ static void dispatcher_task(void *param)
             switch (msg.type)
             {
             case CMD_SYS_INFO:
-                Serial.printf("Version: ");
-                Serial.println(FIRMWARE_VER);
-                Serial.printf("Build Time: ");
-                Serial.println(BUILD_TIME);
-                Serial.printf("Core Temperature: %d°C\n", (int)temperatureRead());
-                Serial.printf("System Uptime: %d seconds\n", millis() / 1000);
-                Serial.printf("Battery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
-                              HAL::MAX17048_getVoltage(),
-                              HAL::MAX17048_getSOC(),
-                              HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
-                              HAL::MAX17048_getChangeRate());
+                memset(buffer, 0, sizeof(buffer));
+                sprintf(buffer, "Version: %s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
+                        FIRMWARE_VER,
+                        BUILD_TIME,
+                        (int)temperatureRead(),
+                        millis() / 1000,
+                        HAL::MAX17048_getVoltage(),
+                        HAL::MAX17048_getSOC(),
+                        HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
+                        HAL::MAX17048_getChangeRate());
+                Serial.print(buffer);
+                ble_send(buffer, strlen(buffer));
 
                 break;
             case CMD_SYS_SLEEP:
