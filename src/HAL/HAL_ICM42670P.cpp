@@ -152,12 +152,47 @@ int ICM42670::startWakeOnMotion(uint8_t wom_threshold)
     return rc;
 }
 
+void ICM42670::convertToPhysical(const inv_imu_sensor_event_t *evt, IMU_PhysicalData_t &output)
+{
+    // 转换加速度
+    if (this->isAccelDataValid((inv_imu_sensor_event_t *)evt))
+    {
+        output.Ax = (float)evt->accel[0] / accel_sensitivity;
+        output.Ay = (float)evt->accel[1] / accel_sensitivity;
+        output.Az = (float)evt->accel[2] / accel_sensitivity;
+    }
+
+    // 转换角速度
+    if (this->isGyroDataValid((inv_imu_sensor_event_t *)evt))
+    {
+        output.Gx = (float)evt->gyro[0] / gyro_sensitivity * DEG_TO_RAD;
+        output.Gy = (float)evt->gyro[1] / gyro_sensitivity * DEG_TO_RAD;
+        output.Gz = (float)evt->gyro[2] / gyro_sensitivity * DEG_TO_RAD;
+    }
+}
+
 int ICM42670::startAccel(uint16_t odr, uint16_t fsr)
 {
     int rc = 0;
     rc |= inv_imu_set_accel_fsr(&icm_driver, accel_fsr_g_to_param(fsr));
     rc |= inv_imu_set_accel_frequency(&icm_driver, accel_freq_to_param(odr));
     rc |= inv_imu_enable_accel_low_noise_mode(&icm_driver);
+    switch (fsr)
+    {
+    case 2:
+        accel_sensitivity = 16384.0f;
+        break;
+    case 4:
+        accel_sensitivity = 8192.0f;
+        break;
+    case 8:
+        accel_sensitivity = 4096.0f;
+        break;
+    case 16:
+        accel_sensitivity = 2048.0f;
+        break;
+    }
+
     return rc;
 }
 
@@ -167,6 +202,22 @@ int ICM42670::startGyro(uint16_t odr, uint16_t fsr)
     rc |= inv_imu_set_gyro_fsr(&icm_driver, gyro_fsr_dps_to_param(fsr));
     rc |= inv_imu_set_gyro_frequency(&icm_driver, gyro_freq_to_param(odr));
     rc |= inv_imu_enable_gyro_low_noise_mode(&icm_driver);
+    // 根据数据手册计算陀螺仪 Sensitivity
+    switch (fsr)
+    {
+    case 250:
+        gyro_sensitivity = 131.0f;
+        break;
+    case 500:
+        gyro_sensitivity = 65.5f;
+        break;
+    case 1000:
+        gyro_sensitivity = 32.8f;
+        break;
+    case 2000:
+        gyro_sensitivity = 16.4f;
+        break;
+    }
     return rc;
 }
 
@@ -175,15 +226,6 @@ int ICM42670::getDataFromRegisters(inv_imu_sensor_event_t &evt)
     // Set event buffer to be used by the callback
     event = &evt;
     return inv_imu_get_data_from_registers(&icm_driver);
-}
-
-void ICM42670::enableInterrupt(uint8_t intpin, ICM42670_irq_handler handler)
-{
-    if (handler != NULL)
-    {
-        pinMode(intpin, INPUT);
-        attachInterrupt(intpin, handler, RISING);
-    }
 }
 
 int ICM42670::enableFifoInterrupt(uint8_t intpin, ICM42670_irq_handler handler, uint8_t fifo_watermark)
@@ -195,7 +237,10 @@ int ICM42670::enableFifoInterrupt(uint8_t intpin, ICM42670_irq_handler handler, 
     {
         return -1;
     }
-    enableInterrupt(intpin, handler);
+
+    pinMode(intpin, INPUT);
+    attachInterrupt(intpin, handler, FALLING);
+
     rc |= inv_imu_configure_fifo(&icm_driver, INV_IMU_FIFO_ENABLED);
     // Configure interrupts sources
     int1_config.INV_FIFO_THS = INV_IMU_ENABLE;

@@ -5,72 +5,111 @@
 #include "HAL_ICM42670P.h"
 #include "config.h"
 #include "Model/gesture_buffer.h"
+#include <math.h>
 
 // Instantiate an ICM42670 with LSB address set to 0
 ICM42670 IMU(Wire, 0, 400000);
 
 TaskHandle_t icm42670p_task_handle = NULL;
 
+// 互补滤波与对齐算法参数定义
+#define DT 0.01f // 100Hz采样率 -> 10ms
+#define HALF_DT 0.005f
+#define KP 2.0f   // 加速度计反馈增益
+#define KI 0.005f // 陀螺仪积分误差增益
+
+// 姿态四元数
+static float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;
+static float exInt = 0.0f, eyInt = 0.0f, ezInt = 0.0f;
+
+// =========================================================================
 void event_cb(inv_imu_sensor_event_t *evt)
 {
-    static uint32_t count = 0;
-    static uint32_t lastTime = 0;
+    ICM42670::IMU_PhysicalData_t Data;
+    IMU.convertToPhysical(evt, Data);
 
-    static float prevTheta = 0.0f;
-    static bool firstSample = true;
-    static bool reDelta = false;
-
-    // Format data for Serial Plotter
     if (IMU.isAccelDataValid(evt) && IMU.isGyroDataValid(evt))
     {
-        float magnitude = 0.0f;
-        float theta = 0.0f;
-        float delta = 0.0f;
+        float ax = Data.Ax;
+        float ay = Data.Ay;
+        float az = Data.Az;
 
-        // ==============================
-        // 1️⃣ 旋转强度
-        // ==============================
-        magnitude = sqrtf(evt->gyro[0] * evt->gyro[0] + evt->gyro[2] * evt->gyro[2]);
+        float gx_raw = Data.Gx;
+        float gy_raw = Data.Gy;
+        float gz_raw = Data.Gz;
 
-        // ==============================
-        // 2️⃣ 方向
-        // ==============================
-        const float threshold = 0.5f; // 旋转强度小于此值时认为没有明确方向
+        // 用于四元数更新的临时变量
+        float gx = gx_raw;
+        float gy = gy_raw;
+        float gz = gz_raw;
 
-        if (magnitude > threshold)
+        // 1.Mahony 互补滤波实时更新姿态四元数 (保持对重力方向的追踪)
+        float norm = 1.0 / sqrtf(ax * ax + ay * ay + az * az);
+        ax *= norm;
+        ay *= norm;
+        az *= norm;
+
+        // 当前估计的重力向量在 IMU 坐标系下的分量 [vx, vy, vz]
+        float vx = 2.0f * (q1 * q3 - q0 * q2);
+        float vy = 2.0f * (q0 * q1 + q2 * q3);
+        float vz = q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3;
+
+        // 互补滤波误差校正
+        float ex = (ay * vz - az * vy);
+        float ey = (az * vx - ax * vz);
+        float ez = (ax * vy - ay * vx);
+
+        exInt += ex * KI;
+        eyInt += ey * KI;
+        ezInt += ez * KI;
+
+        gx += KP * ex + exInt;
+        gy += KP * ey + eyInt;
+        gz += KP * ez + ezInt;
+
+        // 四元数更新
+        float q0L = q0, q1L = q1, q2L = q2, q3L = q3;
+        q0 += (-q1L * gx - q2L * gy - q3L * gz) * HALF_DT;
+        q1 += (q0L * gx + q2L * gz - q3L * gy) * HALF_DT;
+        q2 += (q0L * gy - q1L * gz + q3L * gx) * HALF_DT;
+        q3 += (q0L * gz + q1L * gy - q2L * gx) * HALF_DT;
+
+        norm = 1.0 / sqrtf(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+        q0 *= norm;
+        q1 *= norm;
+        q2 *= norm;
+        q3 *= norm;
+
+        // 2.时刻刷新的动态重力投影
+        float valid_gx = gx_raw;
+        float valid_gz = gz_raw;
+        float corrected_angle_deg = 0.0f; // 用于观测的修正角度
+
+        // vx, vz 是重力在 X-Z 平面的投影
+        float mag = sqrtf(vx * vx + vz * vz);
+
+        if (mag > 0.001f)
         {
-            theta = -atan2f(evt->gyro[2], evt->gyro[0]);
+            // 使用 atan2f 明确计算出当前芯片 X 轴与重力投影方向的绝对夹角（弧度）
+            float current_theta = atan2f(vz, vx);
 
-            // ==============================
-            // 3️⃣ 方向变化率
-            // ==============================
+            // 实时计算修正角度（使用 ESP32 默认自带的 RAD_TO_DEG 宏转为角度制）
+            corrected_angle_deg = current_theta * RAD_TO_DEG;
 
-            if (!firstSample && !reDelta)
-            {
-                delta = theta - prevTheta;
+            // 计算旋转矩阵的三角函数
+            float cos_t = cosf(current_theta);
+            float sin_t = sinf(current_theta);
 
-                // 角度归一化到 (-π, π]
-                if (delta > M_PI)
-                    delta -= 2.0f * M_PI;
-                else if (delta < -M_PI)
-                    delta += 2.0f * M_PI;
-            }
-            reDelta = false;
-        }
-        else
-        {
-            // 如果接近零向量，方向保持不变
-            theta = prevTheta;
-            // 且下一次如果有明确方向时，不进行 delta 计算（避免抖动）
-            reDelta = true;
+            // 2D 旋转矩阵对齐：将未受滤波污染的干净角速度对齐到动态重力基准线
+            valid_gx = gx_raw * cos_t + gz_raw * sin_t;
+            valid_gz = -gx_raw * sin_t + gz_raw * cos_t;
         }
 
-        prevTheta = theta;
-        firstSample = false;
+        // 压入神经网络训练缓冲区
+        // recordGestureData(valid_gx, valid_gz);
 
-        // Serial.printf("%f,%f\n", magnitude, delta);
-        // 添加到缓冲区（自动触发推理）
-        addSample(magnitude, delta);
+        // 串口输出：[对齐后的GX], [对齐后的GZ], [实时修正自旋角(度)]
+        Serial.printf("%f,%f,%f\n", valid_gx, valid_gz, corrected_angle_deg);
     }
 }
 
@@ -118,6 +157,15 @@ void HAL::ICM42670P_start()
         Serial.println("[ICM42670P] Task already running");
         return;
     }
+
+    // 初始化算法变量
+    q0 = 1.0f;
+    q1 = 0.0f;
+    q2 = 0.0f;
+    q3 = 0.0f;
+    exInt = 0.0f;
+    eyInt = 0.0f;
+    ezInt = 0.0f;
 
     IMU.enableDataFromFifoInterrupt(PIN_IMU_INT, imuDataReady);
 
