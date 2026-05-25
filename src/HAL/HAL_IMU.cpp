@@ -6,6 +6,7 @@
 #include "config.h"
 #include "Model/gesture_buffer.h"
 #include <math.h>
+#include "Service/BLE_uart.h"
 
 // Instantiate an ICM42670 with LSB address set to 0
 ICM42670 IMU(Wire, 0, 400000);
@@ -109,7 +110,11 @@ void event_cb(inv_imu_sensor_event_t *evt)
         // addSample(valid_gx, valid_gz);
 
         // 串口输出：[对齐后的GX], [对齐后的GZ], [实时修正自旋角(度)]
-        Serial.printf("%f,%f,%f\n", valid_gx, valid_gz, corrected_angle_deg);
+        char buf[64];
+        memset(buf, 0, sizeof(buf));
+        sprintf(buf, "%f,%f,%f\n", valid_gx, valid_gz, corrected_angle_deg);
+        ble_send(buf, strlen(buf)); // 通过BLE发送数据
+        Serial.print(buf);
     }
 }
 
