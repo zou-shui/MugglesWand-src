@@ -6,11 +6,11 @@
 #include "gesture_buffer.h"
 #include "gesture_model.h" // 你的模型头文件
 
-constexpr int kNumClasses = 5; // 输出类别数
+constexpr int kNumClasses = 4; // 输出类别数
 
 // 归一化参数（需要与你的训练数据一致）
-constexpr float kMean[2] = {2.86185933f, 0.01604925f}; // 替换为实际的 mean 值
-constexpr float kStd[2] = {2.96900795f, 0.16098918f};  // 替换为实际的 std 值
+constexpr float kMean[2] = {-0.01127839f, 0.1081845f}; // 替换为实际的 mean 值
+constexpr float kStd[2] = {1.81156801f, 3.31117476f};  // 替换为实际的 std 值
 
 TaskHandle_t inference_task_handle = NULL;
 
@@ -53,10 +53,9 @@ void inference_task(void *pvParameters)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         float *buffer = nullptr;
-        int buf_idx = 0;
 
         // 获取缓冲区
-        while (acquireBuffer(&buffer, &buf_idx))
+        while (acquireBuffer(&buffer))
         {
             int64_t start_time = esp_timer_get_time();
 
@@ -76,7 +75,7 @@ void inference_task(void *pvParameters)
             if (interpreter->Invoke() != kTfLiteOk)
             {
                 Serial.println("Invoke failed!");
-                releaseBuffer(buf_idx);
+
                 continue;
             }
 
@@ -103,8 +102,6 @@ void inference_task(void *pvParameters)
 
             // TODO: 在这里执行手势对应的动作
             handleGesture(predicted_class);
-
-            releaseBuffer(buf_idx);
         }
     }
 }

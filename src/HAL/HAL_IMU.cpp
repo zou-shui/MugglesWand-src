@@ -325,15 +325,16 @@ void event_cb(inv_imu_sensor_event_t *evt)
         }
 
         // 压入神经网络训练缓冲区
-        // addSample(valid_gx, valid_gz);
+        int8_t sta = valid_gesture(valid_gx, valid_gz);
+        addSample(valid_gx, valid_gz, sta >= 4 ? 1 : 0);
 
-        int8_t gesture_state = valid_gesture(valid_gx, valid_gz);
         // 串口输出：[对齐后的GX], [对齐后的GZ], [实时修正自旋角(度)]
-        char buf[64];
-        memset(buf, 0, sizeof(buf));
-        sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, gesture_state);
-        ble_send(buf, strlen(buf)); // 通过BLE发送数据
-        Serial.print(buf);
+        // char buf[64];
+        // memset(buf, 0, sizeof(buf));
+        // // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
+        // sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, sta);
+        // ble_send(buf, strlen(buf)); // 通过BLE发送数据
+        // Serial.print(buf);
     }
 }
 
