@@ -59,7 +59,7 @@ static void dispatcher_task(void *param)
                 break;
 
             case CMD_USR_INFERENCE:
-                HAL::ICM42670P_start();
+                HAL::ICM42670P_start(true);
                 inference_start();
                 HAL::ws2812_trigger_breathe(0, 0);
                 break;
@@ -78,8 +78,7 @@ static void dispatcher_task(void *param)
                 ble_toggle();
                 break;
             case CMD_MPU6050_IMU:
-                HAL::ICM42670P_start();
-                inference_start();
+                HAL::ICM42670P_start(false);
                 break;
             case CMD_CONS_STOP:
                 inference_stop();

@@ -10,7 +10,7 @@
 
 // Instantiate an ICM42670 with LSB address set to 0
 ICM42670 IMU(Wire, 0, 400000);
-
+bool imu_data_mux = 0; // 1表示数据用于训练（压入缓冲区），0表示数据用于实时输出（串口+BLE）
 TaskHandle_t icm42670p_task_handle = NULL;
 
 // ======================== 有效手势状态机 ========================
@@ -324,17 +324,23 @@ void event_cb(inv_imu_sensor_event_t *evt)
             valid_gz = -gx_raw * sin_t + gz_raw * cos_t;
         }
 
-        // 压入神经网络训练缓冲区
-        int8_t sta = valid_gesture(valid_gx, valid_gz);
-        addSample(valid_gx, valid_gz, sta >= 4 ? 1 : 0);
+        int8_t sta = valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
 
-        // 串口输出：[对齐后的GX], [对齐后的GZ], [实时修正自旋角(度)]
-        // char buf[64];
-        // memset(buf, 0, sizeof(buf));
-        // // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
-        // sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, sta);
-        // ble_send(buf, strlen(buf)); // 通过BLE发送数据
-        // Serial.print(buf);
+        if (imu_data_mux)
+        {
+            // 压入神经网络训练缓冲区
+            addSample(valid_gx, valid_gz, sta >= 4 ? 1 : 0);
+        }
+        else
+        {
+            // 串口输出
+            char buf[64];
+            memset(buf, 0, sizeof(buf));
+            // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
+            sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, sta);
+            ble_send(buf, strlen(buf)); // 通过BLE发送数据
+            Serial.print(buf);
+        }
     }
 }
 
@@ -375,13 +381,14 @@ void HAL::ICM42670P_stop()
     icm42670p_task_handle = NULL;
 }
 
-void HAL::ICM42670P_start()
+void HAL::ICM42670P_start(bool data_mux)
 {
     if (icm42670p_task_handle != NULL)
     {
         Serial.println("[ICM42670P] Task already running");
         return;
     }
+    imu_data_mux = data_mux;
 
     // 初始化算法变量
     q0 = 1.0f;

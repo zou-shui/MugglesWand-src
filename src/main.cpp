@@ -40,6 +40,9 @@ void setup()
   ok &= HAL::MAX17048_init();
   HAL::button_init();
 
+  HAL::ICM42670P_start(true);
+  inference_start();
+
   if (!ok)
   {
     Serial.println("[System] Initialize failed, restart in 3 seconds");
