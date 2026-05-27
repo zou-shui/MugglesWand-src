@@ -14,7 +14,28 @@ static void app_task(void *pvParameters)
             switch (event.param1)
             {
             case 0:
-                APP_Lumos_trigger();
+                APP_Lumos_trigger(0xFFFFFF);
+                break;
+            case 1:
+                APP_Lumos_trigger(0xFF0000);
+                break;
+            case 2:
+                APP_Lumos_trigger(0x00FF00);
+                break;
+            case 3:
+                APP_Lumos_trigger(0x0000FF);
+                break;
+            case 4:
+                APP_Lumos_trigger(0xFFFF00);
+                break;
+            case 5:
+                APP_Lumos_trigger(0xFF00FF);
+                break;
+            case 6:
+                APP_Lumos_trigger(0x00FFFF);
+                break;
+            case 7:
+                APP_Lumos_trigger(0x111111);
                 break;
             }
         }

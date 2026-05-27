@@ -2,7 +2,7 @@
 
 // Project Information
 #define PROJECT_NAME "MagicWand"
-#define FIRMWARE_VER "4.0" // 硬件版本.软件版本
+#define FIRMWARE_VER "4.1" // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
 // OTA的热点

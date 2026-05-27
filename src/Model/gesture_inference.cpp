@@ -6,12 +6,13 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "gesture_buffer.h"
 #include "gesture_model.h" // 你的模型头文件
+#include "Service/BLE_uart.h"
 
-constexpr int kNumClasses = 4; // 输出类别数
+constexpr int kNumClasses = 8; // 输出类别数
 
 // 归一化参数（需要与你的训练数据一致）
-constexpr float kMean[2] = {-0.01127839f, 0.1081845f}; // 替换为实际的 mean 值
-constexpr float kStd[2] = {1.81156801f, 3.31117476f};  // 替换为实际的 std 值
+constexpr float kMean[2] = {-0.04635843f, 0.07008906f}; // 替换为实际的 mean 值
+constexpr float kStd[2] = {1.71152129f, 2.4490535f};    // 替换为实际的 std 值
 
 TaskHandle_t inference_task_handle = NULL;
 
@@ -74,10 +75,15 @@ void inference_task(void *pvParameters)
             // 处理输出
             int8_t max_val = -128;
             int predicted_class = 0;
+            float probabilities[kNumClasses]; // 用于存储反量化后的概率值
 
             for (int i = 0; i < kNumClasses; i++)
             {
                 int8_t val = output->data.int8[i];
+
+                // 反量化公式: real_value = (quantized_value - zero_point) * scale
+                probabilities[i] = (val - output->params.zero_point) * output->params.scale;
+
                 if (val > max_val)
                 {
                     max_val = val;
@@ -87,13 +93,18 @@ void inference_task(void *pvParameters)
 
             int64_t end_time = esp_timer_get_time();
             float inference_time = (end_time - start_time) / 1000.0f; // ms
+            float max_probability = probabilities[predicted_class];
 
-            // 输出结果
-            Serial.printf("%d,%.2f\n",
-                          predicted_class, inference_time);
+            char buf[10];
+            memset(buf, 0, sizeof(buf));
+            sprintf(buf, "%d,%.2f,%.2f\n", predicted_class, max_probability, inference_time);
+            ble_send(buf, strlen(buf)); // 通过BLE发送数据
+            Serial.printf(buf);
 
-            // TODO: 在这里执行手势对应的动作
-            handleGesture(predicted_class);
+            if (max_probability >= 0.6)
+            {
+                handleGesture(predicted_class);
+            }
         }
     }
 }

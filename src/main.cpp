@@ -9,9 +9,10 @@
 
 /*
 核心 0:
-- Wi-Fi / BLE
-- Serial console parser
+- Wi-Fi / BLE 协议栈
+- Console parser
 - Service
+- Button handling
 - IMU sampling
 - OTA (临时创建)
 

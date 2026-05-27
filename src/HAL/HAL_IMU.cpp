@@ -16,8 +16,8 @@ TaskHandle_t icm42670p_task_handle = NULL;
 QueueHandle_t icm42670p_queue = NULL;
 SemaphoreHandle_t imu_sem = NULL;
 QueueSetHandle_t imu_queue_set = NULL;
-// ======================== 有效手势状态机 ========================
 
+// ======================== 有效手势状态机 ========================
 // 状态定义
 typedef enum
 {
@@ -41,6 +41,7 @@ typedef struct
     int index;
 } Peak;
 
+// 状态机函数：输入当前点的gx, gy，返回当前状态, 若检测到过去100点是有效手势, 则返回一帧4
 int8_t detect_valid_gesture(float gx, float gy)
 {
     // 状态机内部状态及计数器
@@ -186,7 +187,7 @@ int8_t detect_valid_gesture(float gx, float gy)
         // 如果总共监测到至少两组有效相邻峰值, 且这两组峰值出现时已经有15个点以上（防止瞬间的高频振动触发手势）
         if (valid_pairs >= 2)
         {
-            if (p2_point_cnt >= 15)
+            if (p2_point_cnt >= 13)
             {
                 state = STATE_VALID_GESTURE; // 进入状态 3
                 p3_point_cnt = p2_point_cnt; // 从状态2的点数继续计数
@@ -243,7 +244,6 @@ int8_t detect_valid_gesture(float gx, float gy)
 }
 
 // ======================== 姿态解算，角速度映射 ========================
-
 // 互补滤波与对齐算法参数定义
 #define DT 0.01f // 100Hz采样率 -> 10ms
 #define HALF_DT 0.005f

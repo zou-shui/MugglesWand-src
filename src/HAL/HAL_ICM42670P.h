@@ -1,5 +1,4 @@
-#ifndef ICM42670_H
-#define ICM42670_H
+#pragma once
 
 #include "Arduino.h"
 #include "SPI.h"
@@ -57,5 +56,3 @@ protected:
     ACCEL_CONFIG0_FS_SEL_t accel_fsr_g_to_param(uint16_t accel_fsr_g);
     GYRO_CONFIG0_FS_SEL_t gyro_fsr_dps_to_param(uint16_t gyro_fsr_dps);
 };
-
-#endif // ICM42670_H

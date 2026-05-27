@@ -1,5 +1,4 @@
-#ifndef BLE_UART_H_
-#define BLE_UART_H_
+#pragma once
 
 #include <Arduino.h>
 
@@ -23,5 +22,3 @@ bool ble_toggle(void);
  * @return bool 发送成功返回 true，未连接或发送失败返回 false
  */
 bool ble_send(const char *buffer, size_t length);
-
-#endif // BLE_UART_H_
