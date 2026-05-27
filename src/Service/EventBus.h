@@ -15,7 +15,6 @@ enum EventID
     EVENT_SYS_BLE,
 
     // IMU相关事件，由HAL_IMU模块订阅和处理
-    EVENT_IMU_FIFO_INT,  // FIFO 中断
     EVENT_IMU_SET_MUX,   // IMU数据流向切换，该事件带一个参数(具体流向)
     EVENT_IMU_RESET_MUX, // IMU停止输出
 
@@ -59,5 +58,4 @@ public:
     static void init();
     static bool subscribe(EventID eventId, QueueHandle_t queueHandle);
     static bool publish(EventID eventId, int32_t param1 = 0, int32_t param2 = 0);
-    static bool publishFromISR(EventID eventId, int32_t param1 = 0, int32_t param2 = 0);
 };

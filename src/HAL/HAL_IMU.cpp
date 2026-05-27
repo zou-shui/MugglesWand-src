@@ -14,7 +14,8 @@ ICM42670 IMU(Wire, 0, 400000);
 int8_t imu_data_mux = -1; // 1表示数据用于实时输出, 2表示数据用于训练（压入缓冲区）, -1表示imu未启动
 TaskHandle_t icm42670p_task_handle = NULL;
 QueueHandle_t icm42670p_queue = NULL;
-
+SemaphoreHandle_t imu_sem = NULL;
+QueueSetHandle_t imu_queue_set = NULL;
 // ======================== 有效手势状态机 ========================
 
 // 状态定义
@@ -358,11 +359,11 @@ void event_cb(inv_imu_sensor_event_t *evt)
 
 void IRAM_ATTR imuDataReady(void)
 {
-    if (!icm42670p_task_handle)
+    if (!imu_sem) // 确保信号量已初始化
         return;
 
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    EventBus::publishFromISR(EVENT_IMU_FIFO_INT, 0, 0);
+    xSemaphoreGiveFromISR(imu_sem, &xHigherPriorityTaskWoken);
     if (xHigherPriorityTaskWoken == pdTRUE)
         portYIELD_FROM_ISR();
 }
@@ -370,21 +371,31 @@ void IRAM_ATTR imuDataReady(void)
 static void icm42670p_task(void *pvParameters)
 {
     SystemEvent event;
+    QueueSetMemberHandle_t activated_member;
     while (1)
     {
-        if (xQueueReceive(icm42670p_queue, &event, portMAX_DELAY))
+        // 等待队列集中任一成员被激活（IMU数据就绪或事件队列有事件）
+        activated_member = xQueueSelectFromSet(imu_queue_set, portMAX_DELAY);
+        if (activated_member == imu_sem)
         {
-            switch (event.id)
+            if (xSemaphoreTake(imu_sem, 0) == pdTRUE)
             {
-            case EVENT_IMU_FIFO_INT:
                 IMU.getDataFromFifo(event_cb);
-                break;
-            case EVENT_IMU_SET_MUX:
-                HAL::ICM42670P_start(event.param1);
-                break;
-            case EVENT_IMU_RESET_MUX:
-                HAL::ICM42670P_stop();
-                break;
+            }
+        }
+        else if (activated_member == icm42670p_queue)
+        {
+            if (xQueueReceive(icm42670p_queue, &event, 0) == pdTRUE)
+            {
+                switch (event.id)
+                {
+                case EVENT_IMU_SET_MUX:
+                    HAL::ICM42670P_start(event.param1);
+                    break;
+                case EVENT_IMU_RESET_MUX:
+                    HAL::ICM42670P_stop();
+                    break;
+                }
             }
         }
     }
@@ -401,6 +412,7 @@ void HAL::ICM42670P_stop()
         return;
     imu_data_mux = -1; // 标记为未启动状态
     IMU.enterSleepMode();
+    Serial.println("[IMU] Stopped and entered sleep mode");
 }
 
 void HAL::ICM42670P_start(int8_t data_mux)
@@ -409,7 +421,10 @@ void HAL::ICM42670P_start(int8_t data_mux)
         return; // 无效参数，拒绝启动
 
     if (imu_data_mux == data_mux)
+    {
+        Serial.printf("[IMU] Already in the %d mode\n", data_mux);
         return; // 已经在期望的模式下，无需重复启动
+    }
 
     if (imu_data_mux == -1)
     {
@@ -424,11 +439,13 @@ void HAL::ICM42670P_start(int8_t data_mux)
         eyInt = 0.0f;
         ezInt = 0.0f;
         IMU.enableDataFromFifoInterrupt(PIN_IMU_INT, imuDataReady);
+        Serial.printf("[IMU] Started in mode %d\n", data_mux);
     }
     else
     {
         // 已经启动但模式不同，直接切换模式，无需重新配置IMU
         imu_data_mux = data_mux;
+        Serial.printf("[IMU] Switched to mode %d\n", data_mux);
     }
 }
 
@@ -450,7 +467,17 @@ bool HAL::ICM42670P_init()
 
     // 创建事件队列并订阅事件总线
     icm42670p_queue = xQueueCreate(8, sizeof(SystemEvent));
-    EventBus::subscribe(EVENT_IMU_FIFO_INT, icm42670p_queue);
+
+    // 创建二值信号量
+    imu_sem = xSemaphoreCreateBinary();
+
+    // 创建队列集 (容量 = 队列长度 + 信号量长度)
+    imu_queue_set = xQueueCreateSet(8 + 1);
+
+    // 将队列和信号量添加到队列集中
+    xQueueAddToSet(icm42670p_queue, imu_queue_set);
+    xQueueAddToSet(imu_sem, imu_queue_set);
+
     EventBus::subscribe(EVENT_IMU_SET_MUX, icm42670p_queue);
     EventBus::subscribe(EVENT_IMU_RESET_MUX, icm42670p_queue);
 
@@ -459,7 +486,7 @@ bool HAL::ICM42670P_init()
         "ICM42670P_Task",
         4096,
         NULL,
-        4,
+        5,
         &icm42670p_task_handle,
         0);
 
