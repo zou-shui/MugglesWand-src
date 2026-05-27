@@ -30,8 +30,8 @@ typedef enum
 // 阈值定义
 #define THRESHOLD_STILL 0.5f     // 静止状态的“0附近”阈值
 #define THRESHOLD_MOTION 2.0f    // 运动触发阈值
-#define THRESHOLD_PEAK_POS 3.0f  // 正峰值有效阈值
-#define THRESHOLD_PEAK_NEG -3.0f // 负峰值有效阈值
+#define THRESHOLD_PEAK_POS 2.0f  // 正峰值有效阈值
+#define THRESHOLD_PEAK_NEG -2.0f // 负峰值有效阈值
 
 // 辅助结构体：用于记录峰值
 typedef struct
@@ -40,7 +40,7 @@ typedef struct
     int index;
 } Peak;
 
-int8_t valid_gesture(float gx, float gy)
+int8_t detect_valid_gesture(float gx, float gy)
 {
     // 状态机内部状态及计数器
     static int8_t state = STATE_INIT;
@@ -182,12 +182,21 @@ int8_t valid_gesture(float gx, float gy)
             }
         }
 
-        // 如果总共监测到至少两组有效相邻峰值
+        // 如果总共监测到至少两组有效相邻峰值, 且这两组峰值出现时已经有15个点以上（防止瞬间的高频振动触发手势）
         if (valid_pairs >= 2)
         {
-            state = STATE_VALID_GESTURE; // 进入状态 3
-            p3_point_cnt = 0;
-            still_cnt = 0; // 重置状态3要用的静止计数器
+            if (p2_point_cnt >= 15)
+            {
+                state = STATE_VALID_GESTURE; // 进入状态 3
+                p3_point_cnt = p2_point_cnt; // 从状态2的点数继续计数
+                still_cnt = 0;               // 重置状态3要用的静止计数器
+            }
+            else
+            {
+                state = STATE_INIT; // 虽然峰值特征满足但过早了，回0重新来过
+                still_cnt = 0;
+                return STATE_INIT;
+            }
         }
 
         return state;
@@ -215,8 +224,8 @@ int8_t valid_gesture(float gx, float gy)
             still_cnt = 0; // 必须是连续的10个点
         }
 
-        // 如果到了第50个点还没有凑齐连续10个静止点
-        if (p3_point_cnt >= 50)
+        // 如果到了100点还没有静止，则判定不是有效手势
+        if (p3_point_cnt >= 100)
         {
             state = STATE_INIT;
             still_cnt = 0;
@@ -326,7 +335,7 @@ void event_cb(inv_imu_sensor_event_t *evt)
             valid_gz = -gx_raw * sin_t + gz_raw * cos_t;
         }
 
-        int8_t sta = valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
+        int8_t sta = detect_valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
 
         switch (imu_data_mux)
         {
