@@ -7,11 +7,13 @@
 #include "Model/gesture_buffer.h"
 #include <math.h>
 #include "Service/BLE_uart.h"
+#include "Service/EventBus.h"
 
 // Instantiate an ICM42670 with LSB address set to 0
 ICM42670 IMU(Wire, 0, 400000);
-bool imu_data_mux = 0; // 1表示数据用于训练（压入缓冲区），0表示数据用于实时输出（串口+BLE）
+int8_t imu_data_mux = -1; // 1表示数据用于实时输出, 2表示数据用于训练（压入缓冲区）, -1表示imu未启动
 TaskHandle_t icm42670p_task_handle = NULL;
+QueueHandle_t icm42670p_queue = NULL;
 
 // ======================== 有效手势状态机 ========================
 
@@ -326,20 +328,21 @@ void event_cb(inv_imu_sensor_event_t *evt)
 
         int8_t sta = valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
 
-        if (imu_data_mux)
+        switch (imu_data_mux)
         {
-            // 压入神经网络训练缓冲区
-            addSample(valid_gx, valid_gz, sta >= 4 ? 1 : 0);
-        }
-        else
-        {
-            // 串口输出
+        case 1:
+            // 实时输出模式，保持原样输出
             char buf[64];
             memset(buf, 0, sizeof(buf));
             // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
             sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, sta);
             ble_send(buf, strlen(buf)); // 通过BLE发送数据
             Serial.print(buf);
+            break;
+        case 2:
+            // 压入神经网络训练缓冲区
+            addSample(valid_gx, valid_gz, sta >= 4 ? 1 : 0);
+            break;
         }
     }
 }
@@ -350,20 +353,31 @@ void IRAM_ATTR imuDataReady(void)
         return;
 
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    xTaskNotifyFromISR(icm42670p_task_handle, 0, eNoAction, &xHigherPriorityTaskWoken);
-    if (xHigherPriorityTaskWoken)
+    EventBus::publishFromISR(EVENT_IMU_FIFO_INT, 0, 0);
+    if (xHigherPriorityTaskWoken == pdTRUE)
         portYIELD_FROM_ISR();
 }
 
 static void icm42670p_task(void *pvParameters)
 {
-    // 初始化缓冲区
-    initGestureBuffer();
+    SystemEvent event;
     while (1)
     {
-        // 阻塞等中断
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        IMU.getDataFromFifo(event_cb);
+        if (xQueueReceive(icm42670p_queue, &event, portMAX_DELAY))
+        {
+            switch (event.id)
+            {
+            case EVENT_IMU_FIFO_INT:
+                IMU.getDataFromFifo(event_cb);
+                break;
+            case EVENT_IMU_SET_MUX:
+                HAL::ICM42670P_start(event.param1);
+                break;
+            case EVENT_IMU_RESET_MUX:
+                HAL::ICM42670P_stop();
+                break;
+            }
+        }
     }
 }
 
@@ -376,39 +390,37 @@ void HAL::ICM42670P_stop()
 {
     if (!icm42670p_task_handle)
         return;
+    imu_data_mux = -1; // 标记为未启动状态
     IMU.enterSleepMode();
-    vTaskDelete(icm42670p_task_handle);
-    icm42670p_task_handle = NULL;
 }
 
-void HAL::ICM42670P_start(bool data_mux)
+void HAL::ICM42670P_start(int8_t data_mux)
 {
-    if (icm42670p_task_handle != NULL)
+    if (data_mux != 1 && data_mux != 2)
+        return; // 无效参数，拒绝启动
+
+    if (imu_data_mux == data_mux)
+        return; // 已经在期望的模式下，无需重复启动
+
+    if (imu_data_mux == -1)
     {
-        Serial.println("[ICM42670P] Task already running");
-        return;
+        // 之前未启动，直接设置模式并启动IMU
+        imu_data_mux = data_mux;
+        // 初始化算法变量
+        q0 = 1.0f;
+        q1 = 0.0f;
+        q2 = 0.0f;
+        q3 = 0.0f;
+        exInt = 0.0f;
+        eyInt = 0.0f;
+        ezInt = 0.0f;
+        IMU.enableDataFromFifoInterrupt(PIN_IMU_INT, imuDataReady);
     }
-    imu_data_mux = data_mux;
-
-    // 初始化算法变量
-    q0 = 1.0f;
-    q1 = 0.0f;
-    q2 = 0.0f;
-    q3 = 0.0f;
-    exInt = 0.0f;
-    eyInt = 0.0f;
-    ezInt = 0.0f;
-
-    IMU.enableDataFromFifoInterrupt(PIN_IMU_INT, imuDataReady);
-
-    xTaskCreatePinnedToCore(
-        icm42670p_task,
-        "ICM42670P_Task",
-        4096,
-        NULL,
-        4,
-        &icm42670p_task_handle,
-        0);
+    else
+    {
+        // 已经启动但模式不同，直接切换模式，无需重新配置IMU
+        imu_data_mux = data_mux;
+    }
 }
 
 bool HAL::ICM42670P_init()
@@ -426,6 +438,21 @@ bool HAL::ICM42670P_init()
         return false;
     }
     // 此时传感器处于sleep模式
+
+    // 创建事件队列并订阅事件总线
+    icm42670p_queue = xQueueCreate(8, sizeof(SystemEvent));
+    EventBus::subscribe(EVENT_IMU_FIFO_INT, icm42670p_queue);
+    EventBus::subscribe(EVENT_IMU_SET_MUX, icm42670p_queue);
+    EventBus::subscribe(EVENT_IMU_RESET_MUX, icm42670p_queue);
+
+    xTaskCreatePinnedToCore(
+        icm42670p_task,
+        "ICM42670P_Task",
+        4096,
+        NULL,
+        4,
+        &icm42670p_task_handle,
+        0);
 
     return true;
 }

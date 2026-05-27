@@ -9,7 +9,7 @@ namespace HAL
 
     // IMU (ICM42670P)
     bool ICM42670P_init(void);
-    void ICM42670P_start(bool data_mux);
+    void ICM42670P_start(int8_t data_mux);
     void ICM42670P_stop(void);
     void ICM42670_WakeOnMotion();
 

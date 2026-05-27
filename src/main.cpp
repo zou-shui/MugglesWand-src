@@ -1,21 +1,19 @@
 #include <Arduino.h>
-#include "Service/CommandBus.h"
+#include "Service/EventBus.h"
 #include "Service/Console.h"
-#include "Service/Dispatcher.h"
-#include "Service/OTA.h"
-#include "Service/Sleep.h"
+#include "Service/Service.h"
 #include "Service/BLE_uart.h"
 #include "HAL/HAL.h"
 #include "Model/gesture_inference.h"
+#include "APP/APP.h"
 
 /*
 核心 0:
 - Wi-Fi / BLE
 - Serial console parser
-- Dispatcher
-- MPU6050 sampling
+- Service
+- IMU sampling
 - OTA (临时创建)
-- Power task
 
 核心 1:
 - WS2812 animation
@@ -28,20 +26,23 @@ void setup()
   Serial.begin(115200);
   Serial.println("[System] Initializing...");
 
-  command_init();
+  // system services init
+  EventBus::init();
   console_init();
-  dispatcher_init();
+  service_init();
   ble_init("MagicWand");
 
   inference_init();
+  inference_start();
 
   HAL::ws2812_init();
   ok &= HAL::ICM42670P_init();
   ok &= HAL::MAX17048_init();
   HAL::button_init();
 
-  HAL::ICM42670P_start(true);
-  inference_start();
+  APP_init();
+
+  EventBus::publish(EVENT_IMU_SET_MUX, 2);
 
   if (!ok)
   {

@@ -1,4 +1,5 @@
 #include "gesture_inference.h"
+#include "Service/EventBus.h"
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -28,22 +29,13 @@ namespace
 
 void handleGesture(int gesture_id)
 {
-    // 你的动作处理代码
-    switch (gesture_id)
-    {
-    case 0: /* 动作0 */
-        break;
-    case 1: /* 动作1 */
-        break;
-    case 2: /* 动作2 */
-        break;
-    case 3: /* 动作3 */
-        break;
-    }
+    EventBus::publish(EVENT_GESTURE_DETECTED, gesture_id);
 }
 
 void inference_task(void *pvParameters)
 {
+    // 初始化缓冲区
+    initGestureBuffer();
     // 注册到缓冲区系统
     g_gesture_buffer.inference_task = xTaskGetCurrentTaskHandle();
 

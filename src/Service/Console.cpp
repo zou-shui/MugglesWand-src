@@ -3,7 +3,7 @@
 */
 #include <Arduino.h>
 #include "Console.h"
-#include "CommandBus.h"
+#include "EventBus.h"
 
 #define CONSOLE_BUF_SIZE 64
 
@@ -36,8 +36,7 @@ void console_parse(char *cmd)
     Serial.print("\n> ");
     Serial.println(cmd);
 
-    command_msg_t msg;
-    memset(&msg, 0, sizeof(msg));
+    int32_t arg1 = 0, arg2 = 0;
 
     // 使用 strtok 分割字符串
     char *token = strtok(cmd, " "); // 第一个单词是命令
@@ -46,79 +45,79 @@ void console_parse(char *cmd)
 
     if (!strcmp(token, "info"))
     {
-        msg.type = CMD_SYS_INFO;
+        EventBus::publish(EVENT_SYS_INFO);
     }
     else if (!strcmp(token, "sleep"))
     {
-        msg.type = CMD_SYS_SLEEP;
+        EventBus::publish(EVENT_SYS_SLEEP);
     }
     else if (!strcmp(token, "reboot"))
     {
-        msg.type = CMD_SYS_REBOOT;
+        EventBus::publish(EVENT_SYS_REBOOT);
     }
     else if (!strcmp(token, "shutdown"))
     {
-        msg.type = CMD_SYS_SHUTDOWN;
+        EventBus::publish(EVENT_SYS_SHUTDOWN);
     }
-
-    else if (!strcmp(token, "inference"))
-    {
-        msg.type = CMD_USR_INFERENCE;
-    }
-    else if (!strcmp(token, "charge"))
-    {
-        msg.type = CMD_USR_CHARGE;
-    }
-
     else if (!strcmp(token, "ota"))
     {
-        msg.type = CMD_OTA_OTA;
+        EventBus::publish(EVENT_SYS_OTA);
     }
     else if (!strcmp(token, "ble"))
     {
-        msg.type = CMD_BLE_BLE;
+        EventBus::publish(EVENT_SYS_BLE);
     }
     else if (!strcmp(token, "imu"))
     {
-        msg.type = CMD_MPU6050_IMU;
+        EventBus::publish(EVENT_IMU_SET_MUX, 1);
+    }
+    else if (!strcmp(token, "inference"))
+    {
+        EventBus::publish(EVENT_IMU_SET_MUX, 2);
     }
     else if (!strcmp(token, "stop"))
     {
-        msg.type = CMD_CONS_STOP;
+        EventBus::publish(EVENT_IMU_RESET_MUX);
     }
+
+    else if (!strcmp(token, "charge"))
+    {
+        EventBus::publish(EVENT_USR_CHARGE);
+    }
+
     else if (!strcmp(token, "brea"))
     {
-        msg.type = CMD_WS2812_BREA;
         token = strtok(NULL, " "); // 参数1
         if (token != NULL)
-            msg.arg1 = atoi(token);
+            arg1 = atoi(token);
         token = strtok(NULL, " "); // 参数2
         if (token != NULL)
-            msg.arg2 = atoi(token);
+            arg2 = atoi(token);
+        EventBus::publish(EVENT_WS2812_BREA, arg1, arg2);
     }
     else if (!strcmp(token, "flow"))
     {
-        msg.type = CMD_WS2812_FLOW;
         token = strtok(NULL, " "); // 参数1
         if (token != NULL)
-            msg.arg1 = atoi(token);
+            arg1 = atoi(token);
         token = strtok(NULL, " "); // 参数2
         if (token != NULL)
-            msg.arg2 = atoi(token);
+            arg2 = atoi(token);
+        EventBus::publish(EVENT_WS2812_FLOW, arg1, arg2);
     }
     else if (!strcmp(token, "last"))
     {
-        msg.type = CMD_WS2812_LAST;
         token = strtok(NULL, " "); // 参数1
         if (token != NULL)
-            msg.arg1 = atoi(token);
+            arg1 = atoi(token);
+        EventBus::publish(EVENT_WS2812_LAST, arg1);
     }
     else if (!strcmp(token, "batt"))
     {
-        msg.type = CMD_WS2812_BATT;
         token = strtok(NULL, " "); // 参数1
         if (token != NULL)
-            msg.arg1 = atoi(token);
+            arg1 = atoi(token);
+        EventBus::publish(EVENT_WS2812_BATT, arg1);
     }
     else if (!strcmp(token, "help"))
     {
@@ -130,8 +129,6 @@ void console_parse(char *cmd)
         Serial.println("Unknown command");
         return;
     }
-
-    command_publish(msg.type, msg.arg1, msg.arg2);
 }
 
 /************ Console Task ************/

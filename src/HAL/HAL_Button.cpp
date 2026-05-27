@@ -4,7 +4,7 @@
 #include "HAL.h"
 #include <Arduino.h>
 #include "Config.h"
-#include "Service/CommandBus.h"
+#include "Service/EventBus.h"
 
 #define TURN_OFF_TIME 2000       // 长按关机时间（ms）
 #define MULTI_PRESS_INTERVAL 500 // 两次按下最大间隔 (ms)
@@ -30,7 +30,7 @@ static void button_task(void *param)
             if (!longPressTriggered && millis() - pressStart > TURN_OFF_TIME)
             {
                 longPressTriggered = true;
-                command_publish(CMD_SYS_SHUTDOWN); // 发送关机命令
+                EventBus::publish(EVENT_SYS_SHUTDOWN); // 发送关机命令
             }
         }
         else
@@ -58,15 +58,14 @@ static void button_task(void *param)
             {
             case 1:
                 Serial.println("[Button] 1 short press action");
-                command_publish(CMD_BLE_BLE); // 发送 BLE 切换命令
+                EventBus::publish(EVENT_SYS_BLE); // 发送 BLE 切换命令
                 break;
             case 2:
                 Serial.println("[Button] 2 short press action");
-                command_publish(CMD_OTA_OTA); // 发送 OTA 切换命令
+                EventBus::publish(EVENT_SYS_OTA); // 发送 OTA 切换命令
                 break;
             case 3:
                 Serial.println("[Button] 3 short press action");
-
                 break;
             default:
                 Serial.println("[Button] 4 or more short presses, ignore");
