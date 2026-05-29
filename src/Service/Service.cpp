@@ -8,7 +8,6 @@
 #include "BLE_uart.h"
 #include "EventBus.h"
 #include "OTA.h"
-#include "Sleep.h"
 #include "HAL/HAL.h"
 
 QueueHandle_t service_queue = NULL;
@@ -17,7 +16,6 @@ static void system_service_task(void *param)
 {
     service_queue = xQueueCreate(8, sizeof(SystemEvent));
     EventBus::subscribe(EVENT_SYS_INFO, service_queue);
-    EventBus::subscribe(EVENT_SYS_SLEEP, service_queue);
     EventBus::subscribe(EVENT_SYS_REBOOT, service_queue);
     EventBus::subscribe(EVENT_SYS_SHUTDOWN, service_queue);
     EventBus::subscribe(EVENT_SYS_OTA, service_queue);
@@ -45,13 +43,6 @@ static void system_service_task(void *param)
                         HAL::MAX17048_getChangeRate());
                 Serial.print(buffer);
                 ble_send(buffer, strlen(buffer));
-                break;
-
-            case EVENT_SYS_SLEEP:
-                HAL::ICM42670P_stop();
-                HAL::ICM42670_WakeOnMotion();
-                HAL::ws2812_stop(); // 休眠前清除灯珠状态，避免下次启动时灯珠的不确定状态
-                sleep_enter();
                 break;
 
             case EVENT_SYS_REBOOT:

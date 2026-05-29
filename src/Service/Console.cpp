@@ -47,10 +47,6 @@ void console_parse(char *cmd)
     {
         EventBus::publish(EVENT_SYS_INFO);
     }
-    else if (!strcmp(token, "sleep"))
-    {
-        EventBus::publish(EVENT_SYS_SLEEP);
-    }
     else if (!strcmp(token, "reboot"))
     {
         EventBus::publish(EVENT_SYS_REBOOT);

@@ -8,7 +8,6 @@ enum EventID
 
     // 系统相关，由Service模块订阅和处理
     EVENT_SYS_INFO,
-    EVENT_SYS_SLEEP,
     EVENT_SYS_REBOOT,
     EVENT_SYS_SHUTDOWN,
     EVENT_SYS_OTA,
