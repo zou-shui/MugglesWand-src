@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 
+class AnimationBase;
+
 // 所有硬件API的声明都在这里
 namespace HAL
 {
@@ -23,12 +25,12 @@ namespace HAL
     // Power
     void power_off(void);
 
-    // WS2812
+    // WS2812 统一动画管理引擎接口
     void ws2812_init(void);
-    void ws2812_trigger_breathe(uint32_t color, uint16_t period_ms);
-    void ws2812_trigger_flow(uint32_t color, uint8_t speed_factor, uint8_t tail_length);
-    void ws2812_toggle_last_led(uint32_t color);
-    void ws2812_trigger_charge(uint8_t battery_percentage);
     void ws2812_stop(void);
 
+    // 基于现代图层架构的异步注入接口
+    void ws2812_set_background(AnimationBase *anim);
+    void ws2812_start_fx(AnimationBase *anim);
+    void ws2812_set_overlay(AnimationBase *anim);
 }

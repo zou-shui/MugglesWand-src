@@ -8,6 +8,7 @@
 #include <math.h>
 #include "Service/BLE_uart.h"
 #include "Service/EventBus.h"
+#include "HAL/WS2812_Animation/AnimStatus.hpp"
 
 // Instantiate an ICM42670 with LSB address set to 0
 ICM42670 IMU(Wire, 0, 400000);
@@ -27,6 +28,8 @@ typedef enum
     STATE_VALID_GESTURE = 3,  // 已检测到有效峰值特征，等待收尾静止
     STATE_SUCCESS = 4         // 成功识别手势，返回状态4后重回0
 } GestureState;
+
+static int8_t current_sta = -1; // 当前状态机状态
 
 // 阈值定义
 #define THRESHOLD_STILL 0.5f     // 静止状态的“0附近”阈值
@@ -336,7 +339,7 @@ void event_cb(inv_imu_sensor_event_t *evt)
             valid_gz = -gx_raw * sin_t + gz_raw * cos_t;
         }
 
-        int8_t sta = detect_valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
+        current_sta = detect_valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
 
         switch (imu_data_mux)
         {
@@ -345,13 +348,13 @@ void event_cb(inv_imu_sensor_event_t *evt)
             char buf[64];
             memset(buf, 0, sizeof(buf));
             // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
-            sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, sta);
+            sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, current_sta);
             ble_send(buf, strlen(buf)); // 通过BLE发送数据
             Serial.print(buf);
             break;
         case 2:
             // 压入神经网络训练缓冲区
-            addSample(valid_gx, valid_gz, sta >= 4 ? 1 : 0);
+            addSample(valid_gx, valid_gz, current_sta >= 4 ? 1 : 0);
             break;
         }
     }
@@ -411,6 +414,7 @@ void HAL::ICM42670P_stop()
     if (!icm42670p_task_handle)
         return;
     imu_data_mux = -1; // 标记为未启动状态
+    current_sta = -1;  // 重置状态机状态
     IMU.enterSleepMode();
     Serial.println("[IMU] Stopped and entered sleep mode");
 }
@@ -489,6 +493,8 @@ bool HAL::ICM42670P_init()
         5,
         &icm42670p_task_handle,
         0);
+
+    HAL::ws2812_set_overlay(new AnimStatus(current_sta));
 
     return true;
 }

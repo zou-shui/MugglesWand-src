@@ -1,6 +1,8 @@
 #include "APP.h"
 #include "APP_Lumos.h"
 #include "Service/EventBus.h"
+#include "HAL/HAL.h"
+#include "HAL/WS2812_Animation/AnimFlow.hpp"
 
 QueueHandle_t app_queue = NULL;
 
@@ -32,7 +34,7 @@ static void app_task(void *pvParameters)
                 APP_Lumos_trigger(0xFF00FF);
                 break;
             case 6:
-                APP_Lumos_trigger(0x00FFFF);
+                HAL::ws2812_start_fx(new AnimFlow());
                 break;
             case 7:
                 APP_Lumos_trigger(0x111111);
