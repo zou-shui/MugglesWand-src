@@ -19,25 +19,25 @@ static void app_task(void *pvParameters)
                 APP_Lumos_trigger(0xFFFFFF);
                 break;
             case 1:
-                APP_Lumos_trigger(0xFF0000);
-                break;
-            case 2:
-                APP_Lumos_trigger(0x00FF00);
-                break;
-            case 3:
-                APP_Lumos_trigger(0x0000FF);
-                break;
-            case 4:
-                APP_Lumos_trigger(0xFFFF00);
-                break;
-            case 5:
-                APP_Lumos_trigger(0xFF00FF);
-                break;
-            case 6:
                 HAL::ws2812_start_fx(new AnimFlow());
                 break;
+            case 2:
+                HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
+                break;
+            case 3:
+                HAL::ws2812_start_fx(new AnimFlow(0x00FF00));
+                break;
+            case 4:
+                HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
+                break;
+            case 5:
+                HAL::ws2812_start_fx(new AnimFlow(0xFFFF00));
+                break;
+            case 6:
+                HAL::ws2812_start_fx(new AnimFlow(0xFF00FF));
+                break;
             case 7:
-                APP_Lumos_trigger(0x111111);
+                HAL::ws2812_start_fx(new AnimFlow(0x00FFFF));
                 break;
             }
         }

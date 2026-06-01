@@ -6,7 +6,7 @@
 #include "Config.h"
 #include "Service/EventBus.h"
 
-#define TURN_OFF_TIME 2000       // 长按关机时间（ms）
+#define TURN_OFF_TIME 1000       // 长按关机时间（ms）
 #define MULTI_PRESS_INTERVAL 500 // 两次按下最大间隔 (ms)
 
 static void button_task(void *param)

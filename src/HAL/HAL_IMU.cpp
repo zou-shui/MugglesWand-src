@@ -115,7 +115,26 @@ int8_t detect_valid_gesture(float gx, float gy)
             return STATE_INIT;
         }
 
-        // --- 简单的实时峰值提取算法（以X轴为例，Y轴同理） ---
+        // 如果特征没等到，先等到静止了，则直接退回状态1
+        if (fabsf(gx) < THRESHOLD_STILL && fabsf(gy) < THRESHOLD_STILL)
+        {
+            still_cnt++;
+            if (still_cnt >= 20)
+            {
+                state = STATE_STILL_DETECTED; // 进入状态 1
+                // 准备进入状态2的初始化
+                last_gx = gx;
+                last_gy = gy;
+                trend_gx = 0;
+                trend_gy = 0;
+            }
+        }
+        else
+        {
+            still_cnt = 0; // 必须是连续20个点
+        }
+
+        // --- 简单的实时峰值提取算法 ---
         // X轴峰值检测
         if (gx > last_gx)
         {

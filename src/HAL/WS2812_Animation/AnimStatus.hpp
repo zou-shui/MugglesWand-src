@@ -22,7 +22,7 @@ private:
         switch (state)
         {
         case 0:
-            return CRGB::DarkBlue; // 状态0：等待/就绪
+            return CRGB::Blue; // 状态0：等待/就绪
         case 1:
             return CRGB::Green; // 状态1：捕捉到静止
         case 2:
