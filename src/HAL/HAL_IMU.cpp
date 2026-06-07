@@ -6,7 +6,7 @@
 #include "config.h"
 #include "Model/gesture_buffer.h"
 #include <math.h>
-#include "Service/BLE_uart.h"
+#include "Service/BLE.h"
 #include "Service/EventBus.h"
 #include "HAL/WS2812_Animation/AnimStatus.hpp"
 

@@ -2,7 +2,7 @@
 #include "Service/EventBus.h"
 #include "Service/Console.h"
 #include "Service/Service.h"
-#include "Service/BLE_uart.h"
+#include "Service/BLE.h"
 #include "HAL/HAL.h"
 #include "Model/gesture_inference.h"
 #include "APP/APP.h"

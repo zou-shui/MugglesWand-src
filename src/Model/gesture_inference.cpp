@@ -6,7 +6,7 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "gesture_buffer.h"
 #include "gesture_model.h" // 你的模型头文件
-#include "Service/BLE_uart.h"
+#include "Service/BLE.h"
 
 constexpr int kNumClasses = 6; // 输出类别数
 

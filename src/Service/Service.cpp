@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "Service.h"
-#include "BLE_uart.h"
+#include "BLE.h"
 #include "EventBus.h"
 #include "OTA.h"
 #include "HAL/HAL.h"

@@ -1,6 +1,6 @@
 #include "APP.h"
 #include "APP_Lumos.h"
-#include "Service/BLE_uart.h"
+#include "Service/BLE.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
