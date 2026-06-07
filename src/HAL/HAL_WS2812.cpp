@@ -137,7 +137,7 @@ void HAL::ws2812_init(void)
         "WS2812_Engine_Task",
         4096,
         NULL,
-        1,
+        4,
         &ws2812_task_handle,
         1);
 }

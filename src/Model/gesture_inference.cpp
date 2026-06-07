@@ -137,7 +137,7 @@ void inference_start()
         "Inference",
         8192,
         NULL,
-        2,
+        1,
         &inference_task_handle,
         1);
 }

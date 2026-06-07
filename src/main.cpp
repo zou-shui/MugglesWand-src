@@ -1,24 +1,33 @@
 #include <Arduino.h>
+
 #include "Service/EventBus.h"
 #include "Service/Console.h"
 #include "Service/Service.h"
 #include "Service/BLE.h"
+
 #include "HAL/HAL.h"
+
 #include "Model/gesture_inference.h"
+
 #include "APP/APP.h"
 
 /*
-核心 0:
-- Wi-Fi / BLE 协议栈
-- Console parser
-- Service
-- Button handling
-- OTA (临时创建)
+Core 0:
+| Task              | Priority
+|-------------------|----------
+| Wi-Fi/BLE stack   | highest
+| OTA               | 4
+| Service           | 3
+| Console parser    | 2
+| Button handling   | 1
 
-核心 1:
-- IMU sampling
-- WS2812 animation
-- Gesture reference
+Core 1:
+| Task              | Priority
+|-------------------|----------
+| WS2812 animation  | 4
+| IMU sampling      | 3
+| APP task          | 2
+| Gesture reference | 1
 */
 
 void setup()
