@@ -33,12 +33,6 @@ static void app_task(void *pvParameters)
             case 5:
                 HAL::ws2812_start_fx(new AnimFlow(0xFFFF00));
                 break;
-            case 6:
-                HAL::ws2812_start_fx(new AnimFlow(0xFF00FF));
-                break;
-            case 7:
-                HAL::ws2812_start_fx(new AnimFlow(0x00FFFF));
-                break;
             }
         }
     }

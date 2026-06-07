@@ -19,14 +19,7 @@ enum EventID
 
     EVENT_GESTURE_DETECTED,
 
-    // 用户
-    EVENT_USR_CHARGE,
 
-    // 灯带命令
-    EVENT_WS2812_BREA,
-    EVENT_WS2812_FLOW,
-    EVENT_WS2812_LAST,
-    EVENT_WS2812_BATT,
 };
 
 // 2. 定义事件结构体（传递的数据）

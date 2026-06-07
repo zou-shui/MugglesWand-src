@@ -76,45 +76,6 @@ void console_parse(char *cmd)
         EventBus::publish(EVENT_IMU_RESET_MUX);
     }
 
-    else if (!strcmp(token, "charge"))
-    {
-        EventBus::publish(EVENT_USR_CHARGE);
-    }
-
-    else if (!strcmp(token, "brea"))
-    {
-        token = strtok(NULL, " "); // 参数1
-        if (token != NULL)
-            arg1 = atoi(token);
-        token = strtok(NULL, " "); // 参数2
-        if (token != NULL)
-            arg2 = atoi(token);
-        EventBus::publish(EVENT_WS2812_BREA, arg1, arg2);
-    }
-    else if (!strcmp(token, "flow"))
-    {
-        token = strtok(NULL, " "); // 参数1
-        if (token != NULL)
-            arg1 = atoi(token);
-        token = strtok(NULL, " "); // 参数2
-        if (token != NULL)
-            arg2 = atoi(token);
-        EventBus::publish(EVENT_WS2812_FLOW, arg1, arg2);
-    }
-    else if (!strcmp(token, "last"))
-    {
-        token = strtok(NULL, " "); // 参数1
-        if (token != NULL)
-            arg1 = atoi(token);
-        EventBus::publish(EVENT_WS2812_LAST, arg1);
-    }
-    else if (!strcmp(token, "batt"))
-    {
-        token = strtok(NULL, " "); // 参数1
-        if (token != NULL)
-            arg1 = atoi(token);
-        EventBus::publish(EVENT_WS2812_BATT, arg1);
-    }
     else if (!strcmp(token, "help"))
     {
         console_print_help();
