@@ -1,6 +1,6 @@
 #include "APP.h"
 #include "APP_Lumos.h"
-#include "Service/BLE.h"
+#include "APP_Keyboard.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
@@ -45,7 +45,6 @@ void APP_init()
 {
     app_queue = xQueueCreate(8, sizeof(SystemEvent));
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
-
 
     xTaskCreatePinnedToCore(
         app_task,

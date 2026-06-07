@@ -1,6 +1,5 @@
 #include "BLE.h"
 #include "Console.h"
-#include "BLEHIDKeys.h"
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 
@@ -99,16 +98,6 @@ class MyCharacteristicCallbacks : public NimBLECharacteristicCallbacks
     }
 };
 
-void ble_init(const char *devicename)
-{
-    if (devicename != nullptr && strlen(devicename) > 0)
-    {
-        _device_name = String(devicename);
-    }
-    _is_ble_enabled = false;
-    _is_connected = false;
-}
-
 // 辅助函数：发送标准的8字节键盘HID报文
 static void send_keyboard_report(uint8_t modifiers, uint8_t keycode)
 {
@@ -124,7 +113,7 @@ static void send_keyboard_report(uint8_t modifiers, uint8_t keycode)
 }
 
 // 模拟一次完整的按键点击（按下 + 延迟 + 释放）
-static bool tap_key(uint8_t keycode)
+bool ble_keyboard_tap_key(uint8_t keycode)
 {
     if (!_is_ble_enabled || !_is_connected || pKeyboardInput == nullptr)
     {
@@ -133,7 +122,7 @@ static bool tap_key(uint8_t keycode)
 
     // 1. 发送按键按下报文
     send_keyboard_report(0, keycode);
-    delay(25); // 保持时间(参考自 HijelHID_BLEKeyboard 默认的 25ms 延迟)
+    delay(25); // 保持时间
 
     // 2. 发送全释放（空）报文
     send_keyboard_report(0, 0);
@@ -142,14 +131,14 @@ static bool tap_key(uint8_t keycode)
     return true;
 }
 
-bool ble_keyboard_press_up(void)
+void ble_init(const char *devicename)
 {
-    return tap_key(KEY_UP); // KEY_UP 定义在 BLEHIDKeys.h 中为 0x52
-}
-
-bool ble_keyboard_press_down(void)
-{
-    return tap_key(KEY_DOWN); // KEY_DOWN 定义在 BLEHIDKeys.h 中为 0x51
+    if (devicename != nullptr && strlen(devicename) > 0)
+    {
+        _device_name = String(devicename);
+    }
+    _is_ble_enabled = false;
+    _is_connected = false;
 }
 
 bool ble_toggle(void)

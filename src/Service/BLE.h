@@ -1,6 +1,6 @@
 #pragma once
-
 #include <Arduino.h>
+#include "BLEHIDKeys.h"
 
 /**
  * @brief 初始化 BLE 串口与键盘设备名称
@@ -24,13 +24,8 @@ bool ble_toggle(void);
 bool ble_send(const char *buffer, size_t length);
 
 /**
- * @brief 模拟单击键盘“上键” (UP Arrow)
- * @return bool 发送成功返回 true
+ * @brief 模拟单击指定的键盘按键（按下 + 延迟 + 释放）
+ * @param keycode 键码 (定义在 BLEHIDKeys.h 中)
+ * @return bool 发送成功返回 true，未连接或未开启返回 false
  */
-bool ble_keyboard_press_up(void);
-
-/**
- * @brief 模拟单击键盘“下键” (DOWN Arrow)
- * @return bool 发送成功返回 true
- */
-bool ble_keyboard_press_down(void);
+bool ble_keyboard_tap_key(uint8_t keycode);
