@@ -509,9 +509,9 @@ bool HAL::ICM42670P_init()
         "ICM42670P_Task",
         4096,
         NULL,
-        5,
+        3,
         &icm42670p_task_handle,
-        0);
+        1);
 
     HAL::ws2812_set_overlay(new AnimStatus(current_sta));
 

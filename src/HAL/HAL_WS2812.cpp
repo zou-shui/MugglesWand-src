@@ -131,13 +131,13 @@ void HAL::ws2812_init(void)
     if (layer_queue == NULL)
         return;
 
-    // 创建渲染核心任务（绑定到 Core 1，不干扰 Core 0 的神经网络 Model 运算）
+    // 创建渲染核心任务
     xTaskCreatePinnedToCore(
         ws2812_task,
         "WS2812_Engine_Task",
         4096,
         NULL,
-        2,
+        1,
         &ws2812_task_handle,
         1);
 }

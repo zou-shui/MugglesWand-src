@@ -1,6 +1,8 @@
 #include "BLE_uart.h"
 #include "Console.h"
+#include "BLEHIDKeys.h"
 #include <NimBLEDevice.h>
+#include <NimBLEHIDDevice.h>
 
 // BLE Nordic UART UUIDs
 #define SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"           // UART 核心服务
@@ -17,6 +19,45 @@ static NimBLEServer *pServer = nullptr;
 static NimBLEService *pService = nullptr;
 static NimBLECharacteristic *pTxCharacteristic = nullptr;
 static NimBLECharacteristic *pRxCharacteristic = nullptr;
+
+// HID 核心指针与特征值
+static NimBLEHIDDevice *pHID = nullptr;
+static NimBLECharacteristic *pKeyboardInput = nullptr;
+
+// 标准 104 键 HID 键盘描述符
+static const uint8_t _hidReportDescriptor[] = {
+    0x05, 0x01, // Usage Page (Generic Desktop)
+    0x09, 0x06, // Usage (Keyboard)
+    0xA1, 0x01, // Collection (Application)
+    0x85, 0x01, //   Report ID (1)
+
+    // 修饰键字节 (Ctrl, Shift, Alt, GUI)
+    0x05, 0x07, //   Usage Page (Key Codes)
+    0x19, 0xE0, //   Usage Minimum (Left Control)
+    0x29, 0xE7, //   Usage Maximum (Right GUI)
+    0x15, 0x00, //   Logical Minimum (0)
+    0x25, 0x01, //   Logical Maximum (1)
+    0x75, 0x01, //   Report Size (1 bit)
+    0x95, 0x08, //   Report Count (8)
+    0x81, 0x02, //   Input (Data, Variable, Absolute)
+
+    // 保留字节值
+    0x95, 0x01, //   Report Count (1)
+    0x75, 0x08, //   Report Size (8 bits)
+    0x81, 0x01, //   Input (Constant)
+
+    // 6键无冲无优先级键码阵列 (6KRO)
+    0x95, 0x06,       //   Report Count (6)
+    0x75, 0x08,       //   Report Size (8 bits)
+    0x15, 0x00,       //   Logical Minimum (0)
+    0x26, 0xE7, 0x00, //   Logical Maximum (231)
+    0x05, 0x07,       //   Usage Page (Key Codes)
+    0x19, 0x00,       //   Usage Minimum (0)
+    0x2A, 0xE7, 0x00, //   Usage Maximum (231)
+    0x81, 0x00,       //   Input (Data, Array, Absolute)
+
+    0xC0 // End Collection
+};
 
 /**
  * @brief 服务器回调类，用于监听连接和断开事件
@@ -68,19 +109,64 @@ void ble_init(const char *devicename)
     _is_connected = false;
 }
 
+// 辅助函数：发送标准的8字节键盘HID报文
+static void send_keyboard_report(uint8_t modifiers, uint8_t keycode)
+{
+    if (!_is_connected || pKeyboardInput == nullptr)
+        return;
+
+    uint8_t report[8] = {0};
+    report[0] = modifiers; // 修饰键字节
+    report[2] = keycode;   // 第一个键码槽
+
+    pKeyboardInput->setValue(report, sizeof(report));
+    pKeyboardInput->notify();
+}
+
+// 模拟一次完整的按键点击（按下 + 延迟 + 释放）
+static bool tap_key(uint8_t keycode)
+{
+    if (!_is_ble_enabled || !_is_connected || pKeyboardInput == nullptr)
+    {
+        return false;
+    }
+
+    // 1. 发送按键按下报文
+    send_keyboard_report(0, keycode);
+    delay(25); // 保持时间(参考自 HijelHID_BLEKeyboard 默认的 25ms 延迟)
+
+    // 2. 发送全释放（空）报文
+    send_keyboard_report(0, 0);
+    delay(25); // 间隙时间
+
+    return true;
+}
+
+bool ble_keyboard_press_up(void)
+{
+    return tap_key(KEY_UP); // KEY_UP 定义在 BLEHIDKeys.h 中为 0x52
+}
+
+bool ble_keyboard_press_down(void)
+{
+    return tap_key(KEY_DOWN); // KEY_DOWN 定义在 BLEHIDKeys.h 中为 0x51
+}
+
 bool ble_toggle(void)
 {
     if (!_is_ble_enabled)
     {
         // --- 开启 BLE 逻辑 ---
-        Serial.println("[BLE] Initializing BLE service...");
+        Serial.println("[BLE] Initializing BLE service with HID Keyboard...");
 
         // 1. 初始化 NimBLE 堆栈
         NimBLEDevice::init(_device_name.c_str());
 
-        // 2. 创建或恢复 Server
+        NimBLEDevice::setSecurityAuth(true, true, true);
+
+        // 2. 创建 Server
         pServer = NimBLEDevice::createServer();
-        pServer->setCallbacks(new MyServerCallbacks()); // 内部会自动管理内存或允许重复设置
+        pServer->setCallbacks(new MyServerCallbacks());
 
         // 3. 创建服务
         pService = pServer->createService(SERVICE_UUID);
@@ -96,13 +182,22 @@ bool ble_toggle(void)
             NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
         pRxCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
 
-        // 6. 启动服务与广告
-        // pService->start();
+        // 6.加入 HID 键盘初始化逻辑 (参考 Hijel 实现)
+        pHID = new NimBLEHIDDevice(pServer);
+        pHID->setReportMap((uint8_t *)_hidReportDescriptor, sizeof(_hidReportDescriptor));
+        pHID->setPnp(0x02, 0x05ac, 0x0255, 0x0110); // 设置设备 PnP 信息 (可选，增强系统兼容性)
+        pHID->setHidInfo(0x00, 0x01);               // 0x01 代表键盘设备属性
 
-        // 开始广播
+        // 提取 Report ID 1 对应的键盘输入特征值指针
+        pKeyboardInput = pHID->getInputReport(1);
+        pHID->startServices();
+
+        // 7. 开始广播
         NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
         pAdvertising->setName(_device_name.c_str());
         pAdvertising->addServiceUUID(SERVICE_UUID);
+        pAdvertising->addServiceUUID(pHID->getHidService()->getUUID()); // 同时广播 HID 服务 UUID 确保设备类型识别
+        pAdvertising->setAppearance(0x03C1);                            // 设置外观为标准键盘外设 (0x03C1 为键盘类)
         pAdvertising->enableScanResponse(false);
         pAdvertising->start();
 
@@ -138,6 +233,8 @@ bool ble_toggle(void)
         pService = nullptr;
         pTxCharacteristic = nullptr;
         pRxCharacteristic = nullptr;
+        pHID = nullptr;
+        pKeyboardInput = nullptr;
 
         Serial.println("[BLE] Service stopped");
     }

@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 /**
- * @brief 初始化 BLE 串口设备名称
+ * @brief 初始化 BLE 串口与键盘设备名称
  * @param devicename 设备广播显示的名称
  */
 void ble_init(const char *devicename);
@@ -16,9 +16,21 @@ void ble_init(const char *devicename);
 bool ble_toggle(void);
 
 /**
- * @brief 通过 BLE 发送数据给已连接的主机
+ * @brief 通过 BLE 发送数据给已连接的主机（UART通道）
  * @param buffer 数据缓冲区
  * @param length 数据长度
  * @return bool 发送成功返回 true，未连接或发送失败返回 false
  */
 bool ble_send(const char *buffer, size_t length);
+
+/**
+ * @brief 模拟单击键盘“上键” (UP Arrow)
+ * @return bool 发送成功返回 true
+ */
+bool ble_keyboard_press_up(void);
+
+/**
+ * @brief 模拟单击键盘“下键” (DOWN Arrow)
+ * @return bool 发送成功返回 true
+ */
+bool ble_keyboard_press_down(void);

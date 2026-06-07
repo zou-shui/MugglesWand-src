@@ -1,5 +1,6 @@
 #include "APP.h"
 #include "APP_Lumos.h"
+#include "Service/BLE_uart.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
@@ -23,9 +24,11 @@ static void app_task(void *pvParameters)
                 break;
             case 2:
                 HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
+                ble_keyboard_press_up();
                 break;
             case 3:
                 HAL::ws2812_start_fx(new AnimFlow(0x00FF00));
+                ble_keyboard_press_down();
                 break;
             case 4:
                 HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
@@ -42,6 +45,7 @@ void APP_init()
 {
     app_queue = xQueueCreate(8, sizeof(SystemEvent));
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
+
 
     xTaskCreatePinnedToCore(
         app_task,

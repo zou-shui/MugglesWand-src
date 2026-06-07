@@ -13,10 +13,10 @@
 - Console parser
 - Service
 - Button handling
-- IMU sampling
 - OTA (临时创建)
 
 核心 1:
+- IMU sampling
 - WS2812 animation
 - Gesture reference
 */
@@ -44,7 +44,7 @@ void setup()
   APP_init();
 
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
-  EventBus::publish(EVENT_SYS_BLE);
+  // EventBus::publish(EVENT_SYS_BLE);
 
   if (!ok)
   {
