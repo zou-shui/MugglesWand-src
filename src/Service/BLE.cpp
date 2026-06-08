@@ -9,7 +9,7 @@
 #define TX_CHARACTERISTIC_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // MCU发送 (主机通知 NOTIFY)
 
 // 全局静态变量管理内部状态
-static String _device_name = "ESP32_S3_BLE";
+static String _device_name = "MagicWand"; // 默认设备名称
 static bool _is_ble_enabled = false;
 static bool _is_connected = false;
 
