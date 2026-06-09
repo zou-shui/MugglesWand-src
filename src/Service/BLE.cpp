@@ -2,6 +2,7 @@
 #include "Console.h"
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
+#include "HAL/HAL.h"
 
 // BLE Nordic UART UUIDs
 #define SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"           // UART 核心服务
@@ -98,6 +99,22 @@ class MyCharacteristicCallbacks : public NimBLECharacteristicCallbacks
     }
 };
 
+bool ble_update_battery(void)
+{
+    if (!_is_ble_enabled || !_is_connected || pHID == nullptr)
+    {
+        return false;
+    }
+
+    float level = HAL::MAX17048_getSOC();
+    if (level > 100)
+        level = 100; // 限制最大值为 100
+
+    pHID->setBatteryLevel((uint8_t)level, 1);
+
+    return true;
+}
+
 // 辅助函数：发送标准的8字节键盘HID报文
 static void send_keyboard_report(uint8_t modifiers, uint8_t keycode)
 {
@@ -128,6 +145,7 @@ bool ble_keyboard_tap_key(uint8_t keycode)
     send_keyboard_report(0, 0);
     delay(25); // 间隙时间
 
+    ble_update_battery();
     return true;
 }
 
@@ -174,12 +192,15 @@ bool ble_toggle(void)
         // 6.加入 HID 键盘初始化逻辑 (参考 Hijel 实现)
         pHID = new NimBLEHIDDevice(pServer);
         pHID->setReportMap((uint8_t *)_hidReportDescriptor, sizeof(_hidReportDescriptor));
-        pHID->setPnp(0x02, 0x05ac, 0x0255, 0x0110); // 设置设备 PnP 信息 (可选，增强系统兼容性)
-        pHID->setHidInfo(0x00, 0x01);               // 0x01 代表键盘设备属性
+        pHID->setPnp(0x02, 0x05ac, 0x0255, 0x0110);       // 设置设备 PnP 信息 (可选，增强系统兼容性)
+        pHID->setHidInfo(0x00, 0x01);                     // 0x01 代表键盘设备属性
+        pHID->setBatteryLevel(HAL::MAX17048_getSOC(), 1); // 设置初始电量
+
+        // 为电池电量特征值赋予加密读权限，防止某些系统报安全警告
+        NimBLECharacteristic *pBatteryChar = pHID->getBatteryLevel();
 
         // 提取 Report ID 1 对应的键盘输入特征值指针
         pKeyboardInput = pHID->getInputReport(1);
-        pHID->startServices();
 
         // 7. 开始广播
         NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();

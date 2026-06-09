@@ -29,3 +29,9 @@ bool ble_send(const char *buffer, size_t length);
  * @return bool 发送成功返回 true，未连接或未开启返回 false
  */
 bool ble_keyboard_tap_key(uint8_t keycode);
+
+/**
+ * @brief 更新并发送当前电池电量
+ * @return true 发送成功，false 发送失败或未连接
+ */
+bool ble_update_battery(void);
