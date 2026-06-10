@@ -15,7 +15,7 @@ public:
      * @param speedFactor 速度因子（每帧移动的灯珠数，支持小数）
      * @param tailLength 拖尾长度（灯珠数）
      */
-    AnimFlow(CRGB color = CRGB::White, uint8_t speedFactor = 16, uint8_t tailLength = 12)
+    AnimFlow(CRGB color = CRGB::White, uint8_t speedFactor = 20, uint8_t tailLength = 20)
         : _color(color), _speedFactor(speedFactor), _tailLength(tailLength), _currentPos(0.0f) {}
 
     void update(CRGB *leds, uint16_t numLeds) override
@@ -46,7 +46,7 @@ public:
 
                 // 叠加颜色（使用 FastLED 变暗函数，不直接覆盖，以便和底层混合）
                 CRGB pixelColor = _color;
-                pixelColor.nscale8(dynamicBrightness);
+                pixelColor.nscale8(dynamicBrightness * 0.3);
                 leds[i] += pixelColor;
             }
         }

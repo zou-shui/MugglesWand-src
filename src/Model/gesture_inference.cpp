@@ -97,7 +97,7 @@ void inference_task(void *pvParameters)
 
             char buf[10];
             memset(buf, 0, sizeof(buf));
-            sprintf(buf, "%d,%.2f,%.2f\n", predicted_class, max_probability, inference_time);
+            sprintf(buf, "%d,%.2f,%.0fms\n", predicted_class, max_probability, inference_time);
             ble_send(buf, strlen(buf)); // 通过BLE发送数据
             Serial.printf(buf);
 
