@@ -13,13 +13,13 @@ enum EventID
     EVENT_SYS_OTA,
     EVENT_SYS_BLE,
 
-    // IMU相关事件，由HAL_IMU模块订阅和处理
-    EVENT_IMU_SET_MUX,   // IMU数据流向切换，该事件带一个参数(具体流向)
-    EVENT_IMU_RESET_MUX, // IMU停止输出
+    // IMU相关事件
+    EVENT_IMU_SET_MUX,        // IMU数据流向切换，该事件带一个参数(具体流向：1表示数据用于实时输出, 2表示数据用于训练（压入缓冲区）, -1表示imu未启动)
+    EVENT_IMU_RESET_MUX,      // IMU停止输出
+    EVENT_IMU_STATUS_CHANGED, // IMU状态机或数据流向改变事件，带两个参数：改变后的状态机和数据流向
 
+    // 手势推理结果事件，带一个参数：手势推理结果
     EVENT_GESTURE_DETECTED,
-
-
 };
 
 // 2. 定义事件结构体（传递的数据）

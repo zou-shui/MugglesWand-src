@@ -1,6 +1,15 @@
+/*
+    提供关机接口和实现空闲自动关机功能，自动关机功能只在IMU原始数据输出模式和OTA模式下禁用
+*/
 #include "HAL.h"
 #include <Arduino.h>
 #include "Config.h"
+#include "Service/EventBus.h"
+
+static TimerHandle_t shutdown_timer = NULL;
+static QueueHandle_t power_queue = NULL;
+
+#define AUTO_POWER_OFF_TIME 60000 // 1分钟
 
 void HAL::power_off(void)
 {
@@ -8,4 +17,81 @@ void HAL::power_off(void)
     digitalWrite(PIN_PWR_EN, LOW); // 关闭电源
 }
 
-// 由于PIN_PWR_EN引脚带有外部上拉电阻，故默认状态为高电平，这里只需提供关机的接口
+// 定时器超时回调函数：1分钟到了，执行关机
+void power_off_timer_callback(TimerHandle_t xTimer)
+{
+    Serial.println("[Power] IMU idle for 1 min in training mode. Powering off...");
+
+    EventBus::publish(EVENT_SYS_SHUTDOWN);
+}
+
+// Power 模块的任务，负责接收事件
+static void power_task(void *pvParameters)
+{
+    SystemEvent event;
+    while (1)
+    {
+        if (xQueueReceive(power_queue, &event, portMAX_DELAY) == pdTRUE)
+        {
+            if (event.id == EVENT_IMU_STATUS_CHANGED)
+            {
+                int8_t sta = event.param1;
+                int8_t mux = event.param2;
+
+                // 条件触发：仅在 mux == 2 且 sta == 1 时
+                if (mux == 2 && sta == 1)
+                {
+                    // 在推理模式下，且状态机为静止标志，开始计时，如果现状不改变超过1分钟则自动关机
+                    if (xTimerIsTimerActive(shutdown_timer) == pdFALSE)
+                    {
+                        xTimerStart(shutdown_timer, 0);
+                    }
+                }
+                else
+                {
+                    // 只要脱离了该状态（比如开始运动，或者退出手势推理模式），立刻掐断倒计时
+                    if (xTimerIsTimerActive(shutdown_timer) == pdTRUE)
+                    {
+                        xTimerStop(shutdown_timer, 0);
+                    }
+                }
+            }
+            else if (event.id == EVENT_SYS_OTA)
+            {
+                // 进入OTA模式后不自动关机，且OTA模式只能通过重启退出，所以这里直接删除任务
+                if (xTimerIsTimerActive(shutdown_timer) == pdTRUE)
+                {
+                    xTimerStop(shutdown_timer, 0);
+                    vTaskDelete(NULL); // 删除当前任务
+                }
+            }
+        }
+    }
+}
+
+// Power 模块初始化
+void HAL::power_init()
+{
+    // 1. 创建事件队列并订阅
+    power_queue = xQueueCreate(8, sizeof(SystemEvent));
+    EventBus::subscribe(EVENT_IMU_STATUS_CHANGED, power_queue); // 订阅状态机
+    EventBus::subscribe(EVENT_SYS_OTA, power_queue);            // 订阅OTA事件，进入OTA模式后也不自动关机
+
+    // 2. 创建一个单次触发的软件定时器（pdFALSE 表示不循环）
+    shutdown_timer = xTimerCreate(
+        "ShutdownTimer",
+        pdMS_TO_TICKS(AUTO_POWER_OFF_TIME), // 定时器周期
+        pdFALSE,                            // 单次触发
+        (void *)0,
+        power_off_timer_callback);
+
+    // 3. 创建电源管理任务
+    xTaskCreatePinnedToCore(
+        power_task,
+        "Power_Task",
+        2048,
+        NULL,
+        0,
+        NULL,
+        0);
+}

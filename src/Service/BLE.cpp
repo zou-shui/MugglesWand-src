@@ -73,13 +73,14 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         // 允许连接后更新参数以优化功耗和速度（可选）
         pServer->updateConnParams(connInfo.getConnHandle(), 24, 40, 0, 200);
         Serial.printf("[BLE] Client connected\n");
+        ble_update_battery(); // 连接时立即上报电量
     }
 
     void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override
     {
         _is_connected = false;
         Serial.printf("[BLE] Client disconnected\n");
-        // 注意：如果 BLE 被主动 toggle 关闭，不需要在这里重新开启广告
+        // 注意：如果 BLE 被主动 toggle 关闭，不需要在这里重新开启广播
         if (_is_ble_enabled)
         {
             NimBLEDevice::startAdvertising();

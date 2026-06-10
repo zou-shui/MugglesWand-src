@@ -46,6 +46,7 @@ void setup()
   inference_init();
   inference_start();
 
+  HAL::power_init();
   HAL::ws2812_init();
   ok &= HAL::ICM42670P_init();
   ok &= HAL::MAX17048_init();

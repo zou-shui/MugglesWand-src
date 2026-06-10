@@ -23,6 +23,7 @@ namespace HAL
     bool MAX17048_getChargeStatus(void);
 
     // Power
+    void power_init(void);
     void power_off(void);
 
     // WS2812 统一动画管理引擎接口

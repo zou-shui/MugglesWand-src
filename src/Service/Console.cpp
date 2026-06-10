@@ -16,18 +16,13 @@ static void console_print_help()
     Serial.println("========= Magic Wand Console =========");
     Serial.println("help          - Show command list");
     Serial.println("info          - Show system information");
-    Serial.println("sleep         - Enter deep sleep mode");
     Serial.println("reboot        - Restart device");
     Serial.println("shutdown      - Turn off the power");
-    Serial.println("inference     - Enter gesture inference mode");
-    Serial.println("charge        - Enter charge mode");
     Serial.println("ota           - Enter OTA mode");
     Serial.println("ble           - Toggle BLE service on/off");
-    Serial.println("imu           - Print MPU6050 IMU data");
-    Serial.println("stop          - Stop all printing activities");
-    Serial.println("brea [c] [p]  - Trigger WS2812 breathe animation, optional color and period (ms)");
-    Serial.println("flow [s] [t]  - Trigger WS2812 flowing animation, optional speed (1-50) and tail length (1-50)");
-    Serial.println("last [c]      - Toggle WS2812 last LED on/off, optional color");
+    Serial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
+    Serial.println("imu           - Switch IMU to real-time output mode (send data via BLE&UART)");
+    Serial.println("stop          - Stop IMU task");
 }
 
 /************ 串口命令解析 ************/
@@ -63,14 +58,15 @@ void console_parse(char *cmd)
     {
         EventBus::publish(EVENT_SYS_BLE);
     }
-    else if (!strcmp(token, "imu"))
-    {
-        EventBus::publish(EVENT_IMU_SET_MUX, 1);
-    }
     else if (!strcmp(token, "inference"))
     {
         EventBus::publish(EVENT_IMU_SET_MUX, 2);
     }
+    else if (!strcmp(token, "imu"))
+    {
+        EventBus::publish(EVENT_IMU_SET_MUX, 1);
+    }
+
     else if (!strcmp(token, "stop"))
     {
         EventBus::publish(EVENT_IMU_RESET_MUX);

@@ -360,6 +360,17 @@ void event_cb(inv_imu_sensor_event_t *evt)
 
         current_sta = detect_valid_gesture(valid_gx, valid_gz); // 实时判断前100个点是否为有效数据
 
+        static int8_t last_sta = -1; // 记录上一次的状态
+        static int8_t last_mux = -1; // 记录上一次的 mux 模式
+        // 只有当状态或模式发生改变时，才发布事件
+        if (current_sta != last_sta || imu_data_mux != last_mux)
+        {
+            last_sta = current_sta;
+            last_mux = imu_data_mux;
+
+            EventBus::publish(EVENT_IMU_STATUS_CHANGED, current_sta, imu_data_mux);
+        }
+
         switch (imu_data_mux)
         {
         case 1:
