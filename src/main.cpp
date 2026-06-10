@@ -15,11 +15,12 @@
 Core 0:
 | Task              | Priority
 |-------------------|----------
-| Wi-Fi/BLE stack   | highest
+| Wi-Fi/BLE stack   | highest(default)
 | OTA               | 4
 | Service           | 3
 | Console parser    | 2
 | Button handling   | 1
+| BLE battery task  | 0
 
 Core 1:
 | Task              | Priority
@@ -40,7 +41,7 @@ void setup()
   EventBus::init();
   console_init();
   service_init();
-  ble_init("MagicWand");
+  ble_init("Zoushui's Wand");
 
   inference_init();
   inference_start();

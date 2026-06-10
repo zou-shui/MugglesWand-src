@@ -14,6 +14,9 @@ static String _device_name = "MagicWand"; // 默认设备名称
 static bool _is_ble_enabled = false;
 static bool _is_connected = false;
 
+// FreeRTOS 任务句柄
+static TaskHandle_t _battery_task_handle = nullptr;
+
 // NimBLE 核心指针
 static NimBLEServer *pServer = nullptr;
 static NimBLEService *pService = nullptr;
@@ -106,13 +109,28 @@ bool ble_update_battery(void)
         return false;
     }
 
-    float level = HAL::MAX17048_getSOC();
+    float level = (HAL::MAX17048_getSOC() + 0.5f); // 加0.5为了取整时四舍五入
     if (level > 100)
         level = 100; // 限制最大值为 100
 
     pHID->setBatteryLevel((uint8_t)level, 1);
 
     return true;
+}
+
+/**
+ * @brief 电池电量定期上报的 FreeRTOS 任务函数
+ */
+static void ble_battery_task(void *pvParameters)
+{
+    while (true)
+    {
+        // 尝试更新电量，内部已包含状态校验
+        ble_update_battery();
+
+        // 延时 30 秒 (30000 毫秒)
+        vTaskDelay(pdMS_TO_TICKS(30000));
+    }
 }
 
 // 辅助函数：发送标准的8字节键盘HID报文
@@ -145,7 +163,6 @@ bool ble_keyboard_tap_key(uint8_t keycode)
     send_keyboard_report(0, 0);
     delay(25); // 间隙时间
 
-    ble_update_battery();
     return true;
 }
 
@@ -157,6 +174,7 @@ void ble_init(const char *devicename)
     }
     _is_ble_enabled = false;
     _is_connected = false;
+    _battery_task_handle = nullptr;
 }
 
 bool ble_toggle(void)
@@ -207,23 +225,45 @@ bool ble_toggle(void)
         pAdvertising->setName(_device_name.c_str());
         pAdvertising->addServiceUUID(SERVICE_UUID);
         pAdvertising->addServiceUUID(pHID->getHidService()->getUUID()); // 同时广播 HID 服务 UUID 确保设备类型识别
-        pAdvertising->setAppearance(0x03C1);                            // 设置外观为标准键盘外设 (0x03C1 为键盘类)
+        pAdvertising->setAppearance(0x03C4);                            // 设置外观
         pAdvertising->enableScanResponse(false);
         pAdvertising->start();
 
         _is_ble_enabled = true;
+
+        // 8. 创建电量定期上报任务
+        if (_battery_task_handle == nullptr)
+        {
+            xTaskCreatePinnedToCore(
+                ble_battery_task,      // 任务函数
+                "ble_bat_task",        // 任务名称
+                4096,                  // 栈大小小于2472字节将会溢出
+                nullptr,               // 传递给任务的参数
+                1,                     // 任务优先级
+                &_battery_task_handle, // 任务句柄
+                0);                    // 固定在核心 0
+        }
+
         Serial.println("[BLE] Service started, advertising as '" + _device_name + "'\n");
     }
     else
     {
         // --- 关闭 BLE 逻辑 ---
+
+        // 1. 优先销毁电量上报任务，防止关闭中途任务被唤醒访问已被释放的指针
+        if (_battery_task_handle != nullptr)
+        {
+            vTaskDelete(_battery_task_handle);
+            _battery_task_handle = nullptr;
+        }
+
         _is_ble_enabled = false;
         _is_connected = false;
 
-        // 1. 停止广播
+        // 2. 停止广播
         NimBLEDevice::getAdvertising()->stop();
 
-        // 2. 断开所有已有连接
+        // 3. 断开所有已有连接
         if (pServer != nullptr)
         {
             // 获取当前所有客户端连接的句柄并强制断开
@@ -234,8 +274,7 @@ bool ble_toggle(void)
             }
         }
 
-        // 3. 彻底注销 NimBLE 驱动并释放相关射频(RF)与内存资源
-        // 传入 true 会释放占用的内存，确保射频硬件关闭，达到真正零功耗（相对于BLE而言）
+        // 4. 彻底注销 NimBLE 驱动并释放相关射频(RF)与内存资源
         NimBLEDevice::deinit(true);
 
         // 指针归零，防止野指针
