@@ -38,7 +38,11 @@ void console_parse(char *cmd)
     if (token == NULL)
         return;
 
-    if (!strcmp(token, "info"))
+    if (!strcmp(token, "debug"))
+    {
+        EventBus::publish(EVENT_SYS_DEBUG);
+    }
+    else if (!strcmp(token, "info"))
     {
         EventBus::publish(EVENT_SYS_INFO);
     }

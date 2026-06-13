@@ -7,6 +7,7 @@ enum EventID
     EVENT_NONE = 0,
 
     // 系统相关，由Service模块订阅和处理
+    EVENT_SYS_DEBUG,
     EVENT_SYS_INFO,
     EVENT_SYS_REBOOT,
     EVENT_SYS_SHUTDOWN,

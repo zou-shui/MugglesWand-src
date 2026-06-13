@@ -56,9 +56,9 @@ static void power_task(void *pvParameters)
                     }
                 }
             }
-            else if (event.id == EVENT_SYS_OTA)
+            else if (event.id == EVENT_SYS_OTA || event.id == EVENT_SYS_DEBUG)
             {
-                // 进入OTA模式后不自动关机，且OTA模式只能通过重启退出，所以这里直接删除任务
+                // 进入OTA模式或DEBUG模式后不自动关机，且这些模式只能通过重启退出，所以这里直接删除任务
                 if (xTimerIsTimerActive(shutdown_timer) == pdTRUE)
                 {
                     xTimerStop(shutdown_timer, 0);
@@ -76,6 +76,7 @@ void HAL::power_init()
     power_queue = xQueueCreate(8, sizeof(SystemEvent));
     EventBus::subscribe(EVENT_IMU_STATUS_CHANGED, power_queue); // 订阅状态机
     EventBus::subscribe(EVENT_SYS_OTA, power_queue);            // 订阅OTA事件，进入OTA模式后也不自动关机
+    EventBus::subscribe(EVENT_SYS_DEBUG, power_queue);          // 订阅DEBUG事件，进入DEBUG模式后也不自动关机
 
     // 2. 创建一个单次触发的软件定时器（pdFALSE 表示不循环）
     shutdown_timer = xTimerCreate(
