@@ -8,6 +8,7 @@
 #include "BLE.h"
 #include "EventBus.h"
 #include "OTA.h"
+#include "AP.h"
 #include "HAL/HAL.h"
 
 QueueHandle_t service_queue = NULL;
@@ -20,6 +21,7 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_SHUTDOWN, service_queue);
     EventBus::subscribe(EVENT_SYS_OTA, service_queue);
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
+    EventBus::subscribe(EVENT_SYS_AP, service_queue);
 
     char buffer[256];
     SystemEvent event;
@@ -42,7 +44,7 @@ static void system_service_task(void *param)
                         HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
                         HAL::MAX17048_getChangeRate());
                 Serial.print(buffer);
-                ble_send(buffer, strlen(buffer));
+                ap_print(buffer, strlen(buffer));
                 break;
 
             case EVENT_SYS_REBOOT:
@@ -63,7 +65,9 @@ static void system_service_task(void *param)
             case EVENT_SYS_BLE:
                 ble_toggle();
                 break;
-
+            case EVENT_SYS_AP:
+                ap_toggle();
+                break;
             default:
                 break;
             }

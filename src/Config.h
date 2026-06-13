@@ -5,9 +5,12 @@
 #define FIRMWARE_VER "4.1" // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
-// OTA的热点
-#define OTA_AP_SSID "MagicWand-OTA"
-#define OTA_AP_PASS "meiyoumima"
+// AP
+#define AP_SSID "MagicWand"  // AP热点名称
+#define AP_PASS "meiyoumima" // AP热点密码（至少8位）
+
+// BLE
+#define BLE_DEVICE_NAME "Zoushui's Wand" // BLE设备名称
 
 // ICM42670P
 #define PIN_IMU_SDA 10 // IMU SDA引脚(外部上拉)

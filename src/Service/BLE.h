@@ -3,12 +3,6 @@
 #include "BLEHIDKeys.h"
 
 /**
- * @brief 初始化 BLE 串口与键盘设备名称
- * @param devicename 设备广播显示的名称
- */
-void ble_init(const char *devicename);
-
-/**
  * @brief 切换 BLE 的开启与关闭状态
  * @details 内部自动判断当前状态。关闭时会断开连接、停止广播并注销堆栈以最大化省电。
  * @return bool 返回切换后的 BLE 状态：true 表示已开启，false 表示已关闭

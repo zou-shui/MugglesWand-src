@@ -13,6 +13,7 @@ enum EventID
     EVENT_SYS_SHUTDOWN,
     EVENT_SYS_OTA,
     EVENT_SYS_BLE,
+    EVENT_SYS_AP,
 
     // IMU相关事件
     EVENT_IMU_SET_MUX,        // IMU数据流向切换，该事件带一个参数(具体流向：1表示数据用于实时输出, 2表示数据用于训练（压入缓冲区）, -1表示imu未启动)

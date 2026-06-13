@@ -9,8 +9,8 @@
 #include <ElegantOTA.h>
 
 /************ AP配置 ************/
-const char *ap_ssid = OTA_AP_SSID;     // WiFi AP名称
-const char *ap_password = OTA_AP_PASS; // WiFi AP密码
+const char *ap_ssid = AP_SSID;     // WiFi AP名称
+const char *ap_password = AP_PASS; // WiFi AP密码
 
 /************ Web服务器 ************/
 WebServer server(80);

@@ -6,7 +6,7 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "gesture_buffer.h"
 #include "gesture_model.h" // 你的模型头文件
-#include "Service/BLE.h"
+#include "Service/AP.h"
 
 constexpr int kNumClasses = 6; // 输出类别数
 
@@ -98,7 +98,7 @@ void inference_task(void *pvParameters)
             char buf[10];
             memset(buf, 0, sizeof(buf));
             sprintf(buf, "%d,%.2f,%.0fms\n", predicted_class, max_probability, inference_time);
-            ble_send(buf, strlen(buf)); // 通过BLE发送数据
+            ap_print(buf, strlen(buf)); // 通过BLE发送数据
             Serial.printf(buf);
 
             if (max_probability >= 0.6)

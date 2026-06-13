@@ -3,7 +3,6 @@
 #include "Service/EventBus.h"
 #include "Service/Console.h"
 #include "Service/Service.h"
-#include "Service/BLE.h"
 
 #include "HAL/HAL.h"
 
@@ -41,7 +40,6 @@ void setup()
   EventBus::init();
   console_init();
   service_init();
-  ble_init("Zoushui's Wand");
 
   inference_init();
   inference_start();
@@ -56,6 +54,7 @@ void setup()
 
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
   EventBus::publish(EVENT_SYS_BLE);
+  EventBus::publish(EVENT_SYS_AP);
 
   if (!ok)
   {

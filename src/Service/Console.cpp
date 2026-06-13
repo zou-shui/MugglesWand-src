@@ -20,6 +20,7 @@ static void console_print_help()
     Serial.println("shutdown      - Turn off the power");
     Serial.println("ota           - Enter OTA mode");
     Serial.println("ble           - Toggle BLE service on/off");
+    Serial.println("ap            - Toggle AP service on/off");
     Serial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
     Serial.println("imu           - Switch IMU to real-time output mode (send data via BLE&UART)");
     Serial.println("stop          - Stop IMU task");
@@ -28,15 +29,15 @@ static void console_print_help()
 /************ 串口命令解析 ************/
 void console_parse(char *cmd)
 {
-    Serial.print("\n> ");
-    Serial.println(cmd);
-
     int32_t arg1 = 0, arg2 = 0;
 
     // 使用 strtok 分割字符串
-    char *token = strtok(cmd, " "); // 第一个单词是命令
+    char *token = strtok(cmd, " \r\n"); // 第一个单词是命令
     if (token == NULL)
         return;
+
+    Serial.print("\n> ");
+    Serial.println(token);
 
     if (!strcmp(token, "debug"))
     {
@@ -61,6 +62,10 @@ void console_parse(char *cmd)
     else if (!strcmp(token, "ble"))
     {
         EventBus::publish(EVENT_SYS_BLE);
+    }
+    else if (!strcmp(token, "ap"))
+    {
+        EventBus::publish(EVENT_SYS_AP);
     }
     else if (!strcmp(token, "inference"))
     {

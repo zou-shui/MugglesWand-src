@@ -3,6 +3,7 @@
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include "HAL/HAL.h"
+#include "Config.h"
 
 // BLE Nordic UART UUIDs
 #define SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"           // UART 核心服务
@@ -10,7 +11,7 @@
 #define TX_CHARACTERISTIC_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // MCU发送 (主机通知 NOTIFY)
 
 // 全局静态变量管理内部状态
-static String _device_name = "MagicWand"; // 默认设备名称
+static String _device_name = BLE_DEVICE_NAME;
 static bool _is_ble_enabled = false;
 static bool _is_connected = false;
 
@@ -165,17 +166,6 @@ bool ble_keyboard_tap_key(uint8_t keycode)
     delay(25); // 间隙时间
 
     return true;
-}
-
-void ble_init(const char *devicename)
-{
-    if (devicename != nullptr && strlen(devicename) > 0)
-    {
-        _device_name = String(devicename);
-    }
-    _is_ble_enabled = false;
-    _is_connected = false;
-    _battery_task_handle = nullptr;
 }
 
 bool ble_toggle(void)

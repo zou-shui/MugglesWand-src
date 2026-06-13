@@ -6,7 +6,7 @@
 #include "config.h"
 #include "Model/gesture_buffer.h"
 #include <math.h>
-#include "Service/BLE.h"
+#include "Service/AP.h"
 #include "Service/EventBus.h"
 #include "HAL/WS2812_Animation/AnimStatus.hpp"
 
@@ -379,7 +379,7 @@ void event_cb(inv_imu_sensor_event_t *evt)
             memset(buf, 0, sizeof(buf));
             // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
             sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, current_sta);
-            ble_send(buf, strlen(buf)); // 通过BLE发送数据
+            ap_print(buf, strlen(buf)); // 通过BLE发送数据
             Serial.print(buf);
             break;
         case 2:
