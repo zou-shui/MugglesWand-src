@@ -1,28 +1,20 @@
 #include "BLE.h"
-#include "Console.h"
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include "HAL/HAL.h"
 #include "Config.h"
-
-// BLE Nordic UART UUIDs
-#define SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"           // UART 核心服务
-#define RX_CHARACTERISTIC_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" // MCU接收 (主机写 W/WO_RESP)
-#define TX_CHARACTERISTIC_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // MCU发送 (主机通知 NOTIFY)
 
 // 全局静态变量管理内部状态
 static String _device_name = BLE_DEVICE_NAME;
 static bool _is_ble_enabled = false;
 static bool _is_connected = false;
 
-// FreeRTOS 任务句柄
+// FreeRTOS 任务句柄与退出标志
 static TaskHandle_t _battery_task_handle = nullptr;
+static volatile bool _battery_task_should_exit = false;
 
 // NimBLE 核心指针
 static NimBLEServer *pServer = nullptr;
-static NimBLEService *pService = nullptr;
-static NimBLECharacteristic *pTxCharacteristic = nullptr;
-static NimBLECharacteristic *pRxCharacteristic = nullptr;
 
 // HID 核心指针与特征值
 static NimBLEHIDDevice *pHID = nullptr;
@@ -74,7 +66,6 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         // 允许连接后更新参数以优化功耗和速度（可选）
         pServer->updateConnParams(connInfo.getConnHandle(), 24, 40, 0, 200);
         Serial.printf("[BLE] Client connected\n");
-        ble_update_battery(); // 连接时立即上报电量
     }
 
     void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override
@@ -85,21 +76,6 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         if (_is_ble_enabled)
         {
             NimBLEDevice::startAdvertising();
-        }
-    }
-};
-
-/**
- * @brief 特征值回调类，用于接收来自主机的数据
- */
-class MyCharacteristicCallbacks : public NimBLECharacteristicCallbacks
-{
-    void onWrite(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) override
-    {
-        std::string rxValue = pCharacteristic->getValue();
-        if (rxValue.length() > 0)
-        {
-            console_parse((char *)rxValue.c_str()); // 将接收到的数据传递给串口命令解析器
         }
     }
 };
@@ -122,17 +98,25 @@ bool ble_update_battery(void)
 
 /**
  * @brief 电池电量定期上报的 FreeRTOS 任务函数
+ * @details 通过 _battery_task_should_exit 标志位实现自退出，
+ *          避免外部 vTaskDelete 在任务执行关键操作时强制终止造成状态损坏。
  */
 static void ble_battery_task(void *pvParameters)
 {
-    while (true)
+    while (!_battery_task_should_exit)
     {
         // 尝试更新电量，内部已包含状态校验
         ble_update_battery();
 
-        // 延时 30 秒 (30000 毫秒)
-        vTaskDelay(pdMS_TO_TICKS(30000));
+        // 延时 30 秒 (30000 毫秒)，期间分段检查退出标志以提升响应速度
+        for (int i = 0; i < 30 && !_battery_task_should_exit; i++)
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
+
+    _battery_task_handle = nullptr;
+    vTaskDelete(nullptr); // 任务自退出
 }
 
 // 辅助函数：发送标准的8字节键盘HID报文
@@ -184,47 +168,30 @@ bool ble_toggle(void)
         pServer = NimBLEDevice::createServer();
         pServer->setCallbacks(new MyServerCallbacks());
 
-        // 3. 创建服务
-        pService = pServer->createService(SERVICE_UUID);
-
-        // 4. 创建 TX 特征值 (Notify)
-        pTxCharacteristic = pService->createCharacteristic(
-            TX_CHARACTERISTIC_UUID,
-            NIMBLE_PROPERTY::NOTIFY);
-
-        // 5. 创建 RX 特征值 (Write / Write No Response)
-        pRxCharacteristic = pService->createCharacteristic(
-            RX_CHARACTERISTIC_UUID,
-            NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
-        pRxCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
-
-        // 6.加入 HID 键盘初始化逻辑 (参考 Hijel 实现)
+        // 3. 加入 HID 键盘初始化逻辑
         pHID = new NimBLEHIDDevice(pServer);
         pHID->setReportMap((uint8_t *)_hidReportDescriptor, sizeof(_hidReportDescriptor));
         pHID->setPnp(0x02, 0x05ac, 0x0255, 0x0110);       // 设置设备 PnP 信息 (可选，增强系统兼容性)
         pHID->setHidInfo(0x00, 0x01);                     // 0x01 代表键盘设备属性
         pHID->setBatteryLevel(HAL::MAX17048_getSOC(), 1); // 设置初始电量
 
-        // 为电池电量特征值赋予加密读权限，防止某些系统报安全警告
-        NimBLECharacteristic *pBatteryChar = pHID->getBatteryLevel();
-
         // 提取 Report ID 1 对应的键盘输入特征值指针
         pKeyboardInput = pHID->getInputReport(1);
 
-        // 7. 开始广播
+        // 4. 开始广播
         NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
         pAdvertising->setName(_device_name.c_str());
-        pAdvertising->addServiceUUID(SERVICE_UUID);
-        pAdvertising->addServiceUUID(pHID->getHidService()->getUUID()); // 同时广播 HID 服务 UUID 确保设备类型识别
+        pAdvertising->addServiceUUID(pHID->getHidService()->getUUID()); // 广播 HID 服务 UUID 确保设备类型识别
         pAdvertising->setAppearance(0x03C4);                            // 设置外观
-        pAdvertising->enableScanResponse(false);
+        pAdvertising->enableScanResponse(true);                         // 开启 scan response，提升部分主机（如 Windows）的设备名识别兼容性
         pAdvertising->start();
 
         _is_ble_enabled = true;
 
-        // 8. 创建电量定期上报任务
+        // 5. 创建电量定期上报任务
         if (_battery_task_handle == nullptr)
         {
+            _battery_task_should_exit = false;
             xTaskCreatePinnedToCore(
                 ble_battery_task,      // 任务函数
                 "ble_bat_task",        // 任务名称
@@ -241,11 +208,15 @@ bool ble_toggle(void)
     {
         // --- 关闭 BLE 逻辑 ---
 
-        // 1. 优先销毁电量上报任务，防止关闭中途任务被唤醒访问已被释放的指针
+        // 1. 通知电量上报任务自行退出，避免外部强制 delete 造成状态损坏
         if (_battery_task_handle != nullptr)
         {
-            vTaskDelete(_battery_task_handle);
-            _battery_task_handle = nullptr;
+            _battery_task_should_exit = true;
+            // 等待任务自退出（任务内部会将 _battery_task_handle 置空）
+            while (_battery_task_handle != nullptr)
+            {
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
         }
 
         _is_ble_enabled = false;
@@ -270,9 +241,6 @@ bool ble_toggle(void)
 
         // 指针归零，防止野指针
         pServer = nullptr;
-        pService = nullptr;
-        pTxCharacteristic = nullptr;
-        pRxCharacteristic = nullptr;
         pHID = nullptr;
         pKeyboardInput = nullptr;
 
@@ -280,18 +248,4 @@ bool ble_toggle(void)
     }
 
     return _is_ble_enabled;
-}
-
-bool ble_send(const char *buffer, size_t length)
-{
-    if (!_is_ble_enabled || !_is_connected || pTxCharacteristic == nullptr)
-    {
-        return false;
-    }
-
-    // NimBLE 会自动处理 MTU 大小的分包发送
-    pTxCharacteristic->setValue((const uint8_t *)buffer, length);
-    pTxCharacteristic->notify();
-
-    return true;
 }

@@ -10,14 +10,6 @@
 bool ble_toggle(void);
 
 /**
- * @brief 通过 BLE 发送数据给已连接的主机（UART通道）
- * @param buffer 数据缓冲区
- * @param length 数据长度
- * @return bool 发送成功返回 true，未连接或发送失败返回 false
- */
-bool ble_send(const char *buffer, size_t length);
-
-/**
  * @brief 模拟单击指定的键盘按键（按下 + 延迟 + 释放）
  * @param keycode 键码 (定义在 BLEHIDKeys.h 中)
  * @return bool 发送成功返回 true，未连接或未开启返回 false
