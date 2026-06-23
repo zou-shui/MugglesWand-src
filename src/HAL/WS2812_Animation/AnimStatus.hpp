@@ -98,7 +98,7 @@ public:
         // 视觉优化：当成功识别（状态4）时，我们通常希望白色“最亮闪烁”，暂时不需要被呼吸灯压暗
         if (targetState == 4)
         {
-            renderColor.nscale8(20);    // 识别成功时的亮度限制
+            renderColor.nscale8(10); // 识别成功时的亮度限制
         }
         else if (_breathePeriodMs > 0 && targetColor != CRGB::Black)
         {
@@ -111,7 +111,7 @@ public:
         }
         else
         {
-            renderColor.nscale8(5); //常亮时亮度限制
+            renderColor.nscale8(5); // 常亮时亮度限制
         }
 
         // 5. 强制覆盖顶层灯珠

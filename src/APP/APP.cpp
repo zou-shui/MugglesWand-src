@@ -4,6 +4,7 @@
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
+#include "HAL/WS2812_Animation/AnimBlink.hpp"
 
 QueueHandle_t app_queue = NULL;
 
@@ -17,10 +18,10 @@ static void app_task(void *pvParameters)
             switch (event.param1)
             {
             case 0:
-                APP_Lumos_trigger(0xFFFFFF);
+                APP_Lumos_trigger(CRGB::White);
                 break;
             case 1:
-                HAL::ws2812_start_fx(new AnimFlow());
+                HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 150));
                 break;
             case 2:
                 HAL::ws2812_start_fx(new AnimFlow(0xFF0000));

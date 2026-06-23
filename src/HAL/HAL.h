@@ -14,6 +14,7 @@ namespace HAL
     void ICM42670P_start(int8_t data_mux);
     void ICM42670P_stop(void);
     void ICM42670_WakeOnMotion();
+    void enable_AnimStatus();
 
     // MAX17048
     bool MAX17048_init(void);

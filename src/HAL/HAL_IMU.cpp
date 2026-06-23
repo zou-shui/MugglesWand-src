@@ -524,7 +524,13 @@ bool HAL::ICM42670P_init()
         &icm42670p_task_handle,
         1);
 
-    HAL::ws2812_set_overlay(new AnimStatus(current_sta));
+    enable_AnimStatus();
 
     return true;
+}
+
+// 把 AnimStatus 动画的接口暴露给外部，某些需要夺舍overlay层的app在结束时通过调用这个函数来恢复AnimStatus动画
+void HAL::enable_AnimStatus()
+{
+    HAL::ws2812_set_overlay(new AnimStatus(current_sta));
 }

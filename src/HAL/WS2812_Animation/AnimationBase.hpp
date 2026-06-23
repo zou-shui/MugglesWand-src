@@ -1,3 +1,6 @@
+/*
+    动画基类，所有动画类都应继承自该类并实现 update() 方法
+*/
 #pragma once
 #include <Arduino.h>
 #include <FastLED.h>
