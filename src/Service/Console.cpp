@@ -22,7 +22,7 @@ static void console_print_help()
     Serial.println("ble           - Toggle BLE service on/off");
     Serial.println("ap            - Toggle AP service on/off");
     Serial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
-    Serial.println("imu           - Switch IMU to real-time output mode (send data via BLE&UART)");
+    Serial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
     Serial.println("stop          - Stop IMU task");
 }
 

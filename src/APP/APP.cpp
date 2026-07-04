@@ -21,7 +21,7 @@ static void app_task(void *pvParameters)
                 APP_Lumos_trigger(CRGB::White);
                 break;
             case 1:
-                HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 150));
+                HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
                 break;
             case 2:
                 HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
