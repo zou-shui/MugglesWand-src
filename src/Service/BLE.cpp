@@ -66,6 +66,9 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         // 允许连接后更新参数以优化功耗和速度（可选）
         pServer->updateConnParams(connInfo.getConnHandle(), 24, 40, 0, 200);
         Serial.printf("[BLE] Client connected\n");
+
+        // 连接后立即上报当前电量，确保客户端第一时间获取正确值
+        ble_update_battery();
     }
 
     void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override
@@ -108,8 +111,8 @@ static void ble_battery_task(void *pvParameters)
         // 尝试更新电量，内部已包含状态校验
         ble_update_battery();
 
-        // 延时 30 秒 (30000 毫秒)，期间分段检查退出标志以提升响应速度
-        for (int i = 0; i < 30 && !_battery_task_should_exit; i++)
+        // 延时 10 秒，期间分段检查退出标志以提升响应速度
+        for (int i = 0; i < 10 && !_battery_task_should_exit; i++)
         {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
@@ -171,10 +174,8 @@ bool ble_toggle(void)
         // 3. 加入 HID 键盘初始化逻辑
         pHID = new NimBLEHIDDevice(pServer);
         pHID->setReportMap((uint8_t *)_hidReportDescriptor, sizeof(_hidReportDescriptor));
-        pHID->setPnp(0x02, 0x05ac, 0x0255, 0x0110);       // 设置设备 PnP 信息 (可选，增强系统兼容性)
-        pHID->setHidInfo(0x00, 0x01);                     // 0x01 代表键盘设备属性
-        pHID->setBatteryLevel(HAL::MAX17048_getSOC(), 1); // 设置初始电量
-
+        pHID->setPnp(0x02, 0x05ac, 0x0255, 0x0110); // 设置设备 PnP 信息 (可选，增强系统兼容性)
+        pHID->setHidInfo(0x00, 0x01);               // 0x01 代表键盘设备属性
         // 提取 Report ID 1 对应的键盘输入特征值指针
         pKeyboardInput = pHID->getInputReport(1);
 
