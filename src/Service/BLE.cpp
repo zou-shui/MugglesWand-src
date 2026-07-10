@@ -104,7 +104,9 @@ class MyServerCallbacks : public NimBLEServerCallbacks
     {
         _is_connected = true;
         // 允许连接后更新参数以优化功耗和速度（可选）
-        pServer->updateConnParams(connInfo.getConnHandle(), 24, 40, 0, 200);
+        // 低延迟连接参数：min=7.5ms, max=12.5ms, latency=0, timeout=1000ms
+        // 为鼠标模式提供 ~80-133Hz 报告速率
+        pServer->updateConnParams(connInfo.getConnHandle(), 6, 10, 0, 100);
         Serial.printf("[BLE] Client connected\n");
 
         // 连接后立即上报当前电量，确保客户端第一时间获取正确值
