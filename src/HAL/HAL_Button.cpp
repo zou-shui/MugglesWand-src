@@ -66,6 +66,7 @@ static void button_task(void *param)
                 break;
             case 3:
                 Serial.println("[Button] 3 short press action");
+                EventBus::publish(EVENT_MOUSE_ENABLE);
                 break;
             default:
                 Serial.println("[Button] 4 or more short presses, ignore");

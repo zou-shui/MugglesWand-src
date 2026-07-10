@@ -10,32 +10,64 @@ QueueHandle_t app_queue = NULL;
 
 static void app_task(void *pvParameters)
 {
+    static bool mouse_mode = false; // 鼠标模式开关状态
     SystemEvent event;
+
     while (1)
     {
         if (xQueueReceive(app_queue, &event, portMAX_DELAY))
         {
-            switch (event.param1)
+            switch (event.id)
             {
-            case 0:
-                APP_Lumos_trigger(CRGB::White);
+            case EVENT_GESTURE_DETECTED:
+                switch (event.param1)
+                {
+                case 0:
+                    APP_Lumos_trigger(CRGB::White);
+                    break;
+                case 1:
+                    HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
+                    break;
+                case 2:
+                    HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
+                    ble_keyboard_press_up();
+                    break;
+                case 3:
+                    HAL::ws2812_start_fx(new AnimFlow(0x00FF00));
+                    ble_keyboard_press_down();
+                    break;
+                case 4:
+                    HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
+                    break;
+                case 5:
+                    HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
+                    break;
+                }
                 break;
-            case 1:
-                HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
+
+            case EVENT_MOUSE_ENABLE:
+                mouse_mode = !mouse_mode;
+                APP_Lumos_trigger(CRGB::Green);
+                if (mouse_mode)
+                {
+                    Serial.println("[APP] Mouse mode enabled");
+                    EventBus::publish(EVENT_IMU_SET_MUX, 3);
+                }
+                else
+                {
+                    Serial.println("[APP] Mouse mode disabled");
+                    EventBus::publish(EVENT_IMU_SET_MUX, 2);
+                }
                 break;
-            case 2:
-                HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
-                ble_keyboard_press_up();
+
+            case EVENT_IMU_MOUSE_DATA:
+                if (mouse_mode)
+                {
+                    ble_mouse_move_from_imu(event.param1, event.param2);
+                }
                 break;
-            case 3:
-                HAL::ws2812_start_fx(new AnimFlow(0x00FF00));
-                ble_keyboard_press_down();
-                break;
-            case 4:
-                HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
-                break;
-            case 5:
-                HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
+
+            default:
                 break;
             }
         }
@@ -44,8 +76,10 @@ static void app_task(void *pvParameters)
 
 void APP_init()
 {
-    app_queue = xQueueCreate(8, sizeof(SystemEvent));
+    app_queue = xQueueCreate(16, sizeof(SystemEvent)); // 增大队列以容纳高频鼠标数据
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
+    EventBus::subscribe(EVENT_MOUSE_ENABLE, app_queue);
+    EventBus::subscribe(EVENT_IMU_MOUSE_DATA, app_queue);
 
     xTaskCreatePinnedToCore(
         app_task,

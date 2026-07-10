@@ -17,6 +17,14 @@ bool ble_toggle(void);
 bool ble_keyboard_tap_key(uint8_t keycode);
 
 /**
+ * @brief 发送鼠标相对位移报文
+ * @param dx X 轴位移 (-127 ~ 127)
+ * @param dy Y 轴位移 (-127 ~ 127)
+ * @return true 发送成功, false 未连接或未开启
+ */
+bool ble_mouse_move(int8_t dx, int8_t dy);
+
+/**
  * @brief 更新并发送当前电池电量
  * @return true 发送成功，false 发送失败或未连接
  */

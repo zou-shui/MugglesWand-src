@@ -386,6 +386,12 @@ void event_cb(inv_imu_sensor_event_t *evt)
             // 压入神经网络训练缓冲区
             addSample(valid_gx, valid_gz, current_sta >= 4 ? 1 : 0);
             break;
+        case 3:
+            // 鼠标模拟模式：通过 EventBus 将 valid_gx/valid_gz 发送给 APP 层
+            EventBus::publish(EVENT_IMU_MOUSE_DATA,
+                              (int32_t)(valid_gx * 1000.0f),
+                              (int32_t)(valid_gz * 1000.0f));
+            break;
         }
     }
 }
@@ -451,7 +457,7 @@ void HAL::ICM42670P_stop()
 
 void HAL::ICM42670P_start(int8_t data_mux)
 {
-    if (data_mux != 1 && data_mux != 2)
+    if (data_mux != 1 && data_mux != 2 && data_mux != 3)
         return; // 无效参数，拒绝启动
 
     if (imu_data_mux == data_mux)

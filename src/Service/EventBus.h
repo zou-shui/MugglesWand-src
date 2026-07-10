@@ -37,6 +37,10 @@ enum EventID
 
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
+
+    // --- 鼠标模拟事件 ---
+    EVENT_MOUSE_ENABLE,    // 鼠标模式开关(toggle), 无参数
+    EVENT_IMU_MOUSE_DATA,  // IMU鼠标数据, param1: valid_gx*1000(毫弧度/秒), param2: valid_gz*1000(毫弧度/秒)
 };
 
 // 2. 定义事件结构体（传递的数据）

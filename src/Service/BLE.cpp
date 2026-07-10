@@ -19,9 +19,12 @@ static NimBLEServer *pServer = nullptr;
 // HID 核心指针与特征值
 static NimBLEHIDDevice *pHID = nullptr;
 static NimBLECharacteristic *pKeyboardInput = nullptr;
+static NimBLECharacteristic *pMouseInput = nullptr;
 
-// 标准 104 键 HID 键盘描述符
+// 标准 104 键 HID 键盘 + 鼠标组合描述符
+// Report ID 1 = Keyboard, Report ID 2 = Mouse
 static const uint8_t _hidReportDescriptor[] = {
+    // ==================== Report ID 1: Keyboard ====================
     0x05, 0x01, // Usage Page (Generic Desktop)
     0x09, 0x06, // Usage (Keyboard)
     0xA1, 0x01, // Collection (Application)
@@ -37,7 +40,7 @@ static const uint8_t _hidReportDescriptor[] = {
     0x95, 0x08, //   Report Count (8)
     0x81, 0x02, //   Input (Data, Variable, Absolute)
 
-    // 保留字节值
+    // 保留字节
     0x95, 0x01, //   Report Count (1)
     0x75, 0x08, //   Report Size (8 bits)
     0x81, 0x01, //   Input (Constant)
@@ -52,7 +55,44 @@ static const uint8_t _hidReportDescriptor[] = {
     0x2A, 0xE7, 0x00, //   Usage Maximum (231)
     0x81, 0x00,       //   Input (Data, Array, Absolute)
 
-    0xC0 // End Collection
+    0xC0, // End Collection (Keyboard)
+
+    // ==================== Report ID 2: Mouse ====================
+    0x05, 0x01, // Usage Page (Generic Desktop)
+    0x09, 0x02, // Usage (Mouse)
+    0xA1, 0x01, // Collection (Application)
+    0x85, 0x02, //   Report ID (2)
+    0x09, 0x01, //   Usage (Pointer)
+    0xA1, 0x00, //   Collection (Physical)
+
+    // 3 个按钮
+    0x05, 0x09, //     Usage Page (Buttons)
+    0x19, 0x01, //     Usage Minimum (Button 1)
+    0x29, 0x03, //     Usage Maximum (Button 3)
+    0x15, 0x00, //     Logical Minimum (0)
+    0x25, 0x01, //     Logical Maximum (1)
+    0x95, 0x03, //     Report Count (3)
+    0x75, 0x01, //     Report Size (1)
+    0x81, 0x02, //     Input (Data, Variable, Absolute)
+
+    // 5 bit 填充
+    0x95, 0x01, //     Report Count (1)
+    0x75, 0x05, //     Report Size (5)
+    0x81, 0x01, //     Input (Constant)
+
+    // X, Y, Wheel（相对位移）
+    0x05, 0x01, //     Usage Page (Generic Desktop)
+    0x09, 0x30, //     Usage (X)
+    0x09, 0x31, //     Usage (Y)
+    0x09, 0x38, //     Usage (Wheel)
+    0x15, 0x81, //     Logical Minimum (-127)
+    0x25, 0x7F, //     Logical Maximum (127)
+    0x75, 0x08, //     Report Size (8)
+    0x95, 0x03, //     Report Count (3)
+    0x81, 0x06, //     Input (Data, Variable, Relative)
+
+    0xC0, //   End Collection (Physical)
+    0xC0  // End Collection (Mouse)
 };
 
 /**
@@ -155,6 +195,28 @@ bool ble_keyboard_tap_key(uint8_t keycode)
     return true;
 }
 
+// 发送鼠标相对位移报文
+// dx, dy: 有符号 8-bit 位移 (-127 ~ 127)
+bool ble_mouse_move(int8_t dx, int8_t dy)
+{
+    if (!_is_ble_enabled || !_is_connected || pMouseInput == nullptr)
+    {
+        return false;
+    }
+
+    // Mouse HID Report (Report ID 2): [buttons(1) | X(1) | Y(1) | Wheel(1)]
+    uint8_t report[4] = {0};
+    report[1] = (uint8_t)dx;
+    report[2] = (uint8_t)dy;
+    // report[0] = 0 (no buttons pressed)
+    // report[3] = 0 (no wheel)
+
+    pMouseInput->setValue(report, sizeof(report));
+    pMouseInput->notify();
+
+    return true;
+}
+
 bool ble_toggle(void)
 {
     if (!_is_ble_enabled)
@@ -178,6 +240,8 @@ bool ble_toggle(void)
         pHID->setHidInfo(0x00, 0x01);               // 0x01 代表键盘设备属性
         // 提取 Report ID 1 对应的键盘输入特征值指针
         pKeyboardInput = pHID->getInputReport(1);
+        // 提取 Report ID 2 对应的鼠标输入特征值指针
+        pMouseInput = pHID->getInputReport(2);
 
         // 4. 开始广播
         NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
@@ -244,6 +308,7 @@ bool ble_toggle(void)
         pServer = nullptr;
         pHID = nullptr;
         pKeyboardInput = nullptr;
+        pMouseInput = nullptr;
 
         Serial.println("[BLE] Service stopped");
     }
