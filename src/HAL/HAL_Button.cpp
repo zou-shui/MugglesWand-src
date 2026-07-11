@@ -62,11 +62,11 @@ static void button_task(void *param)
                 break;
             case 2:
                 Serial.println("[Button] 2 short press action");
-                EventBus::publish(EVENT_SYS_OTA); // 发送 OTA 切换命令
+                EventBus::publish(EVENT_SYS_AP); // 发送 AP 切换命令
                 break;
             case 3:
                 Serial.println("[Button] 3 short press action");
-                EventBus::publish(EVENT_MOUSE_ENABLE);
+                EventBus::publish(EVENT_APP_MOUSE_TOGGLE);
                 break;
             default:
                 Serial.println("[Button] 4 or more short presses, ignore");

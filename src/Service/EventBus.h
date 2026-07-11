@@ -31,24 +31,37 @@ enum EventID
     EVENT_SYS_AP,       // 无参数
 
     // --- IMU 事件 ---
-    EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, -1=已停止)
+    EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, 3=通过EventBus总线流向其它地方 -1=已停止)
     EVENT_IMU_RESET_MUX,      // 关闭IMU输出, 无参数
-    EVENT_IMU_STATUS_CHANGED, // param1: 当前状态机状态, param2: 当前数据流向
+    EVENT_IMU_STATUS_CHANGED, // 手势状态机改变事件, param1: 当前状态机状态, param2: 当前数据流向
+    EVENT_IMU_DATA_UPDATED,   // IMU数据更新事件，用于传输数据到其它模块, param1: valid_gx(弧度/秒), param2: valid_gz(弧度/秒)
 
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
 
     // --- 鼠标模拟事件 ---
-    EVENT_MOUSE_ENABLE,    // 鼠标模式开关(toggle), 无参数
-    EVENT_IMU_MOUSE_DATA,  // IMU鼠标数据, param1: valid_gx*1000(毫弧度/秒), param2: valid_gz*1000(毫弧度/秒)
+    EVENT_APP_MOUSE_TOGGLE, // 鼠标模式开关, 无参数
+
 };
 
-// 2. 定义事件结构体（传递的数据）
+// 2. 定义一个可以代表整数或浮点数的联合体
+union EventParam
+{
+    int32_t i32;
+    float f32;
+
+    // 顺便写两个构造函数，让传参更直接
+    EventParam(int32_t val) : i32(val) {}
+    EventParam(float val) : f32(val) {}
+    EventParam() : i32(0) {} // 默认构造
+};
+
+// 3. 定义事件结构体（传递的数据）
 struct SystemEvent
 {
     EventID id;
-    int32_t param1; // 语义由各 EventID 约定
-    int32_t param2; // 语义由各 EventID 约定
+    EventParam param1; // 语义由各 EventID 约定
+    EventParam param2; // 语义由各 EventID 约定
 };
 
 // 最大订阅数量限制（当前系统实际订阅数约为 6，保留充足余量）
@@ -82,5 +95,5 @@ public:
     /// @param param1  事件参数1（语义由事件约定）
     /// @param param2  事件参数2（语义由事件约定）
     /// @return true 至少成功投递到一个订阅者，false 无订阅者或失败
-    static bool publish(EventID eventId, int32_t param1 = 0, int32_t param2 = 0);
+    static bool publish(EventID eventId, EventParam param1 = 0, EventParam param2 = 0);
 };

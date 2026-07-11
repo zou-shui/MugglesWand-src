@@ -35,8 +35,8 @@ static void power_task(void *pvParameters)
         {
             if (event.id == EVENT_IMU_STATUS_CHANGED)
             {
-                int8_t sta = event.param1;
-                int8_t mux = event.param2;
+                int8_t sta = event.param1.i32;
+                int8_t mux = event.param2.i32;
 
                 // 条件触发：仅在 mux == 2 且 sta == 1 时
                 if (mux == 2 && sta == 1)

@@ -71,16 +71,13 @@ bool EventBus::subscribe(EventID eventId, QueueHandle_t queueHandle)
 //   阶段1（持锁）：将匹配的订阅者队列句柄复制到栈上快照数组
 //   阶段2（无锁）：遍历快照执行 xQueueSend，不阻塞其他任务操作订阅表
 // 这样避免了在持锁期间调用 xQueueSend（可能触发任务调度导致优先级反转）。
-bool EventBus::publish(EventID eventId, int32_t param1, int32_t param2)
+bool EventBus::publish(EventID eventId, EventParam param1, EventParam param2)
 {
     if (xMutex == NULL)
         return false;
 
     // 组装事件结构体
-    SystemEvent event = {
-        .id = eventId,
-        .param1 = param1,
-        .param2 = param2};
+    SystemEvent event = {eventId, param1, param2};
 
     // === 阶段1：持锁快照匹配的订阅者 ===
     QueueHandle_t targets[MAX_SUBSCRIBERS];

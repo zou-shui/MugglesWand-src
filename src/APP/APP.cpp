@@ -20,7 +20,7 @@ static void app_task(void *pvParameters)
             switch (event.id)
             {
             case EVENT_GESTURE_DETECTED:
-                switch (event.param1)
+                switch (event.param1.i32)
                 {
                 case 0:
                     APP_Lumos_trigger(CRGB::White);
@@ -45,7 +45,7 @@ static void app_task(void *pvParameters)
                 }
                 break;
 
-            case EVENT_MOUSE_ENABLE:
+            case EVENT_APP_MOUSE_TOGGLE:
                 mouse_mode = !mouse_mode;
                 APP_Lumos_trigger(CRGB::Green);
                 if (mouse_mode)
@@ -60,10 +60,10 @@ static void app_task(void *pvParameters)
                 }
                 break;
 
-            case EVENT_IMU_MOUSE_DATA:
+            case EVENT_IMU_DATA_UPDATED:
                 if (mouse_mode)
                 {
-                    ble_mouse_move_from_imu(event.param1, event.param2);
+                    ble_mouse_move_from_imu(event.param1.f32, event.param2.f32);
                 }
                 break;
 
@@ -78,8 +78,8 @@ void APP_init()
 {
     app_queue = xQueueCreate(16, sizeof(SystemEvent)); // 增大队列以容纳高频鼠标数据
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
-    EventBus::subscribe(EVENT_MOUSE_ENABLE, app_queue);
-    EventBus::subscribe(EVENT_IMU_MOUSE_DATA, app_queue);
+    EventBus::subscribe(EVENT_APP_MOUSE_TOGGLE, app_queue);
+    EventBus::subscribe(EVENT_IMU_DATA_UPDATED, app_queue);
 
     xTaskCreatePinnedToCore(
         app_task,

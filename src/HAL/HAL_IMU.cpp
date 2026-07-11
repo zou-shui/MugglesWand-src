@@ -388,9 +388,7 @@ void event_cb(inv_imu_sensor_event_t *evt)
             break;
         case 3:
             // 鼠标模拟模式：通过 EventBus 将 valid_gx/valid_gz 发送给 APP 层
-            EventBus::publish(EVENT_IMU_MOUSE_DATA,
-                              (int32_t)(valid_gx * 1000.0f),
-                              (int32_t)(valid_gz * 1000.0f));
+            EventBus::publish(EVENT_IMU_DATA_UPDATED, valid_gx, valid_gz);
             break;
         }
     }
@@ -429,7 +427,7 @@ static void icm42670p_task(void *pvParameters)
                 switch (event.id)
                 {
                 case EVENT_IMU_SET_MUX:
-                    HAL::ICM42670P_start(event.param1);
+                    HAL::ICM42670P_start(event.param1.i32);
                     break;
                 case EVENT_IMU_RESET_MUX:
                     HAL::ICM42670P_stop();
