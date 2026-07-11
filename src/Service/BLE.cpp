@@ -21,6 +21,23 @@ static NimBLEHIDDevice *pHID = nullptr;
 static NimBLECharacteristic *pKeyboardInput = nullptr;
 static NimBLECharacteristic *pMouseInput = nullptr;
 
+// ========== 电池 CCCD 订阅回调 ==========
+// 等主机完成 CCCD 订阅后，立即发送一次电量通知
+class BatteryCallbacks : public NimBLECharacteristicCallbacks
+{
+    void onSubscribe(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo, uint16_t subValue) override
+    {
+        if (subValue == 1)
+        {
+            ble_update_battery();
+        }
+        else
+        {
+            Serial.println("[ERR] Battery notifications unsubscribed");
+        }
+    }
+};
+
 // 标准 104 键 HID 键盘 + 鼠标组合描述符
 // Report ID 1 = Keyboard, Report ID 2 = Mouse
 static const uint8_t _hidReportDescriptor[] = {
@@ -108,9 +125,6 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         // 为鼠标模式提供 ~80-133Hz 报告速率
         pServer->updateConnParams(connInfo.getConnHandle(), 6, 10, 0, 100);
         Serial.printf("[BLE] Client connected\n");
-
-        // 连接后立即上报当前电量，确保客户端第一时间获取正确值
-        ble_update_battery();
     }
 
     void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override
@@ -244,6 +258,9 @@ bool ble_toggle(void)
         pKeyboardInput = pHID->getInputReport(1);
         // 提取 Report ID 2 对应的鼠标输入特征值指针
         pMouseInput = pHID->getInputReport(2);
+
+        // 注册电池 CCCD 订阅回调——在 Windows 订阅时触发首次电量上报
+        pHID->getBatteryLevel()->setCallbacks(new BatteryCallbacks());
 
         // 4. 开始广播
         NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
