@@ -6,6 +6,7 @@
 #include "Config.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimProgress.hpp"
+#include "HAL/WS2812_Animation/AnimBreathe.hpp"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
@@ -120,6 +121,8 @@ void OTA_begin()
 
     Serial.println("[OTA] HTTP Server Started");
     Serial.println("[OTA] Open browser: http://192.168.4.1/update");
+
+    HAL::ws2812_set_overlay(new AnimBreathe()); // OTA启动时显示呼吸动画，表示等待上传固件
 
     xTaskCreatePinnedToCore(
         OTA_loop,
