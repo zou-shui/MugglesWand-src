@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include "OTA.h"
 #include "Config.h"
+#include "HAL/HAL.h"
+#include "HAL/WS2812_Animation/AnimProgress.hpp"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
@@ -17,6 +19,7 @@ WebServer server(80);
 
 /************ OTA状态 ************/
 unsigned long ota_progress_millis = 0;
+uint8_t ota_progress_pct = 0; // OTA 进度百分比（0~100），供 AnimProgress 读取
 
 /************ OTA IP地址 ************/
 static IPAddress ota_ip;
@@ -25,14 +28,19 @@ static IPAddress ota_ip;
 static void onOTAStart()
 {
     Serial.println("[OTA] update started!");
+    ota_progress_pct = 0;
+
+    // 启动进度条动画
+    HAL::ws2812_set_overlay(new AnimProgress(ota_progress_pct));
 }
 
 static void onOTAProgress(size_t current, size_t final)
 {
-    if (millis() - ota_progress_millis > 1000)
+    if (millis() - ota_progress_millis > 500)
     {
         ota_progress_millis = millis();
-        Serial.printf("[OTA] Progress: %u / %u bytes\n", current, final);
+        Serial.printf("[OTA] Progress: %u bytes\n", current);
+        ota_progress_pct = (current * 100) / 1200000; // 更新进度百分比
     }
 }
 
@@ -41,6 +49,7 @@ static void onOTAEnd(bool success)
     if (success)
     {
         Serial.println("[OTA] update finished successfully!");
+        ota_progress_pct = 100; // 确保进度条显示完成状态
     }
     else
     {

@@ -4,7 +4,7 @@
 /**
  * @brief 一次性闪烁动画（fx 类型灯效，播放完毕自销毁）
  *
- * 点亮最后一颗灯珠 leds[numLeds - 1]，持续 _duration 毫秒后熄灭并标记 finished。
+ * 以 _color 颜色点亮最后一颗灯珠，持续 _duration 毫秒后熄灭并标记 finished。
  */
 class AnimBlink : public AnimationBase
 {

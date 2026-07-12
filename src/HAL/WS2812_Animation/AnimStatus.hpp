@@ -1,6 +1,19 @@
 #pragma once
 #include "AnimationBase.hpp"
 
+/**
+ * @brief 状态指示动画（overlay 类型灯效，不自动销毁）
+ *
+ * 该动画用于指示手势识别的状态，绑定外部的状态变量 _gestureState，通过颜色变化和呼吸灯效果来显示当前状态。
+ * 当 _gestureState 突然变为 4（识别成功）时，会触发一个 250ms 的锁定保护期，确保状态不会被瞬时的抖动干扰。
+ * 颜色映射如下：
+ *   - 0: 蓝色 (等待/就绪)
+ *   - 1: 绿色 (捕捉到静止)
+ *   - 2: 深青色 (正在寻找特征)
+ *   - 3: 中紫红色 (寻找到特征)
+ *   - 4: 白色 (手势识别成功)
+ * 可选参数：ledIndex (目标灯珠), breathePeriodMs (呼吸周期毫秒), blendSpeed (切换颜色时混合速度)
+ */
 class AnimStatus : public AnimationBase
 {
 private:

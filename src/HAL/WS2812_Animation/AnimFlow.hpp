@@ -1,6 +1,12 @@
 #pragma once
 #include "AnimationBase.hpp"
 
+/**
+ * @brief 一次性光流动画（fx 类型灯效，播放完毕自销毁）
+ *
+ * 以 _color 颜色播放光流动画，从灯带一端向另一端移动，拖尾长度为 _tailLength，速度为 _speedFactor。
+ * 当光流完全滑出灯带时，动画结束。
+ */
 class AnimFlow : public AnimationBase
 {
 private:
@@ -46,7 +52,7 @@ public:
 
                 // 叠加颜色（使用 FastLED 变暗函数，不直接覆盖，以便和底层混合）
                 CRGB pixelColor = _color;
-                pixelColor.nscale8(dynamicBrightness * 0.3);
+                pixelColor.nscale8(dynamicBrightness * 0.3);    // 亮度缩放，避免过亮
                 leds[i] += pixelColor;
             }
         }

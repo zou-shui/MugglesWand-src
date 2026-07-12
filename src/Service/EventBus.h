@@ -64,7 +64,7 @@ struct SystemEvent
     EventParam param2; // 语义由各 EventID 约定
 };
 
-// 最大订阅数量限制（当前系统实际订阅数约为 6，保留充足余量）
+// 最大订阅数量限制
 #define MAX_SUBSCRIBERS 50
 
 class EventBus

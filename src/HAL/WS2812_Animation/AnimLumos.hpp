@@ -1,6 +1,13 @@
 #pragma once
 #include "AnimationBase.hpp"
 
+/**
+ * @brief Lumos点灯咒（overlay 类型灯效，不自动销毁）
+ *
+ * 以 _baseColor 颜色点亮最后一颗灯珠，模拟魔法杖发光效果。
+ * 该动画会在稳定期和闪烁期之间随机切换，闪烁期会随机生成亮度抖动，稳定期则保持原色的最大亮度，模拟荧光随机闪烁效果。
+ * 当动画被 delete 时，会自动将绑定的 APP 层状态变量 *_appStateBind 刷回 false，确保上层状态同步。
+ */
 class AnimLumos : public AnimationBase
 {
 private:
