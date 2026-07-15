@@ -47,14 +47,15 @@ static void app_task(void *pvParameters)
 
             case EVENT_APP_MOUSE_TOGGLE:
                 mouse_mode = !mouse_mode;
-                APP_Lumos_trigger(CRGB::Green);
                 if (mouse_mode)
                 {
+                    APP_Lumos_on(CRGB::Blue);
                     Serial.println("[APP] Mouse mode enabled");
                     EventBus::publish(EVENT_IMU_SET_MUX, 3);
                 }
                 else
                 {
+                    APP_Lumos_off();
                     Serial.println("[APP] Mouse mode disabled");
                     EventBus::publish(EVENT_IMU_SET_MUX, 2);
                 }
