@@ -11,6 +11,8 @@ static QueueHandle_t power_queue = NULL;
 
 #define AUTO_POWER_OFF_TIME 60000 // 1分钟
 
+static bool autoPowerOffDisabled = false;
+
 void HAL::power_off(void)
 {
     pinMode(PIN_PWR_EN, OUTPUT);
@@ -33,15 +35,31 @@ static void power_task(void *pvParameters)
     {
         if (xQueueReceive(power_queue, &event, portMAX_DELAY) == pdTRUE)
         {
+            // 处理 OTA/DEBUG 事件：关闭定时器并禁用后续自动关机逻辑
+            if (event.id == EVENT_SYS_OTA || event.id == EVENT_SYS_DEBUG)
+            {
+                if (xTimerIsTimerActive(shutdown_timer) == pdTRUE)
+                {
+                    xTimerStop(shutdown_timer, 0);
+                }
+                autoPowerOffDisabled = true; // 进入禁用模式
+                continue;                    // 不再处理其他逻辑（但任务继续运行）
+            }
+
+            // 如果已禁用自动关机，则只消费事件，不处理任何逻辑
+            if (autoPowerOffDisabled)
+            {
+                continue;
+            }
+
+            // 正常处理 IMU 状态变化事件
             if (event.id == EVENT_IMU_STATUS_CHANGED)
             {
                 int8_t sta = event.param1.i32;
                 int8_t mux = event.param2.i32;
 
-                // 条件触发：仅在 mux == 2 且 sta == 1 时
                 if (mux == 2 && sta == 1)
                 {
-                    // 在推理模式下，且状态机为静止标志，开始计时，如果现状不改变超过1分钟则自动关机
                     if (xTimerIsTimerActive(shutdown_timer) == pdFALSE)
                     {
                         xTimerStart(shutdown_timer, 0);
@@ -49,20 +67,10 @@ static void power_task(void *pvParameters)
                 }
                 else
                 {
-                    // 只要脱离了该状态（比如开始运动，或者退出手势推理模式），立刻掐断倒计时
                     if (xTimerIsTimerActive(shutdown_timer) == pdTRUE)
                     {
                         xTimerStop(shutdown_timer, 0);
                     }
-                }
-            }
-            else if (event.id == EVENT_SYS_OTA || event.id == EVENT_SYS_DEBUG)
-            {
-                // 进入OTA模式或DEBUG模式后不自动关机，且这些模式只能通过重启退出，所以这里直接删除任务
-                if (xTimerIsTimerActive(shutdown_timer) == pdTRUE)
-                {
-                    xTimerStop(shutdown_timer, 0);
-                    vTaskDelete(NULL); // 删除当前任务
                 }
             }
         }
