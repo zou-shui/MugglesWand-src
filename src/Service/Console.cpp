@@ -20,11 +20,12 @@ static void console_print_help()
     DualSerial.println("reboot        - Restart device");
     DualSerial.println("shutdown      - Turn off the power");
     DualSerial.println("ota           - Enter OTA mode");
-    DualSerial.println("ble           - Toggle BLE service on/off");
     DualSerial.println("ap            - Toggle AP service on/off");
+    DualSerial.println("ble           - Toggle BLE service on/off");
     DualSerial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
     DualSerial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
-    DualSerial.println("stop          - Stop IMU task");
+    DualSerial.println("stop          - Stop IMU task and cut off data output");
+    DualSerial.println("gesture <id>  - Simulate gesture detection event with specified ID");
 }
 
 /************ 串口命令解析 ************/
@@ -56,18 +57,20 @@ void console_parse(char *cmd)
     {
         EventBus::publish(EVENT_SYS_SHUTDOWN);
     }
+
     else if (!strcmp(token, "ota"))
     {
         EventBus::publish(EVENT_SYS_OTA);
-    }
-    else if (!strcmp(token, "ble"))
-    {
-        EventBus::publish(EVENT_SYS_BLE);
     }
     else if (!strcmp(token, "ap"))
     {
         EventBus::publish(EVENT_SYS_AP);
     }
+    else if (!strcmp(token, "ble"))
+    {
+        EventBus::publish(EVENT_SYS_BLE);
+    }
+
     else if (!strcmp(token, "inference"))
     {
         EventBus::publish(EVENT_IMU_SET_MUX, 2);
@@ -76,10 +79,24 @@ void console_parse(char *cmd)
     {
         EventBus::publish(EVENT_IMU_SET_MUX, 1);
     }
-
     else if (!strcmp(token, "stop"))
     {
         EventBus::publish(EVENT_IMU_RESET_MUX);
+    }
+
+    else if (!strcmp(token, "gesture"))
+    {
+        token = strtok(NULL, " \r\n"); // 第二个单词是参数1
+        if (token != NULL)
+        {
+            arg1 = atoi(token);
+            EventBus::publish(EVENT_GESTURE_DETECTED, arg1);
+            DualSerial.printf("Gesture %d triggered\n", arg1);
+        }
+        else
+        {
+            DualSerial.println("Error: gesture command requires an ID argument");
+        }
     }
 
     else if (!strcmp(token, "help"))
