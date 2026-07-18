@@ -28,7 +28,7 @@ static IPAddress ota_ip;
 /************ OTA回调 ************/
 static void onOTAStart()
 {
-    Serial.println("[OTA] update started!");
+    DualSerial.println("[OTA] update started!");
     ota_progress_pct = 0;
 
     // 启动进度条动画
@@ -40,7 +40,7 @@ static void onOTAProgress(size_t current, size_t final)
     if (millis() - ota_progress_millis > 500)
     {
         ota_progress_millis = millis();
-        Serial.printf("[OTA] Progress: %u bytes\n", current);
+        DualSerial.printf("[OTA] Progress: %u bytes\n", current);
         ota_progress_pct = (current * 100) / 1200000; // 更新进度百分比
     }
 }
@@ -49,12 +49,12 @@ static void onOTAEnd(bool success)
 {
     if (success)
     {
-        Serial.println("[OTA] update finished successfully!");
+        DualSerial.println("[OTA] update finished successfully!");
         ota_progress_pct = 100; // 确保进度条显示完成状态
     }
     else
     {
-        Serial.println("[OTA] update failed!");
+        DualSerial.println("[OTA] update failed!");
     }
 }
 
@@ -80,17 +80,17 @@ void OTA_begin()
     static bool ota_running = false;
     if (ota_running)
     {
-        Serial.println("[OTA] Already running");
-        Serial.print("[OTA] SSID: ");
-        Serial.println(ap_ssid);
-        Serial.print("[OTA] Password: ");
-        Serial.println(ap_password);
-        Serial.println("[OTA] Open browser: http://192.168.4.1/update");
+        DualSerial.println("[OTA] Already running");
+        DualSerial.print("[OTA] SSID: ");
+        DualSerial.println(ap_ssid);
+        DualSerial.print("[OTA] Password: ");
+        DualSerial.println(ap_password);
+        DualSerial.println("[OTA] Open browser: http://192.168.4.1/update");
         return;
     }
     ota_running = true;
 
-    Serial.println("[OTA] Starting AP mode...");
+    DualSerial.println("[OTA] Starting AP mode...");
 
     // 设置AP模式
     WiFi.mode(WIFI_AP);
@@ -98,13 +98,13 @@ void OTA_begin()
 
     ota_ip = WiFi.softAPIP();
 
-    Serial.println("[OTA] AP Started");
-    Serial.print("[OTA] SSID: ");
-    Serial.println(ap_ssid);
-    Serial.print("[OTA] Password: ");
-    Serial.println(ap_password);
-    Serial.print("[OTA] IP: ");
-    Serial.println(ota_ip);
+    DualSerial.println("[OTA] AP Started");
+    DualSerial.print("[OTA] SSID: ");
+    DualSerial.println(ap_ssid);
+    DualSerial.print("[OTA] Password: ");
+    DualSerial.println(ap_password);
+    DualSerial.print("[OTA] IP: ");
+    DualSerial.println(ota_ip);
 
     // 根目录测试
     server.on("/", []()
@@ -119,8 +119,8 @@ void OTA_begin()
 
     server.begin();
 
-    Serial.println("[OTA] HTTP Server Started");
-    Serial.println("[OTA] Open browser: http://192.168.4.1/update");
+    DualSerial.println("[OTA] HTTP Server Started");
+    DualSerial.println("[OTA] Open browser: http://192.168.4.1/update");
 
     HAL::ws2812_set_overlay(new AnimBreathe()); // OTA启动时显示呼吸动画，表示等待上传固件
 

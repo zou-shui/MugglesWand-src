@@ -57,19 +57,19 @@ static void button_task(void *param)
             switch (pressCount)
             {
             case 1:
-                Serial.println("[Button] 1 short press action");
+                DualSerial.println("[Button] 1 short press action");
                 EventBus::publish(EVENT_SYS_BLE); // 发送 BLE 切换命令
                 break;
             case 2:
-                Serial.println("[Button] 2 short press action");
+                DualSerial.println("[Button] 2 short press action");
                 EventBus::publish(EVENT_SYS_AP); // 发送 AP 切换命令
                 break;
             case 3:
-                Serial.println("[Button] 3 short press action");
+                DualSerial.println("[Button] 3 short press action");
                 EventBus::publish(EVENT_APP_MOUSE_TOGGLE);
                 break;
             default:
-                Serial.println("[Button] 4 or more short presses, ignore");
+                DualSerial.println("[Button] 4 or more short presses, ignore");
                 break;
             }
 

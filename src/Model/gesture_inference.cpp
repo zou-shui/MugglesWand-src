@@ -1,4 +1,5 @@
 #include "gesture_inference.h"
+#include "Service/DualPrint.h"
 #include "Service/EventBus.h"
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
@@ -67,7 +68,7 @@ void inference_task(void *pvParameters)
             // 运行推理
             if (interpreter->Invoke() != kTfLiteOk)
             {
-                Serial.println("Invoke failed!");
+                DualSerial.println("Invoke failed!");
 
                 continue;
             }
@@ -95,11 +96,7 @@ void inference_task(void *pvParameters)
             float inference_time = (end_time - start_time) / 1000.0f; // ms
             float max_probability = probabilities[predicted_class];
 
-            char buf[10];
-            memset(buf, 0, sizeof(buf));
-            sprintf(buf, "%d,%.2f,%.0fms\n", predicted_class, max_probability, inference_time);
-            ap_print(buf, strlen(buf)); // 通过BLE发送数据
-            Serial.printf(buf);
+            DualSerial.printf("%d,%.2f,%.0fms\n", predicted_class, max_probability, inference_time);
 
             if (max_probability >= 0.6)
             {
@@ -122,13 +119,13 @@ void inference_start()
 {
     if (inference_task_handle != NULL)
     {
-        Serial.println("[CNN] Task already running");
+        DualSerial.println("[CNN] Task already running");
         return;
     }
 
     if (interpreter == nullptr || input == nullptr || output == nullptr)
     {
-        Serial.println("[CNN] Not initialized");
+        DualSerial.println("[CNN] Not initialized");
         return;
     }
 
@@ -146,7 +143,7 @@ void inference_init()
 {
     if (interpreter != nullptr)
     {
-        Serial.println("[CNN] Already initialized");
+        DualSerial.println("[CNN] Already initialized");
         return;
     }
 
@@ -154,7 +151,7 @@ void inference_init()
     model = tflite::GetModel(gesture_model_tflite);
     if (model->version() != TFLITE_SCHEMA_VERSION)
     {
-        Serial.println("Model version mismatch!");
+        DualSerial.println("Model version mismatch!");
         return;
     }
 
@@ -166,7 +163,7 @@ void inference_init()
     // 分配张量
     if (interpreter->AllocateTensors() != kTfLiteOk)
     {
-        Serial.println("AllocateTensors failed!");
+        DualSerial.println("AllocateTensors failed!");
         return;
     }
 

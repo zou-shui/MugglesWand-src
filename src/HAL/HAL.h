@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "Service/DualPrint.h"
 
 class AnimationBase;
 

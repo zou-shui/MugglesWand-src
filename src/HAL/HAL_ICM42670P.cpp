@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "imu/inv_imu_apex.h"
 #include "HAL_ICM42670P.h"
+#include "Service/DualPrint.h"
 
 static int i2c_write(inv_imu_serif *serif, uint8_t reg, const uint8_t *wbuffer, uint32_t wlen);
 static int i2c_read(inv_imu_serif *serif, uint8_t reg, uint8_t *rbuffer, uint32_t rlen);
@@ -58,7 +59,7 @@ int ICM42670::begin()
     }
     else
     {
-        Serial.println("Invalid I2C interface");
+        DualSerial.println("Invalid I2C interface");
     }
 
     /* Initialize serial interface between MCU and Icm43xxx */

@@ -1,6 +1,7 @@
 #include "APP.h"
 #include "APP_Lumos.h"
 #include "APP_BLE_HID.h"
+#include "Service/DualPrint.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
@@ -50,13 +51,13 @@ static void app_task(void *pvParameters)
                 if (mouse_mode)
                 {
                     APP_Lumos_on(CRGB::Blue);
-                    Serial.println("[APP] Mouse mode enabled");
+                    DualSerial.println("[APP] Mouse mode enabled");
                     EventBus::publish(EVENT_IMU_SET_MUX, 3);
                 }
                 else
                 {
                     APP_Lumos_off();
-                    Serial.println("[APP] Mouse mode disabled");
+                    DualSerial.println("[APP] Mouse mode disabled");
                     EventBus::publish(EVENT_IMU_SET_MUX, 2);
                 }
                 break;

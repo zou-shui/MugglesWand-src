@@ -20,7 +20,7 @@ void HAL::power_off(void)
 // 定时器超时回调函数：1分钟到了，执行关机
 void power_off_timer_callback(TimerHandle_t xTimer)
 {
-    Serial.println("[Power] IMU idle for 1 min in training mode. Powering off...");
+    DualSerial.println("[Power] IMU idle for 1 min in training mode. Powering off...");
 
     EventBus::publish(EVENT_SYS_SHUTDOWN);
 }

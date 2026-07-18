@@ -1,4 +1,5 @@
 #include "EventBus.h"
+#include "DualPrint.h"
 
 // 静态变量初始化
 EventBus::Subscription EventBus::subscribers[MAX_SUBSCRIBERS];
@@ -61,7 +62,7 @@ bool EventBus::subscribe(EventID eventId, QueueHandle_t queueHandle)
     // 日志在锁外执行
     if (!result)
     {
-        Serial.println("[EventBus] Error: Subscribers limit exceeded!");
+        DualSerial.println("[EventBus] Error: Subscribers limit exceeded!");
     }
     return result;
 }
@@ -111,7 +112,7 @@ bool EventBus::publish(EventID eventId, EventParam param1, EventParam param2)
         else
         {
             // 日志在锁外执行，不影响其他任务的订阅/发布操作
-            Serial.printf("[EventBus] Warning: Queue full, missed event %d\n", event.id);
+            DualSerial.printf("[EventBus] Warning: Queue full, missed event %d\n", event.id);
         }
     }
     return delivered;

@@ -3,6 +3,7 @@
 #include <AsyncTCP.h> // 引入异步 TCP 库
 #include "Config.h"
 #include "Service/Console.h"
+#include "Service/DualPrint.h"
 
 #define MAX_CLIENTS 2 // 最大连接数限制为 2
 
@@ -30,9 +31,9 @@ static void start_ap_server(void)
     tcpServer->begin();
 
     ap_is_running = true;
-    Serial.println("\n[AP] TCP Server Started. Waiting for clients to connect...");
-    Serial.print("[AP] IP Address: ");
-    Serial.println(WiFi.softAPIP());
+    DualSerial.println("\n[AP] TCP Server Started. Waiting for clients to connect...");
+    DualSerial.print("[AP] IP Address: ");
+    DualSerial.println(WiFi.softAPIP());
 }
 
 static void stop_ap_server(void)
@@ -54,7 +55,7 @@ static void stop_ap_server(void)
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_OFF);
     ap_is_running = false;
-    Serial.println("\n[AP] TCP Server Stopped.");
+    DualSerial.println("\n[AP] TCP Server Stopped.");
 }
 
 void ap_toggle(void)
@@ -101,7 +102,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
     // 如果没有空闲插槽，则拒绝连接
     if (freeIndex == -1)
     {
-        Serial.println("[AP] Connection limit reached, rejecting new connection.");
+        DualSerial.println("[AP] Connection limit reached, rejecting new connection.");
         client->close();
         return;
     }
@@ -113,7 +114,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
     client->onData(&handleData, nullptr);
     client->onDisconnect(&handleDisconnect, nullptr);
 
-    Serial.printf("[AP] Client connected to slot [%d]\n", freeIndex);
+    DualSerial.printf("[AP] Client connected to slot [%d]\n", freeIndex);
 }
 // 回调：当网络收到数据时
 static void handleData(void *arg, AsyncClient *client, void *data, size_t len)
@@ -134,7 +135,7 @@ static void handleDisconnect(void *arg, AsyncClient *client)
         if (clients[i] == client)
         {
             clients[i] = nullptr;
-            Serial.printf("[AP] Client disconnected from slot [%d]\n", i);
+            DualSerial.printf("[AP] Client disconnected from slot [%d]\n", i);
             break;
         }
     }

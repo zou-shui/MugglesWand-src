@@ -375,12 +375,7 @@ void event_cb(inv_imu_sensor_event_t *evt)
         {
         case 1:
             // 实时输出模式，保持原样输出
-            char buf[64];
-            memset(buf, 0, sizeof(buf));
-            // sprintf(buf, "%f,%f,%f,%d\n", valid_gx, valid_gz, corrected_angle_deg, sta);
-            sprintf(buf, "%f,%f,%d\n", valid_gx, valid_gz, current_sta);
-            ap_print(buf, strlen(buf)); // 通过BLE发送数据
-            Serial.print(buf);
+            DualSerial.printf("%f,%f,%d\n", valid_gx, valid_gz, current_sta);
             break;
         case 2:
             // 压入神经网络训练缓冲区
@@ -450,7 +445,7 @@ void HAL::ICM42670P_stop()
     imu_data_mux = -1; // 标记为未启动状态
     current_sta = -1;  // 重置状态机状态
     IMU.enterSleepMode();
-    Serial.println("[IMU] Stopped and entered sleep mode");
+    DualSerial.println("[IMU] Stopped and entered sleep mode");
 }
 
 void HAL::ICM42670P_start(int8_t data_mux)
@@ -460,7 +455,7 @@ void HAL::ICM42670P_start(int8_t data_mux)
 
     if (imu_data_mux == data_mux)
     {
-        Serial.printf("[IMU] Already in the %d mode\n", data_mux);
+        DualSerial.printf("[IMU] Already in the %d mode\n", data_mux);
         return; // 已经在期望的模式下，无需重复启动
     }
 
@@ -477,13 +472,13 @@ void HAL::ICM42670P_start(int8_t data_mux)
         eyInt = 0.0f;
         ezInt = 0.0f;
         IMU.enableDataFromFifoInterrupt(PIN_IMU_INT, imuDataReady);
-        Serial.printf("[IMU] Started in mode %d\n", data_mux);
+        DualSerial.printf("[IMU] Started in mode %d\n", data_mux);
     }
     else
     {
         // 已经启动但模式不同，直接切换模式，无需重新配置IMU
         imu_data_mux = data_mux;
-        Serial.printf("[IMU] Switched to mode %d\n", data_mux);
+        DualSerial.printf("[IMU] Switched to mode %d\n", data_mux);
     }
 }
 
@@ -497,8 +492,8 @@ bool HAL::ICM42670P_init()
     ret = IMU.begin();
     if (ret != 0)
     {
-        Serial.print("[ERROR] ICM42670P initialization failed: ");
-        Serial.println(ret);
+        DualSerial.print("[ERROR] ICM42670P initialization failed: ");
+        DualSerial.println(ret);
         return false;
     }
     // 此时传感器处于sleep模式

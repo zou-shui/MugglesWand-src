@@ -3,6 +3,7 @@
 */
 #include <Arduino.h>
 #include "Console.h"
+#include "DualPrint.h"
 #include "EventBus.h"
 
 #define CONSOLE_BUF_SIZE 64
@@ -13,17 +14,17 @@ static uint8_t rx_index = 0;
 /************ 显示帮助信息 ************/
 static void console_print_help()
 {
-    Serial.println("========= Magic Wand Console =========");
-    Serial.println("help          - Show command list");
-    Serial.println("info          - Show system information");
-    Serial.println("reboot        - Restart device");
-    Serial.println("shutdown      - Turn off the power");
-    Serial.println("ota           - Enter OTA mode");
-    Serial.println("ble           - Toggle BLE service on/off");
-    Serial.println("ap            - Toggle AP service on/off");
-    Serial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
-    Serial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
-    Serial.println("stop          - Stop IMU task");
+    DualSerial.println("========= Magic Wand Console =========");
+    DualSerial.println("help          - Show command list");
+    DualSerial.println("info          - Show system information");
+    DualSerial.println("reboot        - Restart device");
+    DualSerial.println("shutdown      - Turn off the power");
+    DualSerial.println("ota           - Enter OTA mode");
+    DualSerial.println("ble           - Toggle BLE service on/off");
+    DualSerial.println("ap            - Toggle AP service on/off");
+    DualSerial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
+    DualSerial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
+    DualSerial.println("stop          - Stop IMU task");
 }
 
 /************ 串口命令解析 ************/
@@ -36,8 +37,8 @@ void console_parse(char *cmd)
     if (token == NULL)
         return;
 
-    Serial.print("\n> ");
-    Serial.println(token);
+    DualSerial.print("\n> ");
+    DualSerial.println(token);
 
     if (!strcmp(token, "debug"))
     {
@@ -88,7 +89,7 @@ void console_parse(char *cmd)
     }
     else
     {
-        Serial.println("Unknown command");
+        DualSerial.println("Unknown command");
         return;
     }
 }

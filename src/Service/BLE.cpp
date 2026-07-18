@@ -33,7 +33,7 @@ class BatteryCallbacks : public NimBLECharacteristicCallbacks
         }
         else
         {
-            Serial.println("[ERR] Battery notifications unsubscribed");
+            DualSerial.println("[ERR] Battery notifications unsubscribed");
         }
     }
 };
@@ -124,13 +124,13 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         // 低延迟连接参数：min=7.5ms, max=12.5ms, latency=0, timeout=1000ms
         // 为鼠标模式提供 ~80-133Hz 报告速率
         pServer->updateConnParams(connInfo.getConnHandle(), 6, 10, 0, 100);
-        Serial.printf("[BLE] Client connected\n");
+        DualSerial.printf("[BLE] Client connected\n");
     }
 
     void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) override
     {
         _is_connected = false;
-        Serial.printf("[BLE] Client disconnected\n");
+        DualSerial.printf("[BLE] Client disconnected\n");
         // 注意：如果 BLE 被主动 toggle 关闭，不需要在这里重新开启广播
         if (_is_ble_enabled)
         {
@@ -238,7 +238,7 @@ bool ble_toggle(void)
     if (!_is_ble_enabled)
     {
         // --- 开启 BLE 逻辑 ---
-        Serial.println("[BLE] Initializing BLE service with HID Keyboard...");
+        DualSerial.println("[BLE] Initializing BLE service with HID Keyboard...");
 
         // 1. 初始化 NimBLE 堆栈
         NimBLEDevice::init(_device_name.c_str());
@@ -286,7 +286,7 @@ bool ble_toggle(void)
                 0);                    // 固定在核心 0
         }
 
-        Serial.println("[BLE] Service started, advertising as '" + _device_name + "'\n");
+        DualSerial.println("[BLE] Service started, advertising as '" + _device_name + "'\n");
     }
     else
     {
@@ -329,7 +329,7 @@ bool ble_toggle(void)
         pKeyboardInput = nullptr;
         pMouseInput = nullptr;
 
-        Serial.println("[BLE] Service stopped");
+        DualSerial.println("[BLE] Service stopped");
     }
 
     return _is_ble_enabled;

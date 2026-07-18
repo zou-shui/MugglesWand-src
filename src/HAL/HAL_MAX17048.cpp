@@ -35,7 +35,7 @@ bool HAL::MAX17048_init()
 
     if (lipo.begin(Wire1) == false)
     {
-        Serial.println("[ERROR] MAX17048 not detected");
+        DualSerial.println("[ERROR] MAX17048 not detected");
         return false;
     }
 

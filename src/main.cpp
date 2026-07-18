@@ -1,5 +1,6 @@
 #include <Arduino.h>
 
+#include "Service/DualPrint.h"
 #include "Service/EventBus.h"
 #include "Service/Console.h"
 #include "Service/Service.h"
@@ -34,7 +35,7 @@ void setup()
 {
   bool ok = true;
   Serial.begin(115200);
-  Serial.println("[System] Initializing...");
+  DualSerial.println("[System] Initializing...");
 
   // system services init
   EventBus::init();
@@ -57,16 +58,16 @@ void setup()
 
   if (!ok)
   {
-    Serial.println("[System] Initialize failed, restart in 3 seconds");
+    DualSerial.println("[System] Initialize failed, restart in 3 seconds");
     delay(1000);
-    Serial.println("[System] Restart in 2s");
+    DualSerial.println("[System] Restart in 2s");
     delay(1000);
-    Serial.println("[System] Restart in 1s");
+    DualSerial.println("[System] Restart in 1s");
     delay(1000);
-    Serial.println("[System] Restarting...");
+    DualSerial.println("[System] Restarting...");
     ESP.restart();
   }
-  Serial.println("[System] Initialization complete");
+  DualSerial.println("[System] Initialization complete");
 }
 
 void loop()

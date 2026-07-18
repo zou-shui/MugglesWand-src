@@ -23,7 +23,6 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
     EventBus::subscribe(EVENT_SYS_AP, service_queue);
 
-    char buffer[256];
     SystemEvent event;
 
     while (1)
@@ -33,27 +32,24 @@ static void system_service_task(void *param)
             switch (event.id)
             {
             case EVENT_SYS_INFO:
-                memset(buffer, 0, sizeof(buffer));
-                sprintf(buffer, "Version: %s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
-                        FIRMWARE_VER,
-                        BUILD_TIME,
-                        (int)temperatureRead(),
-                        millis() / 1000,
-                        HAL::MAX17048_getVoltage(),
-                        HAL::MAX17048_getSOC(),
-                        HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
-                        HAL::MAX17048_getChangeRate());
-                Serial.print(buffer);
-                ap_print(buffer, strlen(buffer));
+                DualSerial.printf("Version: %s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
+                                  FIRMWARE_VER,
+                                  BUILD_TIME,
+                                  (int)temperatureRead(),
+                                  millis() / 1000,
+                                  HAL::MAX17048_getVoltage(),
+                                  HAL::MAX17048_getSOC(),
+                                  HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
+                                  HAL::MAX17048_getChangeRate());
                 break;
 
             case EVENT_SYS_REBOOT:
-                Serial.println("Rebooting...");
+                DualSerial.println("Rebooting...");
                 ESP.restart();
                 break;
 
             case EVENT_SYS_SHUTDOWN:
-                Serial.println("Shutting down...");
+                DualSerial.println("Shutting down...");
                 HAL::ws2812_stop(); // 关机前清除灯珠状态，避免下次开机时灯珠的不确定状态
                 HAL::power_off();
                 break;
