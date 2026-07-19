@@ -81,7 +81,7 @@ static void button_task(void *param)
 
 void HAL::button_init(void)
 {
-    pinMode(PIN_KEY, INPUT_PULLUP);
+    pinMode(PIN_KEY, INPUT);
 
     xTaskCreatePinnedToCore(
         button_task,

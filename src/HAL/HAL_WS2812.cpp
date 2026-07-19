@@ -42,6 +42,9 @@ static void ws2812_task(void *pvParameters)
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(10); // 严格的10ms刷新间隔 (100 FPS)
 
+    // 用于记录当前硬件电源状态
+    bool is_power_on = false;
+
     for (;;)
     {
         // 1. 检查是否有上层 APP / Service 发来的图层切换命令
@@ -73,6 +76,33 @@ static void ws2812_task(void *pvParameters)
                 if (overlay_layer)
                     overlay_layer->init();
                 break;
+            }
+        }
+
+        // 判断当前是否有任意一个图层在工作
+        bool has_active_animation = (bg_layer != nullptr || fx_layer != nullptr || overlay_layer != nullptr);
+
+        if (!has_active_animation)
+        {
+            // 如果所有图层都为空，且电源还开着 -> 关闭电源
+            if (is_power_on)
+            {
+                pinMode(PIN_WS2812_EN, INPUT); // 关闭灯带电源
+                is_power_on = false;
+            }
+
+            // 电源关闭期间，无需频繁执行后面的渲染和 show()，直接延时进入下一轮
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
+            continue;
+        }
+        else
+        {
+            // 如果有动画要播放，且当前电源是关着的 -> 开启电源
+            if (!is_power_on)
+            {
+                pinMode(PIN_WS2812_EN, OUTPUT);
+                digitalWrite(PIN_WS2812_EN, 0); // 对应 init 中的开启电源操作
+                is_power_on = true;
             }
         }
 
@@ -120,11 +150,12 @@ static void ws2812_task(void *pvParameters)
 
 void HAL::ws2812_init(void)
 {
+    // 默认先关闭灯带电源
+    pinMode(PIN_WS2812_EN, INPUT);
     // 初始化 FastLED 物理外设
     FastLED.addLeds<WS2812, PIN_WS2812, GRB>(leds, WS2812_LED_COUNT);
     FastLED.setBrightness(255); // 默认全亮，交由动画层自己调节亮度
     FastLED.clear();
-    FastLED.show();
 
     // 创建命令通信队列 (深度为8，防突发堆积)
     layer_queue = xQueueCreate(8, sizeof(layer_cmd_t));
@@ -175,7 +206,9 @@ void HAL::ws2812_stop(void)
     }
 
     FastLED.clear();
-    FastLED.show();
+
+    // 关闭灯带电源
+    pinMode(PIN_WS2812_EN, INPUT);
 }
 
 // ----------------- 图层异步推送 API -----------------

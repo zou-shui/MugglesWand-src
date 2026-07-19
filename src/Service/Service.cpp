@@ -58,7 +58,6 @@ static void system_service_task(void *param)
 
             case EVENT_SYS_SHUTDOWN:
                 DualSerial.println("Shutting down...");
-                HAL::ws2812_stop(); // 关机前清除灯珠状态，避免下次开机时灯珠的不确定状态
                 HAL::power_off();
                 break;
 
