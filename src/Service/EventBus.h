@@ -25,6 +25,7 @@ enum EventID
     EVENT_SYS_DEBUG,    // 无参数
     EVENT_SYS_INFO,     // 无参数
     EVENT_SYS_REBOOT,   // 无参数
+    EVENT_SYS_SLEEP,    // 无参数
     EVENT_SYS_SHUTDOWN, // 无参数
     EVENT_SYS_OTA,      // 无参数
     EVENT_SYS_BLE,      // 无参数

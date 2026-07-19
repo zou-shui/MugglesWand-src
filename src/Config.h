@@ -18,8 +18,9 @@
 #define PIN_IMU_INT 12 // IMU中断引脚(IMU自身内部上拉)
 
 // WS2812
-#define PIN_WS2812 39       // WS2812 数据引脚
-#define WS2812_LED_COUNT 41 // WS2812 灯珠数量
+#define PIN_WS2812 38       // WS2812 数据引脚
+#define PIN_WS2812_EN 39    // WS2812 使能引脚
+#define WS2812_LED_COUNT 36 // WS2812 灯珠数量
 
 // 电池计量
 #define PIN_BATT_GAUGE_SCL 17 // 电池电量检测SCL引脚(外部上拉)

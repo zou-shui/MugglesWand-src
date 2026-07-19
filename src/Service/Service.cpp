@@ -9,6 +9,7 @@
 #include "EventBus.h"
 #include "OTA.h"
 #include "AP.h"
+#include "Sleep.h"
 #include "HAL/HAL.h"
 
 QueueHandle_t service_queue = NULL;
@@ -18,6 +19,7 @@ static void system_service_task(void *param)
     service_queue = xQueueCreate(8, sizeof(SystemEvent));
     EventBus::subscribe(EVENT_SYS_INFO, service_queue);
     EventBus::subscribe(EVENT_SYS_REBOOT, service_queue);
+    EventBus::subscribe(EVENT_SYS_SLEEP, service_queue);
     EventBus::subscribe(EVENT_SYS_SHUTDOWN, service_queue);
     EventBus::subscribe(EVENT_SYS_OTA, service_queue);
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
@@ -46,6 +48,12 @@ static void system_service_task(void *param)
             case EVENT_SYS_REBOOT:
                 DualSerial.println("Rebooting...");
                 ESP.restart();
+                break;
+            case EVENT_SYS_SLEEP:
+                HAL::ICM42670P_stop();
+                HAL::ICM42670_WakeOnMotion();
+                HAL::ws2812_stop();
+                sleep_enter();
                 break;
 
             case EVENT_SYS_SHUTDOWN:
