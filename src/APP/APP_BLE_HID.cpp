@@ -9,17 +9,17 @@
 // 死区阈值（弧度/秒）：低于此值的角速度视为噪声，不产生鼠标移动
 #define MOUSE_DEADZONE 0.05f
 
-bool ble_keyboard_press_up(void)
+bool APP_ble_keyboard_press_up(void)
 {
     return ble_keyboard_tap_key(KEY_UP); // KEY_UP 定义在 BLEHIDKeys.h 中为 0x52
 }
 
-bool ble_keyboard_press_down(void)
+bool APP_ble_keyboard_press_down(void)
 {
     return ble_keyboard_tap_key(KEY_DOWN); // KEY_DOWN 定义在 BLEHIDKeys.h 中为 0x51
 }
 
-void ble_mouse_move_from_imu(float gx_rad, float gz_rad)
+void APP_ble_mouse_move(float gx_rad, float gz_rad)
 {
     // 死区过滤
     if (fabsf(gx_rad) < MOUSE_DEADZONE)
