@@ -29,6 +29,7 @@ enum EventID
     EVENT_SYS_OTA,      // 无参数
     EVENT_SYS_BLE,      // 无参数
     EVENT_SYS_AP,       // 无参数
+    EVENT_SYS_ESPNOW,   // 无参数
 
     // --- IMU 事件 ---
     EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, 3=通过EventBus总线流向其它地方 -1=已停止)

@@ -22,6 +22,7 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_OTA, service_queue);
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
     EventBus::subscribe(EVENT_SYS_AP, service_queue);
+    EventBus::subscribe(EVENT_SYS_ESPNOW, service_queue);
 
     SystemEvent event;
 
@@ -64,6 +65,11 @@ static void system_service_task(void *param)
             case EVENT_SYS_AP:
                 ap_toggle();
                 break;
+
+            case EVENT_SYS_ESPNOW:
+                espnow_toggle();
+                break;
+
             default:
                 break;
             }
