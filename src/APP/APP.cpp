@@ -25,11 +25,12 @@ static void app_task(void *pvParameters)
                 switch (event.param1.i32)
                 {
                 case 0:
-                    APP_Lumos_trigger(CRGB::White);
+                    HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
+                    APP_espnow_tx_signal(MSG_SIGNAL_1);
                     break;
                 case 1:
                     HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
-                    APP_espnow_tx_signal();
+                    APP_espnow_tx_signal(MSG_SIGNAL_2);
                     break;
                 case 2:
                     HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
@@ -43,7 +44,7 @@ static void app_task(void *pvParameters)
                     HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
                     break;
                 case 5:
-                    HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
+                    APP_Lumos_trigger(CRGB::White);
                     break;
                 }
                 break;

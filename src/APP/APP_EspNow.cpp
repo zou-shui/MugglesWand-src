@@ -1,12 +1,6 @@
 #include "APP_EspNow.h"
 #include "Service/AP.h"
 
-enum MsgType
-{
-    MSG_HEARTBEAT = 0x01,
-    MSG_SIGNAL = 0x02
-};
-
 // 高频心跳任务：每 20ms 发射一次，方便接收端瞬间捕捉
 static void heartbeatTask(void *pvParameters)
 {
@@ -29,8 +23,7 @@ void APP_espnow_init()
                 NULL);
 }
 
-void APP_espnow_tx_signal()
+void APP_espnow_tx_signal(uint8_t signalType)
 {
-    uint8_t signalData = MSG_SIGNAL;
-    espnow_send_data(&signalData, sizeof(signalData));
+    espnow_send_data(&signalType, sizeof(signalType));
 }
