@@ -44,6 +44,10 @@ enum EventID
     // --- 鼠标模拟事件 ---
     EVENT_APP_MOUSE_TOGGLE, // 鼠标模式开关, 无参数
 
+    // --- 电源事件 ---
+    EVENT_POWER_CHARGING,     // 充电中, 无参数
+    EVENT_POWER_NOT_CHARGING, // 未充电, 无参数
+
 };
 
 // 2. 定义一个可以代表整数或浮点数的联合体

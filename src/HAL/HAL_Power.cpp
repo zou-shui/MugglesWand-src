@@ -1,5 +1,6 @@
 /*
-    提供关机接口和实现空闲自动关机功能，自动关机功能只在IMU原始数据输出模式和OTA模式下禁用
+    提供关机接口和实现空闲自动关机功能，自动关机功能只在IMU原始数据输出模式、OTA模式和debug模式下禁用
+    另外提供充电检测功能，使用PIN_CHG_DET引脚进行分时复用，交替执行LED闪烁和ADC检测充电状态，电压高于CHG_DET_THRESHOLD_MV时认为正在充电
 */
 #include "HAL.h"
 #include <Arduino.h>
@@ -12,6 +13,46 @@ static QueueHandle_t power_queue = NULL;
 #define AUTO_POWER_OFF_TIME 60000 // 1分钟
 
 static bool autoPowerOffDisabled = false;
+
+// ========== 充电检测 + LED 闪烁（分时复用 PIN_CHG_DET）==========
+static TimerHandle_t chg_led_timer = NULL;
+static bool chg_led_phase = false;       // false=LED点亮, true=ADC检测
+static bool last_charging_state = false; // 上一次充电状态（用于变化检测）
+
+// 定时器回调：每 500ms 触发一次，交替执行 LED 亮 / ADC 检测
+static void chg_led_timer_callback(TimerHandle_t xTimer)
+{
+    if (!chg_led_phase)
+    {
+        // LED 相位：配置为输出，输出高电平点亮 LED
+        pinMode(PIN_CHG_DET, OUTPUT);
+        digitalWrite(PIN_CHG_DET, HIGH);
+    }
+    else
+    {
+        // ADC 相位：配置为输入，检测充电电压
+        pinMode(PIN_CHG_DET, INPUT);
+        uint32_t mv = analogReadMilliVolts(PIN_CHG_DET);
+        // DualSerial.printf("[Power] ADC reading: %lumV\n", mv);   // 调试用
+
+        bool is_charging = (mv > CHG_DET_THRESHOLD_MV);
+        if (is_charging != last_charging_state)
+        {
+            last_charging_state = is_charging;
+            if (is_charging)
+            {
+                DualSerial.printf("[Power] Charging detected\n");
+                EventBus::publish(EVENT_POWER_CHARGING);
+            }
+            else
+            {
+                DualSerial.printf("[Power] Not charging\n");
+                EventBus::publish(EVENT_POWER_NOT_CHARGING);
+            }
+        }
+    }
+    chg_led_phase = !chg_led_phase;
+}
 
 void HAL::power_off(void)
 {
@@ -103,4 +144,20 @@ void HAL::power_init()
         0,
         NULL,
         0);
+
+    // 4. 充电检测 + LED 闪烁（分时复用 PIN_CHG_DET）
+    analogReadResolution(12);
+    analogSetPinAttenuation(PIN_CHG_DET, ADC_11db);
+
+    chg_led_timer = xTimerCreate(
+        "ChgLedTimer",
+        pdMS_TO_TICKS(500), // 500ms 周期
+        pdTRUE,             // 自动重载
+        (void *)0,
+        chg_led_timer_callback);
+
+    if (chg_led_timer != NULL)
+    {
+        xTimerStart(chg_led_timer, 0);
+    }
 }
