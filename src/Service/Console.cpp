@@ -21,6 +21,7 @@ static void console_print_help()
     DualSerial.println("shutdown      - Turn off the power");
     DualSerial.println("ota           - Enter OTA mode");
     DualSerial.println("ap            - Toggle AP service on/off");
+    DualSerial.println("espnow        - Toggle ESP-NOW service on/off");
     DualSerial.println("ble           - Toggle BLE service on/off");
     DualSerial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
     DualSerial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
@@ -69,6 +70,10 @@ void console_parse(char *cmd)
     else if (!strcmp(token, "ap"))
     {
         EventBus::publish(EVENT_SYS_AP);
+    }
+    else if (!strcmp(token, "espnow"))
+    {
+        EventBus::publish(EVENT_SYS_ESPNOW);
     }
     else if (!strcmp(token, "ble"))
     {

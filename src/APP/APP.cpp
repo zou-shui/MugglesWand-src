@@ -1,6 +1,7 @@
 #include "APP.h"
 #include "APP_Lumos.h"
 #include "APP_BLE_HID.h"
+#include "APP_EspNow.h"
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
@@ -24,24 +25,26 @@ static void app_task(void *pvParameters)
                 switch (event.param1.i32)
                 {
                 case 0:
-                    APP_Lumos_trigger(CRGB::White);
+                    HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
+                    APP_espnow_tx_signal(MSG_SIGNAL_1);
                     break;
                 case 1:
                     HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
+                    APP_espnow_tx_signal(MSG_SIGNAL_2);
                     break;
                 case 2:
                     HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
-                    ble_keyboard_press_up();
+                    APP_ble_keyboard_press_up();
                     break;
                 case 3:
                     HAL::ws2812_start_fx(new AnimFlow(0x00FF00));
-                    ble_keyboard_press_down();
+                    APP_ble_keyboard_press_down();
                     break;
                 case 4:
                     HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
                     break;
                 case 5:
-                    HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
+                    APP_Lumos_trigger(CRGB::White);
                     break;
                 }
                 break;
@@ -65,7 +68,7 @@ static void app_task(void *pvParameters)
             case EVENT_IMU_DATA_UPDATED:
                 if (mouse_mode)
                 {
-                    ble_mouse_move_from_imu(event.param1.f32, event.param2.f32);
+                    APP_ble_mouse_move(event.param1.f32, event.param2.f32);
                 }
                 break;
 
@@ -82,6 +85,8 @@ void APP_init()
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
     EventBus::subscribe(EVENT_APP_MOUSE_TOGGLE, app_queue);
     EventBus::subscribe(EVENT_IMU_DATA_UPDATED, app_queue);
+
+    APP_espnow_init();
 
     xTaskCreatePinnedToCore(
         app_task,
