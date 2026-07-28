@@ -18,6 +18,7 @@ static bool autoPowerOffDisabled = false;
 static TimerHandle_t chg_led_timer = NULL;
 static bool chg_led_phase = false;       // false=LED点亮, true=ADC检测
 static bool last_charging_state = false; // 上一次充电状态（用于变化检测）
+static uint32_t last_adc_value = 0;      // 最新 ADC 电压值（mV）
 
 // 定时器回调：每 500ms 触发一次，交替执行 LED 亮 / ADC 检测
 static void chg_led_timer_callback(TimerHandle_t xTimer)
@@ -32,10 +33,10 @@ static void chg_led_timer_callback(TimerHandle_t xTimer)
     {
         // ADC 相位：配置为输入，检测充电电压
         pinMode(PIN_CHG_DET, INPUT);
-        uint32_t mv = analogReadMilliVolts(PIN_CHG_DET);
-        // DualSerial.printf("[Power] ADC reading: %lumV\n", mv);   // 调试用
+        uint32_t last_adc_value = analogReadMilliVolts(PIN_CHG_DET);
+        // DualSerial.printf("[Power] ADC reading: %lumV\n", last_adc_value);   // 调试用
 
-        bool is_charging = (mv > CHG_DET_THRESHOLD_MV);
+        bool is_charging = (last_adc_value > CHG_DET_THRESHOLD_MV);
         if (is_charging != last_charging_state)
         {
             last_charging_state = is_charging;
@@ -160,4 +161,14 @@ void HAL::power_init()
     {
         xTimerStart(chg_led_timer, 0);
     }
+}
+
+bool HAL::power_getChargeStatus(void)
+{
+    return last_charging_state;
+}
+
+uint32_t HAL::power_getADCValue(void)
+{
+    return last_adc_value;
 }

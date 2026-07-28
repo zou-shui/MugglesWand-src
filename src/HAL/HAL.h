@@ -22,11 +22,12 @@ namespace HAL
     float MAX17048_getVoltage(void);
     float MAX17048_getSOC(void);
     float MAX17048_getChangeRate(void);
-    bool MAX17048_getChargeStatus(void);
 
     // Power
     void power_init(void);
     void power_off(void);
+    bool power_getChargeStatus(void);
+    uint32_t power_getADCValue(void);
 
     // WS2812 统一动画管理引擎接口
     void ws2812_init(void);

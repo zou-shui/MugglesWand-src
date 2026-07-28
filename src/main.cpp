@@ -21,6 +21,7 @@ Core 0:
 | Console parser    | 2
 | Button handling   | 1
 | BLE battery task  | 0
+| Power task        | 0
 
 Core 1:
 | Task              | Priority

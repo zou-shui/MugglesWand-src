@@ -42,7 +42,7 @@ static void system_service_task(void *param)
                                   millis() / 1000,
                                   HAL::MAX17048_getVoltage(),
                                   HAL::MAX17048_getSOC(),
-                                  HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
+                                  HAL::power_getChargeStatus() ? "Charging" : "Discharging",
                                   HAL::MAX17048_getChangeRate());
                 break;
 
