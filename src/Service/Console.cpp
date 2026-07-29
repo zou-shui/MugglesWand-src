@@ -16,8 +16,10 @@ static void console_print_help()
 {
     DualSerial.println("========= Magic Wand Console =========");
     DualSerial.println("help          - Show command list");
+    DualSerial.println("debug         - Enable debug mode(disable auto sleep)");
     DualSerial.println("info          - Show system information");
     DualSerial.println("reboot        - Restart device");
+    DualSerial.println("sleep         - Enter deep sleep mode");
     DualSerial.println("shutdown      - Turn off the power");
     DualSerial.println("ota           - Enter OTA mode");
     DualSerial.println("ap            - Toggle AP service on/off");
