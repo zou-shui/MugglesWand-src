@@ -427,15 +427,13 @@ static void icm42670p_task(void *pvParameters)
                 case EVENT_IMU_RESET_MUX:
                     HAL::ICM42670P_stop();
                     break;
+                case EVENT_IMU_SET_WOM:
+                    IMU.startWakeOnMotion(100);
+                    break;
                 }
             }
         }
     }
-}
-
-void HAL::ICM42670_WakeOnMotion()
-{
-    IMU.startWakeOnMotion(100);
 }
 
 void HAL::ICM42670P_stop()
@@ -513,6 +511,7 @@ bool HAL::ICM42670P_init()
 
     EventBus::subscribe(EVENT_IMU_SET_MUX, icm42670p_queue);
     EventBus::subscribe(EVENT_IMU_RESET_MUX, icm42670p_queue);
+    EventBus::subscribe(EVENT_IMU_SET_WOM, icm42670p_queue);
 
     xTaskCreatePinnedToCore(
         icm42670p_task,

@@ -35,6 +35,7 @@ enum EventID
     // --- IMU 事件 ---
     EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, 3=通过EventBus总线流向其它地方 -1=已停止)
     EVENT_IMU_RESET_MUX,      // 关闭IMU输出, 无参数
+    EVENT_IMU_SET_WOM,        // 设定IMU进入Wake on Motion模式, 无参数
     EVENT_IMU_STATUS_CHANGED, // 手势状态机改变事件, param1: 当前状态机状态, param2: 当前数据流向
     EVENT_IMU_DATA_UPDATED,   // IMU数据更新事件，用于传输数据到其它模块, param1: valid_gx(弧度/秒), param2: valid_gz(弧度/秒)
 

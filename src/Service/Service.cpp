@@ -51,8 +51,8 @@ static void system_service_task(void *param)
                 ESP.restart();
                 break;
             case EVENT_SYS_SLEEP:
-                HAL::ICM42670P_stop();
-                HAL::ICM42670_WakeOnMotion();
+                EventBus::publish(EVENT_IMU_RESET_MUX);
+                EventBus::publish(EVENT_IMU_SET_WOM);
                 HAL::ws2812_stop();
                 sleep_enter();
                 break;
