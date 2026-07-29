@@ -7,6 +7,7 @@
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimProgress.hpp"
 #include "HAL/WS2812_Animation/AnimBreathe.hpp"
+#include "Service/AP.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
@@ -89,6 +90,12 @@ void OTA_begin()
         return;
     }
     ota_running = true;
+
+    // OTA 启动时完全接管 WiFi，先停掉 AP 和 ESP-NOW
+    if (ap_is_running())
+        ap_toggle();
+    if (espnow_is_running())
+        espnow_toggle();
 
     DualSerial.println("[OTA] Starting AP mode...");
 

@@ -2,6 +2,7 @@
     WiFi射频管理模块：统一管理 ESP32-S3 的 WiFi 射频资源，避免 AP 与 ESP-NOW 之间的冲突
 */
 #include "AP.h"
+#include "AP_Web.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_now.h>
@@ -133,6 +134,7 @@ static void start_ap_server(void)
     DualSerial.println("[AP] TCP Server Started.");
     DualSerial.print("[AP] IP Address: ");
     DualSerial.println(WiFi.softAPIP());
+    ap_web_start(); // 同时启动 Web 控制面板
 }
 
 static void stop_ap_server(void)
@@ -155,6 +157,7 @@ static void stop_ap_server(void)
     is_ap_enabled = false;
     update_rf_state(); // 如果 ESP-NOW 没开，此时会自动 WiFi.mode(WIFI_OFF)
     DualSerial.println("[AP] TCP Server Stopped.");
+    ap_web_stop(); // 同时停止 Web 控制面板
 }
 
 void ap_toggle(void)
@@ -183,6 +186,8 @@ void ap_print(const char *buffer, size_t length)
             clients[i]->send();
         }
     }
+
+    ap_web_print(buffer, length); // 同时广播到 WebSocket 客户端
 }
 
 // ==================== 2. ESP-NOW 模块实现 ====================
