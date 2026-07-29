@@ -35,7 +35,8 @@ static void system_service_task(void *param)
             switch (event.id)
             {
             case EVENT_SYS_INFO:
-                DualSerial.printf("Version: %s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
+                DualSerial.printf("%s V%s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
+                                  PROJECT_NAME,
                                   FIRMWARE_VER,
                                   BUILD_TIME,
                                   (int)temperatureRead(),

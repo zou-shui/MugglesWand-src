@@ -57,7 +57,7 @@ void setup()
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
   EventBus::publish(EVENT_SYS_BLE);
   EventBus::publish(EVENT_SYS_AP);
-  EventBus::publish(EVENT_SYS_DEBUG);
+  // EventBus::publish(EVENT_SYS_DEBUG);
 
   if (!ok)
   {

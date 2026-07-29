@@ -1,13 +1,13 @@
 #pragma once
 
 // Project Information
-#define PROJECT_NAME "MagicWand"
-#define FIRMWARE_VER "4.2" // 硬件版本.软件版本
+#define PROJECT_NAME "Muggles' Wand" // 项目名称
+#define FIRMWARE_VER "5.0"           // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
 // AP
-#define AP_SSID "MagicWand"  // AP热点名称
-#define AP_PASS "meiyoumima" // AP热点密码（至少8位）
+#define AP_SSID "Zoushui's Wand" // AP热点名称
+#define AP_PASS "12345678"       // AP热点密码（至少8位）
 
 // BLE
 #define BLE_DEVICE_NAME "Zoushui's Wand" // BLE设备名称

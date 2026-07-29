@@ -1,5 +1,5 @@
 /*
-    提供关机接口和实现空闲自动关机功能，自动关机功能只在IMU原始数据输出模式、OTA模式和debug模式下禁用
+    提供关机接口和实现空闲自动休眠功能，自动休眠功能只在IMU原始数据输出模式、OTA模式和debug模式下禁用
     另外提供充电检测功能，使用PIN_CHG_DET引脚进行分时复用，交替执行LED闪烁和ADC检测充电状态，电压高于CHG_DET_THRESHOLD_MV时认为正在充电
 */
 #include "HAL.h"
@@ -61,12 +61,12 @@ void HAL::power_off(void)
     digitalWrite(PIN_PWR_EN, LOW); // 关闭电源
 }
 
-// 定时器超时回调函数：1分钟到了，执行关机
+// 定时器超时回调函数：1分钟到了，执行休眠
 void power_off_timer_callback(TimerHandle_t xTimer)
 {
-    DualSerial.println("[Power] IMU idle for 1 min in training mode. Powering off...");
+    DualSerial.println("[Power] IMU idle for 1 min. Sleeping...");
 
-    EventBus::publish(EVENT_SYS_SHUTDOWN);
+    EventBus::publish(EVENT_SYS_SLEEP);
 }
 
 // Power 模块的任务，负责接收事件
