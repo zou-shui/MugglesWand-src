@@ -21,7 +21,7 @@ enum EventID
 {
     EVENT_NONE = 0,
 
-    // --- 系统事件（由 Service 模块订阅和处理）---
+    // --- 系统事件（大部分由 Service 模块订阅和处理）---
     EVENT_SYS_DEBUG,    // 无参数
     EVENT_SYS_INFO,     // 无参数
     EVENT_SYS_REBOOT,   // 无参数
@@ -31,6 +31,8 @@ enum EventID
     EVENT_SYS_AP,       // 无参数
     EVENT_SYS_ESPNOW,   // 无参数
 
+    EVENT_BTN_SHORT_PRESS, // 按键短按事件, 参数为连击次数 (1=单击, 2=双击, 3=三击)
+
     // --- IMU 事件 ---
     EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, 3=通过EventBus总线流向其它地方 -1=已停止)
     EVENT_IMU_RESET_MUX,      // 关闭IMU输出, 无参数
@@ -39,9 +41,6 @@ enum EventID
 
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
-
-    // --- 鼠标模拟事件 ---
-    EVENT_APP_MOUSE_TOGGLE, // 鼠标模式开关, 无参数
 
 };
 

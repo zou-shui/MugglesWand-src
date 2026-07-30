@@ -41,7 +41,10 @@ static void app_task(void *pvParameters)
                     APP_ble_keyboard_press_down();
                     break;
                 case 4:
-                    HAL::ws2812_start_fx(new AnimFlow(0x0000FF));
+                    mouse_mode = true;
+                    APP_Lumos_on(CRGB::Blue);
+                    DualSerial.println("[APP] Mouse mode enabled");
+                    EventBus::publish(EVENT_IMU_SET_MUX, 3);
                     break;
                 case 5:
                     APP_Lumos_trigger(CRGB::White);
@@ -49,16 +52,10 @@ static void app_task(void *pvParameters)
                 }
                 break;
 
-            case EVENT_APP_MOUSE_TOGGLE:
-                mouse_mode = !mouse_mode;
-                if (mouse_mode)
+            case EVENT_BTN_SHORT_PRESS:
+                if (1 == event.param1.i32 && mouse_mode)
                 {
-                    APP_Lumos_on(CRGB::Blue);
-                    DualSerial.println("[APP] Mouse mode enabled");
-                    EventBus::publish(EVENT_IMU_SET_MUX, 3);
-                }
-                else
-                {
+                    mouse_mode = false;
                     APP_Lumos_off();
                     DualSerial.println("[APP] Mouse mode disabled");
                     EventBus::publish(EVENT_IMU_SET_MUX, 2);
@@ -83,7 +80,7 @@ void APP_init()
 {
     app_queue = xQueueCreate(16, sizeof(SystemEvent)); // 增大队列以容纳高频鼠标数据
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
-    EventBus::subscribe(EVENT_APP_MOUSE_TOGGLE, app_queue);
+    EventBus::subscribe(EVENT_BTN_SHORT_PRESS, app_queue);
     EventBus::subscribe(EVENT_IMU_DATA_UPDATED, app_queue);
 
     APP_espnow_init();
