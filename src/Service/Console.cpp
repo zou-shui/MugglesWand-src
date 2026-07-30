@@ -25,7 +25,7 @@ static void console_print_help()
     DualSerial.println("ap            - Toggle AP service on/off");
     DualSerial.println("espnow        - Toggle ESP-NOW service on/off");
     DualSerial.println("ble           - Toggle BLE service on/off");
-    DualSerial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
+    DualSerial.println("inference     - Switch IMU to inference mode (push data to gesture buffer)");
     DualSerial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
     DualSerial.println("stop          - Stop IMU task and cut off data output");
     DualSerial.println("gesture <id>  - Simulate gesture detection event with specified ID");

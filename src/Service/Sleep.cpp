@@ -21,6 +21,7 @@ void sleep_enter()
 
     delay(100); // 等待IMU进入WoM模式
     DualSerial.println("[SLEEP] Enter deep sleep");
+    delay(100); // 等待串口输出完成
 
     esp_deep_sleep_start();
 }
