@@ -44,7 +44,7 @@ typedef struct
     int index;
 } Peak;
 
-// 状态机函数：输入当前点的gx, gy，返回当前状态, 若检测到过去100点是有效手势, 则返回一帧4
+// 状态机函数：输入当前点的gx, gy，返回当前状态, 若检测到过去100点是有效手势, 则返回一帧状态4
 int8_t detect_valid_gesture(float gx, float gy)
 {
     // 状态机内部状态及计数器
@@ -267,10 +267,9 @@ int8_t detect_valid_gesture(float gx, float gy)
 
 // ======================== 姿态解算，角速度映射 ========================
 // 互补滤波与对齐算法参数定义
-#define DT 0.01f // 100Hz采样率 -> 10ms
-#define HALF_DT 0.005f
-#define KP 2.0f   // 加速度计反馈增益
-#define KI 0.005f // 陀螺仪积分误差增益
+#define HALF_DT 0.005f // 100Hz采样率 -> 10ms的一半
+#define KP 2.0f        // 加速度计反馈增益
+#define KI 0.005f      // 陀螺仪积分误差增益
 
 // 姿态四元数
 static float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;
@@ -344,7 +343,10 @@ void event_cb(inv_imu_sensor_event_t *evt)
         if (mag > 0.001f)
         {
             // 使用 atan2f 明确计算出当前芯片 X 轴与重力投影方向的绝对夹角（弧度）
-            float current_theta = atan2f(vz, vx);
+            // MEMS 加速度计静止时测得的是“向上支撑力”（比阻力），而非指向地心的重力。
+            // 此处将 vz 和 vx 取反传入 atan2f，可将“支撑力向量”转换为“真实重力向量”，
+            // 消除 180° 的相位偏差，并使旋转后的 valid_gx / valid_gz 完全符合右手定则。
+            float current_theta = atan2f(-vz, -vx);
 
             // 实时计算修正角度（使用 ESP32 默认自带的 RAD_TO_DEG 宏转为角度制）
             corrected_angle_deg = current_theta * RAD_TO_DEG;
