@@ -28,8 +28,8 @@ void APP_ble_mouse_move(float gx_rad, float gz_rad)
         gz_rad = 0.0f;
 
     // 缩放并钳位到 int8_t 范围
-    int8_t dx = (int8_t)constrain((int32_t)(-gx_rad * MOUSE_SENSITIVITY), -127L, 127L);
-    int8_t dy = (int8_t)constrain((int32_t)(gz_rad * MOUSE_SENSITIVITY), -127L, 127L);
+    int8_t dx = (int8_t)constrain((int32_t)(gx_rad * MOUSE_SENSITIVITY), -127L, 127L);
+    int8_t dy = (int8_t)constrain((int32_t)(-gz_rad * MOUSE_SENSITIVITY), -127L, 127L);
 
     // 两轴都为 0 则跳过，减少 BLE 报文发送
     if (dx == 0 && dy == 0)
