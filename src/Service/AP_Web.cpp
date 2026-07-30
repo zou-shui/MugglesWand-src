@@ -160,6 +160,7 @@ function Chart(canvasId,config){
   this.autoScale=(this.yMin===undefined);
   this.expandOnOverflow=config.expandOnOverflow||false;
   this.gridLines=config.gridLines||5;
+  this.gridStep=config.gridStep||0;
   this.padding={top:10,right:15,bottom:25,left:45};
 }
 Chart.prototype.add=function(values){
@@ -190,22 +191,36 @@ Chart.prototype.draw=function(){
       }
     }
     if(this.expandOnOverflow){
-      // 数据未超界时保持默认范围，确保 0 固定在中间
+      // 数据未超界时保持默认范围
       if(ylo>this.yMin)ylo=this.yMin;
       if(yhi<this.yMax)yhi=this.yMax;
+      // 以 0 为中心对称扩展，缩放时保持 0 位置不变
+      var absMax=Math.max(Math.abs(ylo),Math.abs(yhi),Math.abs(this.yMin||0),Math.abs(this.yMax||0));
+      ylo=-absMax;yhi=absMax;
     }
   }
   if(yhi===ylo){yhi=ylo+1;ylo-=1}
   var yr=yhi-ylo;
   // 网格
   ctx.strokeStyle='#1e2e4a';ctx.lineWidth=1;
-  var gridLines=this.gridLines;
-  for(var g=0;g<=gridLines;g++){
-    var gy=this.padding.top+(ph*g/gridLines);
-    ctx.beginPath();ctx.moveTo(this.padding.left,gy);ctx.lineTo(w-this.padding.right,gy);ctx.stroke();
-    var label=(yhi-(yr*g/gridLines)).toFixed(2);
-    ctx.fillStyle='#667';ctx.font='10px monospace';ctx.textAlign='right';
-    ctx.fillText(label,this.padding.left-4,gy+3);
+  var gs=this.gridStep;
+  if(gs>0){
+    var gStart=Math.ceil(ylo/gs)*gs;
+    for(var gv=gStart;gv<=yhi+gs*0.001;gv+=gs){
+      var gy=this.padding.top+ph-((gv-ylo)/yr*ph);
+      ctx.beginPath();ctx.moveTo(this.padding.left,gy);ctx.lineTo(w-this.padding.right,gy);ctx.stroke();
+      ctx.fillStyle='#667';ctx.font='10px monospace';ctx.textAlign='right';
+      ctx.fillText(gv.toFixed(2),this.padding.left-4,gy+3);
+    }
+  }else{
+    var gridLines=this.gridLines;
+    for(var g=0;g<=gridLines;g++){
+      var gy=this.padding.top+(ph*g/gridLines);
+      ctx.beginPath();ctx.moveTo(this.padding.left,gy);ctx.lineTo(w-this.padding.right,gy);ctx.stroke();
+      var label=(yhi-(yr*g/gridLines)).toFixed(2);
+      ctx.fillStyle='#667';ctx.font='10px monospace';ctx.textAlign='right';
+      ctx.fillText(label,this.padding.left-4,gy+3);
+    }
   }
   // X轴标签
   ctx.fillStyle='#667';ctx.font='10px monospace';ctx.textAlign='center';
@@ -227,9 +242,9 @@ Chart.prototype.draw=function(){
     if(this.data.length>0){
       var lx=this.padding.left+6+s*80,ly=this.padding.top+14;
       ctx.fillStyle=this.series[s].color;
-      ctx.fillRect(lx-5,ly-5,10,3);
+      ctx.fillRect(lx-5,ly-6,10,8);
       ctx.fillStyle='#aaa';ctx.font='11px sans-serif';ctx.textAlign='left';
-      ctx.fillText(this.series[s].label,lx+8,ly+3);
+      ctx.fillText(this.series[s].label,lx+8,ly+2);
     }
   }
 };
@@ -237,11 +252,17 @@ Chart.prototype.draw=function(){
 // ============ 图表初始化 ============
 var chartGxGz=new Chart('chart-gx-gz',{
   series:[{label:'valid_gx',color:'#e0556a'},{label:'valid_gz',color:'#5b9bd5'}],
-  maxPoints:200,yMin:-10,yMax:10,expandOnOverflow:true
+  maxPoints:200,yMin:-10,yMax:10,expandOnOverflow:true,gridStep:2
 });
 var chartSta=new Chart('chart-sta',{
   series:[{label:'current_sta',color:'#4caf84'}],
   maxPoints:200,yMin:0,yMax:4,gridLines:4
+});
+
+// ============ 窗口大小变化时重绘（防止暂停刷新时拉伸变形）============
+window.addEventListener('resize',function(){
+  chartGxGz.draw();
+  chartSta.draw();
 });
 
 // ============ IMU 数据收集 ============

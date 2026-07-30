@@ -79,7 +79,7 @@ static void handleDisconnect(void *arg, AsyncClient *client)
         if (clients[i] == client)
         {
             clients[i] = nullptr;
-            DualSerial.printf("[AP] Client disconnected from slot [%d]\n", i);
+            DualSerial.printf("[AP] TCP Client disconnected from slot [%d]\n", i);
             break;
         }
     }
@@ -102,7 +102,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
     // 如果没有空闲插槽，则拒绝连接
     if (freeIndex == -1)
     {
-        DualSerial.println("[AP] Connection limit reached, rejecting new connection.");
+        DualSerial.println("[AP] TCP Connection limit reached, rejecting new connection.");
         client->close();
         return;
     }
@@ -114,7 +114,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
     client->onData(&handleData, nullptr);
     client->onDisconnect(&handleDisconnect, nullptr);
 
-    DualSerial.printf("[AP] Client connected to slot [%d]\n", freeIndex);
+    DualSerial.printf("[AP] TCP Client connected to slot [%d]\n", freeIndex);
 }
 
 static void start_ap_server(void)
