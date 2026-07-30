@@ -58,7 +58,7 @@ static void button_task(void *param)
             {
             case 1:
                 DualSerial.println("[Button] 1 short press action");
-                EventBus::publish(EVENT_SYS_BLE); // 发送 BLE 切换命令
+                EventBus::publish(EVENT_BTN_SHORT_PRESS, 1);
                 break;
             case 2:
                 DualSerial.println("[Button] 2 short press action");
@@ -66,7 +66,6 @@ static void button_task(void *param)
                 break;
             case 3:
                 DualSerial.println("[Button] 3 short press action");
-                EventBus::publish(EVENT_APP_MOUSE_TOGGLE);
                 break;
             default:
                 DualSerial.println("[Button] 4 or more short presses, ignore");
