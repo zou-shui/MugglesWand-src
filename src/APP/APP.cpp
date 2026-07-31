@@ -12,7 +12,8 @@ QueueHandle_t app_queue = NULL;
 
 static void app_task(void *pvParameters)
 {
-    static bool mouse_mode = false; // 鼠标模式开关状态
+    static bool mouse_mode = false;  // 鼠标模式开关状态
+    static bool volume_mode = false; // 音量调节模式开关状态
     SystemEvent event;
 
     while (1)
@@ -49,16 +50,32 @@ static void app_task(void *pvParameters)
                 case 5:
                     APP_Lumos_trigger(CRGB::White);
                     break;
+                case 6:
+                    volume_mode = true;
+                    APP_Lumos_trigger(CRGB::Red);
+                    DualSerial.println("[APP] Volume mode enabled");
+                    EventBus::publish(EVENT_IMU_SET_MUX, 4);
+                    break;
                 }
                 break;
 
             case EVENT_BTN_SHORT_PRESS:
-                if (1 == event.param1.i32 && mouse_mode)
+                if (1 == event.param1.i32)
                 {
-                    mouse_mode = false;
-                    APP_Lumos_off();
-                    DualSerial.println("[APP] Mouse mode disabled");
-                    EventBus::publish(EVENT_IMU_SET_MUX, 2);
+                    if (mouse_mode)
+                    {
+                        mouse_mode = false;
+                        APP_Lumos_off();
+                        DualSerial.println("[APP] Mouse mode disabled");
+                        EventBus::publish(EVENT_IMU_SET_MUX, 2);
+                    }
+                    if (volume_mode)
+                    {
+                        volume_mode = false;
+                        APP_Lumos_off();
+                        DualSerial.println("[APP] Volumee mode disabled");
+                        EventBus::publish(EVENT_IMU_SET_MUX, 2);
+                    }
                 }
                 break;
 
@@ -66,6 +83,10 @@ static void app_task(void *pvParameters)
                 if (mouse_mode)
                 {
                     APP_ble_mouse_move(event.param1.f32, event.param2.f32);
+                }
+                if (volume_mode)
+                {
+                    APP_ble_volume_knob(event.param1.f32);
                 }
                 break;
 

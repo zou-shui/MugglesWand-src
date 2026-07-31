@@ -387,6 +387,9 @@ void event_cb(inv_imu_sensor_event_t *evt)
             // 鼠标模拟模式：通过 EventBus 将 valid_gx/valid_gz 发送给 APP 层
             EventBus::publish(EVENT_IMU_DATA_UPDATED, valid_gx, valid_gz);
             break;
+        case 4:
+            EventBus::publish(EVENT_IMU_DATA_UPDATED, corrected_angle_deg);
+            break;
         }
     }
 }
@@ -452,8 +455,11 @@ void HAL::ICM42670P_stop()
 
 void HAL::ICM42670P_start(int8_t data_mux)
 {
-    if (data_mux != 1 && data_mux != 2 && data_mux != 3)
+    if (data_mux != 1 && data_mux != 2 && data_mux != 3 && data_mux != 4)
+    {
+        DualSerial.printf("[IMU] invalid parameter %d", data_mux);
         return; // 无效参数，拒绝启动
+    }
 
     if (imu_data_mux == data_mux)
     {

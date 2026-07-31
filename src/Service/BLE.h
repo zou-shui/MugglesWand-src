@@ -25,6 +25,13 @@ bool ble_keyboard_tap_key(uint8_t keycode);
 bool ble_mouse_move(int8_t dx, int8_t dy);
 
 /**
+ * @brief 发送 HID Consumer Control 报文（媒体键：音量、播放控制等）
+ * @param usage_code Consumer Page usage code（定义在 BLEHIDKeys.h 的 MEDIA_* 宏）
+ * @return true 发送成功, false 未连接或未开启
+ */
+bool ble_consumer_send(uint16_t usage_code);
+
+/**
  * @brief 更新并发送当前电池电量
  * @return true 发送成功，false 发送失败或未连接
  */
