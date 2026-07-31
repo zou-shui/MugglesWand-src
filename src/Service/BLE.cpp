@@ -17,9 +17,11 @@ static volatile bool _battery_task_should_exit = false;
 static NimBLEServer *pServer = nullptr;
 
 // HID 核心指针与特征值
+// Report ID 1: Keyboard   |   Report ID 2: Mouse   |   Report ID 3: Consumer Control
 static NimBLEHIDDevice *pHID = nullptr;
-static NimBLECharacteristic *pKeyboardInput = nullptr;
-static NimBLECharacteristic *pMouseInput = nullptr;
+static NimBLECharacteristic *pKeyboardInput  = nullptr; // 键盘输入 (Report ID 1)
+static NimBLECharacteristic *pMouseInput     = nullptr; // 鼠标输入 (Report ID 2)
+static NimBLECharacteristic *pConsumerInput  = nullptr; // 消费类控制输入：音量、播放等媒体键 (Report ID 3)
 
 // ========== 电池 CCCD 订阅回调 ==========
 // 等主机完成 CCCD 订阅后，立即发送一次电量通知
@@ -38,8 +40,8 @@ class BatteryCallbacks : public NimBLECharacteristicCallbacks
     }
 };
 
-// 标准 104 键 HID 键盘 + 鼠标组合描述符
-// Report ID 1 = Keyboard, Report ID 2 = Mouse
+// 复合 HID 报告描述符：Keyboard (ID 1) + Mouse (ID 2) + Consumer Control (ID 3)
+// 各 Report ID 独立，主机端根据 ID 将数据分发到对应驱动子系统
 static const uint8_t _hidReportDescriptor[] = {
     // ==================== Report ID 1: Keyboard ====================
     0x05, 0x01, // Usage Page (Generic Desktop)
@@ -109,7 +111,23 @@ static const uint8_t _hidReportDescriptor[] = {
     0x81, 0x06, //     Input (Data, Variable, Relative)
 
     0xC0, //   End Collection (Physical)
-    0xC0  // End Collection (Mouse)
+    0xC0, // End Collection (Mouse)
+
+    // ==================== Report ID 3: Consumer Control ====================
+    // 用于发送媒体键（音量 +/-、播放/暂停、静音等），usage code 定义在 BLEHIDKeys.h
+    // 报文格式：2 字节小端序 usage code，发送后紧跟全零报文释放
+    0x05, 0x0C,       // Usage Page (Consumer Devices)
+    0x09, 0x01,       // Usage (Consumer Control)
+    0xA1, 0x01,       // Collection (Application)
+    0x85, 0x03,       //   Report ID (3)
+    0x15, 0x00,       //   Logical Minimum (0)
+    0x26, 0xFF, 0x03, //   Logical Maximum (1023)
+    0x19, 0x00,       //   Usage Minimum (0)
+    0x2A, 0xFF, 0x03, //   Usage Maximum (1023)
+    0x75, 0x10,       //   Report Size (16)
+    0x95, 0x01,       //   Report Count (1)
+    0x81, 0x00,       //   Input (Data, Array, Absolute)
+    0xC0,   // End Collection (Consumer Control)
 };
 
 /**
@@ -258,6 +276,8 @@ bool ble_toggle(void)
         pKeyboardInput = pHID->getInputReport(1);
         // 提取 Report ID 2 对应的鼠标输入特征值指针
         pMouseInput = pHID->getInputReport(2);
+        // 提取 Report ID 3 对应的 Consumer Control 输入特征值指针
+        pConsumerInput = pHID->getInputReport(3);
 
         // 注册电池 CCCD 订阅回调——在 Windows 订阅时触发首次电量上报
         pHID->getBatteryLevel()->setCallbacks(new BatteryCallbacks());
@@ -328,9 +348,48 @@ bool ble_toggle(void)
         pHID = nullptr;
         pKeyboardInput = nullptr;
         pMouseInput = nullptr;
+        pConsumerInput = nullptr;
 
         DualSerial.println("[BLE] Service stopped");
     }
 
     return _is_ble_enabled;
+}
+
+/**
+ * @brief 发送 HID Consumer Control 按键（媒体键）
+ *
+ * @details Consumer Control 采用"按下即释放"模式：先发送目标 usage code，
+ *          再紧跟全零报文释放，避免主机端将按键卡住（stuck key）。
+ *          此模式适用于音量、播放控制等无需保持按下的瞬时操作。
+ *
+ * @param usage_code Consumer Page (0x0C) usage code，使用 BLEHIDKeys.h 中的
+ *                    MEDIA_* 宏（如 MEDIA_VOLUME_UP = 0x00E9）
+ * @return true 发送成功，false BLE 未开启、未连接或 Consumer 特征值未初始化
+ */
+bool ble_consumer_send(uint16_t usage_code)
+{
+    if (!_is_ble_enabled || !_is_connected || pConsumerInput == nullptr)
+    {
+        return false;
+    }
+
+    // Consumer HID Report (Report ID 3): 2 字节小端序 usage code
+    //   byte[0] = usage_code 低 8 位
+    //   byte[1] = usage_code 高 8 位
+    uint8_t report[2] = {
+        (uint8_t)(usage_code & 0xFF),
+        (uint8_t)((usage_code >> 8) & 0xFF)
+    };
+
+    // 1. 发送目标按键
+    pConsumerInput->setValue(report, sizeof(report));
+    pConsumerInput->notify();
+
+    // 2. 立即发送全零报文释放按键，避免主机认为按键一直处于按下状态
+    uint8_t release[2] = {0, 0};
+    pConsumerInput->setValue(release, sizeof(release));
+    pConsumerInput->notify();
+
+    return true;
 }
