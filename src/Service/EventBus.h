@@ -42,6 +42,9 @@ enum EventID
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
 
+    // --- POV 光绘参数设置事件 ---
+    EVENT_POV_SET, // 设置下一次光绘触发的参数, param1: 图案索引 (0~N-1), param2: reverse (1=倒序播放)
+
 };
 
 // 2. 定义一个可以代表整数或浮点数的联合体

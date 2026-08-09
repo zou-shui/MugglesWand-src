@@ -5,6 +5,7 @@
 #include "Console.h"
 #include "DualPrint.h"
 #include "EventBus.h"
+#include "APP/APP_POV.h" // pov 命令的图案清单由 APP 层输出
 
 #define CONSOLE_BUF_SIZE 64
 
@@ -15,20 +16,21 @@ static uint8_t rx_index = 0;
 static void console_print_help()
 {
     DualSerial.println("========= Magic Wand Console =========");
-    DualSerial.println("help          - Show command list");
-    DualSerial.println("debug         - Enable debug mode(disable auto sleep)");
-    DualSerial.println("info          - Show system information");
-    DualSerial.println("reboot        - Restart device");
-    DualSerial.println("sleep         - Enter deep sleep mode");
-    DualSerial.println("shutdown      - Turn off the power");
-    DualSerial.println("ota           - Enter OTA mode");
-    DualSerial.println("ap            - Toggle AP service on/off");
-    DualSerial.println("espnow        - Toggle ESP-NOW service on/off");
-    DualSerial.println("ble           - Toggle BLE service on/off");
-    DualSerial.println("inference     - Switch IMU to inference mode (push data to training buffer)");
-    DualSerial.println("imu           - Switch IMU to real-time output mode (send data via AP&UART)");
-    DualSerial.println("stop          - Stop IMU task and cut off data output");
-    DualSerial.println("gesture <id>  - Simulate gesture detection event with specified ID");
+    DualSerial.println("help           - Show command list");
+    DualSerial.println("debug          - Enable debug mode(disable auto sleep)");
+    DualSerial.println("info           - Show system information");
+    DualSerial.println("reboot         - Restart device");
+    DualSerial.println("sleep          - Enter deep sleep mode");
+    DualSerial.println("shutdown       - Turn off the power");
+    DualSerial.println("ota            - Enter OTA mode");
+    DualSerial.println("ap             - Toggle AP service on/off");
+    DualSerial.println("espnow         - Toggle ESP-NOW service on/off");
+    DualSerial.println("ble            - Toggle BLE service on/off");
+    DualSerial.println("inference      - Switch IMU to inference mode (push data to training buffer)");
+    DualSerial.println("imu            - Switch IMU to real-time output mode (send data via AP&UART)");
+    DualSerial.println("stop           - Stop IMU task and cut off data output");
+    DualSerial.println("gesture <id>   - Simulate gesture detection event with specified ID");
+    DualSerial.println("pov [id] [rev] - Set POV pattern params");
 }
 
 /************ 串口命令解析 ************/
@@ -104,6 +106,26 @@ void console_parse(char *cmd)
         {
             DualSerial.println("Error: gesture command requires an ID argument");
         }
+    }
+
+    else if (!strcmp(token, "pov"))
+    {
+        // 无参数: 由 APP 层打印图案清单与用法
+        token = strtok(NULL, " \r\n");
+        if (token == NULL)
+        {
+            APP_POV_list();
+            DualSerial.println("Usage: pov <index> [reverse 0/1]");
+            DualSerial.println("Note: this only sets params for next trigger");
+            return;
+        }
+
+        // 索引越界检查与钳制由 APP 层 (APP_POV_set_params) 完成
+        arg1 = atoi(token);
+        token = strtok(NULL, " \r\n");
+        arg2 = (token != NULL) ? atoi(token) : 0; // reverse, 默认 0
+
+        EventBus::publish(EVENT_POV_SET, arg1, arg2);
     }
 
     else if (!strcmp(token, "help"))
