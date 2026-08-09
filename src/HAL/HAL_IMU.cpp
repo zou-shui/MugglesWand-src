@@ -282,6 +282,10 @@ void event_cb(inv_imu_sensor_event_t *evt)
 
     if (IMU.isAccelDataValid(evt) && IMU.isGyroDataValid(evt))
     {
+        // 原始加速度 (单位 g)，供重力剔除等用途（ax/ay/az 随后会被归一化覆写）
+        float ax_raw = Data.Ax;
+        float az_raw = Data.Az;
+
         float ax = Data.Ax;
         float ay = Data.Ay;
         float az = Data.Az;
@@ -390,6 +394,10 @@ void event_cb(inv_imu_sensor_event_t *evt)
         case 4:
             EventBus::publish(EVENT_IMU_DATA_UPDATED, corrected_angle_deg);
             break;
+        case 5:
+            // POV 光绘模式：发送剔除重力后的 X-Z 平面线性加速度 (单位 g)。
+            EventBus::publish(EVENT_IMU_DATA_UPDATED, ax_raw - vx, az_raw - vz);
+            break;
         }
     }
 }
@@ -453,7 +461,7 @@ void HAL::ICM42670P_stop()
 
 void HAL::ICM42670P_start(int8_t data_mux)
 {
-    if (data_mux != 1 && data_mux != 2 && data_mux != 3 && data_mux != 4)
+    if (data_mux != 1 && data_mux != 2 && data_mux != 3 && data_mux != 4 && data_mux != 5)
     {
         DualSerial.printf("[IMU] invalid parameter %d", data_mux);
         return; // 无效参数，拒绝启动

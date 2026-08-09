@@ -2,7 +2,7 @@
 #include "APP_Lumos.h"
 #include "APP_BLE_HID.h"
 #include "APP_EspNow.h"
-#include "Service/DualPrint.h"
+#include "APP_POV.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
@@ -12,8 +12,6 @@ QueueHandle_t app_queue = NULL;
 
 static void app_task(void *pvParameters)
 {
-    static bool mouse_mode = false;  // 鼠标模式开关状态
-    static bool volume_mode = false; // 音量调节模式开关状态
     SystemEvent event;
 
     while (1)
@@ -42,19 +40,13 @@ static void app_task(void *pvParameters)
                     APP_ble_keyboard_press_down();
                     break;
                 case 4:
-                    mouse_mode = true;
-                    APP_Lumos_on(CRGB::Blue);
-                    DualSerial.println("[APP] Mouse mode enabled");
-                    EventBus::publish(EVENT_IMU_SET_MUX, 3);
+                    APP_ble_mouse_mode_enter(); // 鼠标模式：模块自管状态/指示灯/mux
                     break;
                 case 5:
-                    APP_Lumos_trigger(CRGB::White);
+                    APP_POV_mode_enter(); // POV 光绘模式：模块自管状态/指示灯/mux
                     break;
                 case 6:
-                    volume_mode = true;
-                    APP_Lumos_trigger(CRGB::Red);
-                    DualSerial.println("[APP] Volume mode enabled");
-                    EventBus::publish(EVENT_IMU_SET_MUX, 4);
+                    APP_ble_volume_mode_enter(); // 音量旋钮模式：模块自管状态/指示灯/mux
                     break;
                 }
                 break;
@@ -62,32 +54,37 @@ static void app_task(void *pvParameters)
             case EVENT_BTN_SHORT_PRESS:
                 if (1 == event.param1.i32)
                 {
-                    if (mouse_mode)
-                    {
-                        mouse_mode = false;
-                        APP_Lumos_off();
-                        DualSerial.println("[APP] Mouse mode disabled");
-                        EventBus::publish(EVENT_IMU_SET_MUX, 2);
-                    }
-                    if (volume_mode)
-                    {
-                        volume_mode = false;
-                        APP_Lumos_off();
-                        DualSerial.println("[APP] Volumee mode disabled");
-                        EventBus::publish(EVENT_IMU_SET_MUX, 2);
-                    }
+                    // 单击退出当前所有开启的模式（与各模块的模式状态保持一致）
+                    if (APP_ble_mouse_in_mode())
+                        APP_ble_mouse_mode_exit();
+                    if (APP_ble_volume_in_mode())
+                        APP_ble_volume_mode_exit();
+                    if (APP_POV_in_mode())
+                        APP_POV_mode_exit();
                 }
                 break;
 
             case EVENT_IMU_DATA_UPDATED:
-                if (mouse_mode)
+                // 数据语义由各模式的 mux 决定：3=角速度 / 4=修正角度 / 5=线性加速度
+                if (APP_ble_mouse_in_mode())
                 {
                     APP_ble_mouse_move(event.param1.f32, event.param2.f32);
                 }
-                if (volume_mode)
+                if (APP_ble_volume_in_mode())
                 {
                     APP_ble_volume_knob(event.param1.f32);
                 }
+                if (APP_POV_in_mode())
+                {
+                    // 剔除重力后的 X-Z 平面线性加速度 (单位 g)，挥动超阈值即触发光绘
+                    APP_POV_on_imu_data(event.param1.f32, event.param2.f32);
+                }
+                break;
+
+            case EVENT_POV_SET:
+                // 参数设置事件：仅修改下一次光绘触发时的图案/方向，不立即触发
+                // param1: 图案索引, param2: reverse (0/1)
+                APP_POV_set_params((uint8_t)event.param1.i32, event.param2.i32 != 0);
                 break;
 
             default:
@@ -103,6 +100,7 @@ void APP_init()
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
     EventBus::subscribe(EVENT_BTN_SHORT_PRESS, app_queue);
     EventBus::subscribe(EVENT_IMU_DATA_UPDATED, app_queue);
+    EventBus::subscribe(EVENT_POV_SET, app_queue);
 
     APP_espnow_init();
 

@@ -1,6 +1,10 @@
 #include "APP_BLE_HID.h"
+#include "APP_Lumos.h"
 #include "Service/BLE.h"
+#include "Service/DualPrint.h"
+#include "Service/EventBus.h"
 #include <Arduino.h>
+#include <FastLED.h>
 
 // ====================== 鼠标参数 ============================
 // 鼠标灵敏度：弧度/秒 → 鼠标像素位移的缩放系数
@@ -26,6 +30,62 @@
 // 旋转方向死区修正：累计器绝对值超过此阈值时，只允许同向步进
 // 避免从慢速顺向转入慢速逆向时，累积器在阈值附近反复跨越
 #define VOLUME_HYSTERESIS 0.0003f
+
+// ==================== 鼠标模式状态 (手势4进入, 单击退出) ====================
+static bool mouse_mode = false;
+
+void APP_ble_mouse_mode_enter(void)
+{
+    if (mouse_mode)
+        return;
+    mouse_mode = true;
+    APP_Lumos_on(CRGB::Blue); // 蓝色模式指示灯
+    DualSerial.println("[APP] Mouse mode enabled");
+    EventBus::publish(EVENT_IMU_SET_MUX, 3); // 数据流切换为角速度 (valid_gx/gz)
+}
+
+void APP_ble_mouse_mode_exit(void)
+{
+    if (!mouse_mode)
+        return;
+    mouse_mode = false;
+    APP_Lumos_off(); // 熄灭模式指示灯并恢复手势状态灯
+    DualSerial.println("[APP] Mouse mode disabled");
+    EventBus::publish(EVENT_IMU_SET_MUX, 2); // 数据流恢复为手势训练缓冲区
+}
+
+bool APP_ble_mouse_in_mode(void)
+{
+    return mouse_mode;
+}
+
+// ==================== 音量旋钮模式状态 (手势6进入, 单击退出) ====================
+static bool volume_mode = false;
+
+void APP_ble_volume_mode_enter(void)
+{
+    if (volume_mode)
+        return;
+    volume_mode = true;
+    APP_Lumos_on(CRGB::Red); // 红色模式指示灯
+    DualSerial.println("[APP] Volume mode enabled");
+    EventBus::publish(EVENT_IMU_SET_MUX, 4); // 数据流切换为修正角度 (corrected_angle_deg)
+}
+
+void APP_ble_volume_mode_exit(void)
+{
+    if (!volume_mode)
+        return;
+    volume_mode = false;
+    APP_Lumos_off(); // 熄灭模式指示灯并恢复手势状态灯
+    DualSerial.println("[APP] Volume mode disabled");
+    EventBus::publish(EVENT_IMU_SET_MUX, 2); // 数据流恢复为手势训练缓冲区
+}
+
+bool APP_ble_volume_in_mode(void)
+{
+    return volume_mode;
+}
 
 bool APP_ble_keyboard_press_up(void)
 {

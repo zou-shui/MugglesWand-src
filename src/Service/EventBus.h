@@ -48,6 +48,9 @@ enum EventID
     EVENT_POWER_CHARGING,     // 充电中, 无参数
     EVENT_POWER_NOT_CHARGING, // 未充电, 无参数
 
+    // --- POV 光绘参数设置事件 ---
+    EVENT_POV_SET, // 设置下一次光绘触发的参数, param1: 图案索引 (0~N-1), param2: reverse (1=倒序播放)
+
 };
 
 // 2. 定义一个可以代表整数或浮点数的联合体

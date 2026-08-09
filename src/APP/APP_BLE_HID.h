@@ -1,9 +1,32 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
 bool APP_ble_keyboard_press_up(void);
 
 bool APP_ble_keyboard_press_down(void);
+
+// ==================== 鼠标模式 (手势4进入, 单击退出) ====================
+
+/// @brief 进入鼠标模式：点亮蓝色指示灯并切换 IMU 数据流为 mux 3（角速度）
+void APP_ble_mouse_mode_enter(void);
+
+/// @brief 退出鼠标模式：熄灭指示灯并恢复 IMU 数据流为 mux 2（手势训练）
+void APP_ble_mouse_mode_exit(void);
+
+/// @brief 当前是否处于鼠标模式
+bool APP_ble_mouse_in_mode(void);
+
+// ==================== 音量旋钮模式 (手势6进入, 单击退出) ====================
+
+/// @brief 进入音量模式：点亮红色指示灯并切换 IMU 数据流为 mux 4（修正角度）
+void APP_ble_volume_mode_enter(void);
+
+/// @brief 退出音量模式：熄灭指示灯并恢复 IMU 数据流为 mux 2（手势训练）
+void APP_ble_volume_mode_exit(void);
+
+/// @brief 当前是否处于音量模式
+bool APP_ble_volume_in_mode(void);
 
 /**
  * @brief 将 IMU 角速度映射为鼠标位移并发送
