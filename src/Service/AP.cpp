@@ -12,9 +12,8 @@
 #include "Service/DualPrint.h"
 
 // ==================== 配置与常量定义 ====================
-#define TCP_PORT 8080  // TCP 服务器监听端口
-#define WIFI_CHANNEL 1 // ESP-NOW 与 AP 统一使用的信道
-#define MAX_CLIENTS 2  // TCP Server 最大连接数
+#define TCP_PORT 8080 // TCP 服务器监听端口
+#define MAX_CLIENTS 2 // TCP Server 最大连接数
 
 static const uint8_t broadcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -32,23 +31,20 @@ static void update_rf_state(void)
     {
         // 两者都需要：开启 AP+STA 混合模式
         WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(AP_SSID, AP_PASS, WIFI_CHANNEL);
-        esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        WiFi.softAP(AP_SSID, AP_PASS);
         DualSerial.println("[AP] RF Mode -> WIFI_AP_STA");
     }
     else if (is_ap_enabled && !is_espnow_enabled)
     {
         // 只有 AP 需要：开启纯 AP 模式
         WiFi.mode(WIFI_AP);
-        WiFi.softAP(AP_SSID, AP_PASS, WIFI_CHANNEL);
-        esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        WiFi.softAP(AP_SSID, AP_PASS);
         DualSerial.println("[AP] RF Mode -> WIFI_AP");
     }
     else if (!is_ap_enabled && is_espnow_enabled)
     {
         // 只有 ESP-NOW 需要：开启纯 STA 模式
         WiFi.mode(WIFI_STA);
-        esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
         DualSerial.println("[AP] RF Mode -> WIFI_STA");
     }
     else
@@ -210,7 +206,6 @@ static void start_espnow(void)
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
     memcpy(peerInfo.peer_addr, broadcastMac, 6);
-    peerInfo.channel = WIFI_CHANNEL;
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
 
