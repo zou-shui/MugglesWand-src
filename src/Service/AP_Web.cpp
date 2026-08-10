@@ -20,7 +20,7 @@ static const char WEB_PAGE[] = R"raw(
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Muggles' Wand</title>
 <style>
-:root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e}
+:root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--purple:#b06fd1;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:14px/1.5 'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
 header{background:var(--panel);padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
@@ -45,8 +45,21 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .btn-row button.accent{background:var(--orange);border-color:var(--orange);color:#fff}
 .btn-row button.danger{background:var(--red);border-color:var(--red);color:#fff}
 .btn-row button.warning{background:var(--warn);border-color:var(--warn);color:#fff}
+.btn-row button.green{background:var(--green);border-color:var(--green);color:#fff}
+.btn-row button.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-row button.purple{background:var(--purple);border-color:var(--purple);color:#fff}
 .btn-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;min-width:0}
-.btn-row button.narrow,.btn-row input.narrow{flex:0.45;min-width:48px}
+/* 控制分组：手势 / POV */
+.ctrl-group{display:flex;align-items:center;gap:4px;flex:1;min-width:0;background:var(--accent);border:1px solid var(--border);border-radius:6px;padding:2px 5px}
+.ctrl-group input{flex:1 1 60px;min-width:36px;height:32px;padding:4px 10px}
+.ctrl-group button{flex:1 1 auto;white-space:nowrap;height:32px;min-height:0;padding:0 12px}
+/* 反向开关：方形滑块内嵌文字，随滑块上下滑动；空间紧张时优先让位（shrink:10） */
+.switch{position:relative;display:inline-block;flex:0 10 56px;max-width:56px;min-width:26px}
+.switch input{position:absolute;opacity:0;width:0;height:0;padding:0}
+.rocker{display:block;position:relative;width:100%;height:32px;background:var(--btn-bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;user-select:none;transition:background .2s,border-color .2s}
+.rocker-dir{position:absolute;left:2px;right:2px;top:2px;height:16px;display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:var(--text);background:var(--btn-hover);border-radius:3px;transition:top .2s,background .2s,color .2s}
+.switch input:checked+.rocker{background:var(--green);border-color:var(--green)}
+.switch input:checked+.rocker .rocker-dir{top:12px;background:#fff;color:#1a1a2e}
 @media(max-width:768px){.btn-row{flex-wrap:wrap}}
 .charts-area{display:flex;flex-direction:column;gap:12px}
 .chart-panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
@@ -78,15 +91,24 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
     <div class="btn-row">
       <button onclick="sendCmd('ota')" class="accent">OTA</button>
       <button onclick="sendCmd('ap')" class="accent">AP</button>
-      <button onclick="sendCmd('espnow')">ESP-NOW</button>
-      <button onclick="sendCmd('ble')">BLE</button>
+      <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
+      <button onclick="sendCmd('ble')" class="blue">BLE</button>
     </div>
     <div class="btn-row">
       <button onclick="sendCmd('inference')">IMU推理</button>
       <button onclick="sendCmd('imu')">IMU数据</button>
       <button onclick="sendCmd('stop')">IMU停止</button>
-      <input type="number" id="gesture-id" placeholder="手势 ID" min="0" max="5" class="narrow">
-      <button onclick="sendGesture()" class="narrow">发送</button>
+    </div>
+    <div class="btn-row">
+      <div class="ctrl-group">
+        <input type="number" id="gesture-id" placeholder="手势 ID" min="0" max="5">
+        <button onclick="sendGesture()" class="purple">触发手势</button>
+      </div>
+      <div class="ctrl-group">
+        <input type="number" id="pov-id" placeholder="图案 ID" min="0">
+        <label class="switch" title="reverse"><input type="checkbox" id="pov-rev"><span class="rocker"><span class="rocker-dir">反向</span></span></label>
+        <button onclick="sendPov()" class="purple">POV</button>
+      </div>
     </div>
   </div>
   <div class="charts-area">
@@ -123,6 +145,12 @@ function sendCmd(cmd){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(cmd)}
 function sendGesture(){
   var v=document.getElementById('gesture-id').value.trim();
   if(v!=='')sendCmd('gesture '+v);
+}
+function sendPov(){
+  var v=document.getElementById('pov-id').value.trim();
+  if(v===''){sendCmd('pov');return} // 无参数: 打印图案清单与用法
+  var rev=document.getElementById('pov-rev').checked?1:0;
+  sendCmd('pov '+v+' '+rev);
 }
 
 // ============ 日志窗口 ============
