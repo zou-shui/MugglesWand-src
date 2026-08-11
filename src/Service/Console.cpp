@@ -15,7 +15,7 @@ static uint8_t rx_index = 0;
 /************ 显示帮助信息 ************/
 static void console_print_help()
 {
-    DualSerial.println("========= Magic Wand Console =========");
+    DualSerial.println("================= Wand Console =================");
     DualSerial.println("help           - Show command list");
     DualSerial.println("debug          - Enable debug mode(disable auto sleep)");
     DualSerial.println("info           - Show system information");
@@ -120,7 +120,7 @@ void console_parse(char *cmd)
         {
             APP_POV_list();
             DualSerial.println("Usage: pov <index> [reverse 0/1]");
-            DualSerial.println("Note: this only sets params for next trigger");
+            DualSerial.println("Note: this command sets params for next trigger");
             return;
         }
 
