@@ -30,6 +30,7 @@ Core 1:
 | IMU sampling      | 3
 | APP task          | 2
 | Gesture reference | 1
+| ESP-NOW heartbeat | 1
 */
 
 void setup()
