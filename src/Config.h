@@ -35,4 +35,4 @@
 
 // LED控制兼充电检测
 #define PIN_CHG_DET 9
-#define CHG_DET_THRESHOLD_MV 1720 // 充电检测电压阈值（mV），高于此值认为在充电
+#define CHG_DET_THRESHOLD_MV 1500 // 充电检测电压阈值（mV），高于此值认为在充电
