@@ -24,11 +24,6 @@ float HAL::MAX17048_getChangeRate()
     return lipo.getChangeRate();
 }
 
-bool HAL::MAX17048_getChargeStatus()
-{
-    return lipo.getChangeRate() > 0 ? 1 : 0;
-}
-
 bool HAL::MAX17048_init()
 {
     Wire1.begin(PIN_BATT_GAUGE_SDA, PIN_BATT_GAUGE_SCL, 400000);

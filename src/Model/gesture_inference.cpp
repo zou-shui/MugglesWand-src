@@ -9,11 +9,11 @@
 #include "gesture_model.h" // 你的模型头文件
 #include "Service/AP.h"
 
-constexpr int kNumClasses = 7; // 输出类别数
+constexpr int kNumClasses = 8; // 输出类别数
 
 // 归一化参数（需要与你的训练数据一致）
-constexpr float kMean[2] = {0.07644011f, -0.07288657f}; // 替换为实际的 mean 值
-constexpr float kStd[2] = {1.46960514f, 2.47917159f};   // 替换为实际的 std 值
+constexpr float kMean[2] = {0.06793611f, -0.10970584f}; // 替换为实际的 mean 值
+constexpr float kStd[2] = {1.5366218f, 2.53526731f};    // 替换为实际的 std 值
 
 TaskHandle_t inference_task_handle = NULL;
 

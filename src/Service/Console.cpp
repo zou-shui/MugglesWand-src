@@ -15,7 +15,7 @@ static uint8_t rx_index = 0;
 /************ 显示帮助信息 ************/
 static void console_print_help()
 {
-    DualSerial.println("========= Magic Wand Console =========");
+    DualSerial.println("================= Wand Console =================");
     DualSerial.println("help           - Show command list");
     DualSerial.println("debug          - Enable debug mode(disable auto sleep)");
     DualSerial.println("info           - Show system information");
@@ -26,7 +26,7 @@ static void console_print_help()
     DualSerial.println("ap             - Toggle AP service on/off");
     DualSerial.println("espnow         - Toggle ESP-NOW service on/off");
     DualSerial.println("ble            - Toggle BLE service on/off");
-    DualSerial.println("inference      - Switch IMU to inference mode (push data to training buffer)");
+    DualSerial.println("inference      - Switch IMU to inference mode (push data to gesture buffer)");
     DualSerial.println("imu            - Switch IMU to real-time output mode (send data via AP&UART)");
     DualSerial.println("stop           - Stop IMU task and cut off data output");
     DualSerial.println("gesture <id>   - Simulate gesture detection event with specified ID");
@@ -57,6 +57,10 @@ void console_parse(char *cmd)
     else if (!strcmp(token, "reboot"))
     {
         EventBus::publish(EVENT_SYS_REBOOT);
+    }
+    else if (!strcmp(token, "sleep"))
+    {
+        EventBus::publish(EVENT_SYS_SLEEP);
     }
     else if (!strcmp(token, "shutdown"))
     {
@@ -116,7 +120,7 @@ void console_parse(char *cmd)
         {
             APP_POV_list();
             DualSerial.println("Usage: pov <index> [reverse 0/1]");
-            DualSerial.println("Note: this only sets params for next trigger");
+            DualSerial.println("Note: this command sets params for next trigger");
             return;
         }
 

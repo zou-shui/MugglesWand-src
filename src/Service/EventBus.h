@@ -25,6 +25,7 @@ enum EventID
     EVENT_SYS_DEBUG,    // 无参数
     EVENT_SYS_INFO,     // 无参数
     EVENT_SYS_REBOOT,   // 无参数
+    EVENT_SYS_SLEEP,    // 无参数
     EVENT_SYS_SHUTDOWN, // 无参数
     EVENT_SYS_OTA,      // 无参数
     EVENT_SYS_BLE,      // 无参数
@@ -36,11 +37,16 @@ enum EventID
     // --- IMU 事件 ---
     EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, 3=通过EventBus总线流向其它地方 -1=已停止)
     EVENT_IMU_RESET_MUX,      // 关闭IMU输出, 无参数
+    EVENT_IMU_SET_WOM,        // 设定IMU进入Wake on Motion模式, 无参数
     EVENT_IMU_STATUS_CHANGED, // 手势状态机改变事件, param1: 当前状态机状态, param2: 当前数据流向
     EVENT_IMU_DATA_UPDATED,   // IMU数据更新事件，用于传输数据到其它模块,参数由具体模块定义，一般是 param1: valid_gx(弧度/秒), param2: valid_gz(弧度/秒)
 
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
+
+    // --- 电源事件 ---
+    EVENT_POWER_CHARGING,     // 充电中, 无参数
+    EVENT_POWER_NOT_CHARGING, // 未充电, 无参数
 
     // --- POV 光绘参数设置事件 ---
     EVENT_POV_SET, // 设置下一次光绘触发的参数, param1: 图案索引 (0~N-1), param2: reverse (1=倒序播放)

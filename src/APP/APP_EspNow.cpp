@@ -15,12 +15,14 @@ static void heartbeatTask(void *pvParameters)
 void APP_espnow_init()
 {
     espnow_toggle();
-    xTaskCreate(heartbeatTask,
-                "hb_task",
-                2048,
-                NULL,
-                1,
-                NULL);
+    xTaskCreatePinnedToCore(
+        heartbeatTask,
+        "hb_task",
+        2048,
+        NULL,
+        1,
+        NULL,
+        1);
 }
 
 void APP_espnow_tx_signal(uint8_t signalType)

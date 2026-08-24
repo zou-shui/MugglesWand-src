@@ -9,6 +9,7 @@
 #include "EventBus.h"
 #include "OTA.h"
 #include "AP.h"
+#include "Sleep.h"
 #include "HAL/HAL.h"
 
 QueueHandle_t service_queue = NULL;
@@ -18,6 +19,7 @@ static void system_service_task(void *param)
     service_queue = xQueueCreate(8, sizeof(SystemEvent));
     EventBus::subscribe(EVENT_SYS_INFO, service_queue);
     EventBus::subscribe(EVENT_SYS_REBOOT, service_queue);
+    EventBus::subscribe(EVENT_SYS_SLEEP, service_queue);
     EventBus::subscribe(EVENT_SYS_SHUTDOWN, service_queue);
     EventBus::subscribe(EVENT_SYS_OTA, service_queue);
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
@@ -33,14 +35,15 @@ static void system_service_task(void *param)
             switch (event.id)
             {
             case EVENT_SYS_INFO:
-                DualSerial.printf("Version: %s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2f V, %.1f%%, %s, %.1f%%/h\n",
+                DualSerial.printf("%s V%s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2fV, %.1f%%, %s, %.1f%%/h\n",
+                                  PROJECT_NAME,
                                   FIRMWARE_VER,
                                   BUILD_TIME,
                                   (int)temperatureRead(),
                                   millis() / 1000,
                                   HAL::MAX17048_getVoltage(),
                                   HAL::MAX17048_getSOC(),
-                                  HAL::MAX17048_getChargeStatus() ? "Charging" : "Discharging",
+                                  HAL::power_getChargeStatus() ? "Charging" : "Discharging",
                                   HAL::MAX17048_getChangeRate());
                 break;
 
@@ -48,10 +51,15 @@ static void system_service_task(void *param)
                 DualSerial.println("Rebooting...");
                 ESP.restart();
                 break;
+            case EVENT_SYS_SLEEP:
+                EventBus::publish(EVENT_IMU_RESET_MUX);
+                EventBus::publish(EVENT_IMU_SET_WOM);
+                HAL::ws2812_stop();
+                sleep_enter();
+                break;
 
             case EVENT_SYS_SHUTDOWN:
                 DualSerial.println("Shutting down...");
-                HAL::ws2812_stop(); // 关机前清除灯珠状态，避免下次开机时灯珠的不确定状态
                 HAL::power_off();
                 break;
 

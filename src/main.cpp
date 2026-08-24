@@ -21,6 +21,7 @@ Core 0:
 | Console parser    | 2
 | Button handling   | 1
 | BLE battery task  | 0
+| Power task        | 0
 
 Core 1:
 | Task              | Priority
@@ -29,6 +30,7 @@ Core 1:
 | IMU sampling      | 3
 | APP task          | 2
 | Gesture reference | 1
+| ESP-NOW heartbeat | 1
 */
 
 void setup()
@@ -55,6 +57,8 @@ void setup()
 
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
   EventBus::publish(EVENT_SYS_BLE);
+  EventBus::publish(EVENT_SYS_AP);
+  // EventBus::publish(EVENT_SYS_DEBUG);
 
   if (!ok)
   {
