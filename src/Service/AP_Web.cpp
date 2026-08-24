@@ -101,7 +101,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
     </div>
     <div class="btn-row">
       <div class="ctrl-group">
-        <input type="number" id="gesture-id" placeholder="手势 ID" min="0" max="5">
+        <input type="number" id="gesture-id" placeholder="手势 ID" min="0">
         <button onclick="sendGesture()" class="purple">触发手势</button>
       </div>
       <div class="ctrl-group">
