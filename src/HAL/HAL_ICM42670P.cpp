@@ -287,7 +287,10 @@ static int i2c_write(inv_imu_serif *serif, uint8_t reg, const uint8_t *wbuffer, 
     {
         obj->i2c->write(wbuffer[i]);
     }
-    obj->i2c->endTransmission();
+    if (obj->i2c->endTransmission() != 0)
+    {
+        return -1; // 设备无响应时返回错误
+    }
     return 0;
 }
 
@@ -298,7 +301,10 @@ static int i2c_read(inv_imu_serif *serif, uint8_t reg, uint8_t *rbuffer, uint32_
 
     obj->i2c->beginTransmission(obj->i2c_address);
     obj->i2c->write(reg);
-    obj->i2c->endTransmission(false);
+    if (obj->i2c->endTransmission(false) != 0)
+    {
+        return -1; // 寄存器地址写入失败(设备无响应)
+    }
     while (offset < rlen)
     {
         uint16_t rx_bytes = 0;
@@ -306,28 +312,19 @@ static int i2c_read(inv_imu_serif *serif, uint8_t reg, uint8_t *rbuffer, uint32_
             obj->i2c->beginTransmission(obj->i2c_address);
         uint16_t length = ((rlen - offset) > ARDUINO_I2C_BUFFER_LENGTH) ? ARDUINO_I2C_BUFFER_LENGTH : (rlen - offset);
         rx_bytes = obj->i2c->requestFrom(obj->i2c_address, length);
-        if (rx_bytes == length)
+        if (rx_bytes != length)
         {
-            for (uint8_t i = 0; i < length; i++)
-            {
-                rbuffer[offset + i] = obj->i2c->read();
-            }
-            offset += length;
-            obj->i2c->endTransmission((offset == rlen));
+            // 读取失败立即返回错误
+            return -1;
         }
-        else
+        for (uint8_t i = 0; i < length; i++)
         {
-            obj->i2c->endTransmission((offset == rlen));
+            rbuffer[offset + i] = obj->i2c->read();
         }
+        offset += length;
+        obj->i2c->endTransmission((offset == rlen));
     }
-    if (offset == rlen)
-    {
-        return 0;
-    }
-    else
-    {
-        return -1;
-    }
+    return 0;
 }
 
 // ================================内部函数=================================
