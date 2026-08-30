@@ -35,42 +35,51 @@ Core 1:
 
 void setup()
 {
-  bool ok = true;
+  // ---------------系统初始化---------------
   Serial.begin(115200);
+
   DualSerial.println("[System] Initializing...");
 
-  // system services init
+  // 系统服务初始化
   EventBus::init();
   console_init();
   service_init();
 
+  // 模型载入
   inference_init();
   inference_start();
 
+  // 硬件初始化
   HAL::power_init();
   HAL::ws2812_init();
-  ok &= HAL::ICM42670P_init();
-  ok &= HAL::MAX17048_init();
+  bool imu_ok = HAL::ICM42670P_init();
+  bool batt_ok = HAL::MAX17048_init();
   HAL::button_init();
 
+  // 用户APP初始化
   APP_init();
 
+  // 启动手势推理、BLE、WiFi热点
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
   EventBus::publish(EVENT_SYS_BLE);
   EventBus::publish(EVENT_SYS_AP);
-  // EventBus::publish(EVENT_SYS_DEBUG);
 
-  if (!ok)
+  if (!imu_ok || !batt_ok)
   {
-    DualSerial.println("[System] Initialize failed, restart in 3 seconds");
-    delay(1000);
-    DualSerial.println("[System] Restart in 2s");
-    delay(1000);
-    DualSerial.println("[System] Restart in 1s");
-    delay(1000);
+    for (int i = 5; i > 0; i--)
+    {
+      if (!imu_ok)
+        DualSerial.printf("[System] FAIL: ICM42670P (IMU) init failed, Restart in %ds\n", i);
+
+      if (!batt_ok)
+        DualSerial.printf("[System] FAIL: MAX17048 (battery gauge) init failed, Restart in %ds\n", i);
+
+      delay(1000);
+    }
     DualSerial.println("[System] Restarting...");
     ESP.restart();
   }
+
   DualSerial.println("[System] Initialization complete");
 }
 
