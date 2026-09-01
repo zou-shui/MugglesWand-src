@@ -5,9 +5,13 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "Service/EventBus.h"
+#include "HAL/WS2812_Animation/AnimTap.hpp"
 
 #define TURN_OFF_TIME 1000       // 长按关机时间（ms）
 #define MULTI_PRESS_INTERVAL 500 // 两次按下最大间隔 (ms)
+
+// 按键实时按下状态（供 AnimTap 反馈动画轮询读取，按下瞬间即时响应）
+static volatile bool s_button_pressed = false;
 
 static void button_task(void *param)
 {
@@ -24,7 +28,15 @@ static void button_task(void *param)
         if (pressed)
         {
             if (pressStart == 0)
+            {
+                // 按下瞬间：立即启动按键反馈动画。
+                // 点亮曲线为"先快后慢"的 ease-out-cubic，总时长取 TURN_OFF_TIME，
+                // 即长按到灯带完全点亮时，正好与长按关机触发时刻重合。
                 pressStart = millis();
+                s_button_pressed = true;
+                HAL::ws2812_start_fx(new AnimTap(s_button_pressed, CRGB::White,
+                                                 0, WS2812_LED_COUNT, TURN_OFF_TIME));
+            }
 
             // 长按触发
             if (!longPressTriggered && millis() - pressStart > TURN_OFF_TIME)
@@ -35,7 +47,9 @@ static void button_task(void *param)
         }
         else
         {
-            // 按键松开
+            // 按键松开（动画随即进入逐个熄灭阶段）
+            s_button_pressed = false;
+
             if (!longPressTriggered && pressStart > 0)
             {
                 uint32_t pressDuration = millis() - pressStart;
@@ -53,7 +67,7 @@ static void button_task(void *param)
         // 检查是否超过多次按键窗口
         if (pressCount > 0 && (millis() - lastReleaseTime > MULTI_PRESS_INTERVAL))
         {
-            // 根据 pressCount 执行不同功能
+            // 根据 pressCount 执行不同功能（动画已在按下瞬间响应，此处只做业务逻辑）
             switch (pressCount)
             {
             case 1:
@@ -62,7 +76,6 @@ static void button_task(void *param)
                 break;
             case 2:
                 DualSerial.println("[Button] 2 short press action");
-                EventBus::publish(EVENT_SYS_AP); // 发送 AP 切换命令
                 break;
             case 3:
                 DualSerial.println("[Button] 3 short press action");
