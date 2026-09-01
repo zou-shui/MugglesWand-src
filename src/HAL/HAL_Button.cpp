@@ -6,12 +6,16 @@
 #include "Config.h"
 #include "Service/EventBus.h"
 #include "HAL/WS2812_Animation/AnimTap.hpp"
+#include "HAL/WS2812_Animation/AnimShutdown.hpp"
 
 #define TURN_OFF_TIME 1000       // 长按关机时间（ms）
 #define MULTI_PRESS_INTERVAL 500 // 两次按下最大间隔 (ms)
+#define SHUTDOWN_ANIM_MS 500     // 关机衔接动画总时长（ms）
 
 // 按键实时按下状态（供 AnimTap 反馈动画轮询读取，按下瞬间即时响应）
 static volatile bool s_button_pressed = false;
+// 关机动画"关机已确认"标志（动画播完的收尾帧置位，作为关机事件触发信号）
+static bool s_shutdown_done = false;
 
 static void button_task(void *param)
 {
@@ -42,6 +46,20 @@ static void button_task(void *param)
             if (!longPressTriggered && millis() - pressStart > TURN_OFF_TIME)
             {
                 longPressTriggered = true;
+
+                // 让点亮动画退出（其全亮帧由 overlay 无缝接管，衔接不闪断）
+                s_button_pressed = false;
+                // 清掉背景层，避免关机动画结束后底层"回光"
+                HAL::ws2812_set_background(nullptr);
+                // overlay 层强制覆盖所有动效（含 LED0 状态灯），播放关机衔接动画
+                HAL::ws2812_set_overlay(new AnimShutdown(CRGB::White, &s_shutdown_done,
+                                                         0, WS2812_LED_COUNT, SHUTDOWN_ANIM_MS));
+                // 等待动画播完（收尾帧置位 s_shutdown_done），超时兜底后发布关机命令
+                uint32_t waitDeadline = millis() + SHUTDOWN_ANIM_MS + 500;
+                while (!s_shutdown_done && millis() < waitDeadline)
+                {
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
                 EventBus::publish(EVENT_SYS_SHUTDOWN); // 发送关机命令
             }
         }
