@@ -33,7 +33,7 @@ static void chg_led_timer_callback(TimerHandle_t xTimer)
     {
         // ADC 相位：配置为输入，检测充电电压
         pinMode(PIN_CHG_DET, INPUT);
-        uint32_t last_adc_value = analogReadMilliVolts(PIN_CHG_DET);
+        last_adc_value = analogReadMilliVolts(PIN_CHG_DET);
         // DualSerial.printf("[Power] ADC reading: %lumV\n", last_adc_value);   // 调试用
 
         bool is_charging = (last_adc_value > CHG_DET_THRESHOLD_MV);

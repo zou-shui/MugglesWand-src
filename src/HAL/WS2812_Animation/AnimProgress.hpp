@@ -11,7 +11,7 @@
 class AnimProgress : public AnimationBase
 {
 private:
-	const uint8_t &_progressRef; // 外部进度变量引用（0~100）
+	const volatile uint8_t &_progressRef; // 外部进度变量引用（0~100）
 	CRGB _color;
 	float _visualPos;	 // 当前平滑后的视觉位置（浮点，亚像素精度）
 	float _smoothFactor; // 每帧向目标靠近的比例（0~1，值越大越跟手）
@@ -22,7 +22,7 @@ public:
 	 * @param color       光流颜色
 	 * @param smoothFactor 平滑过渡因子（0.05~0.5 推荐，默认 0.15）
 	 */
-	AnimProgress(const uint8_t &progressRef, CRGB color = CRGB::White, float smoothFactor = 0.1f)
+	AnimProgress(const volatile uint8_t &progressRef, CRGB color = CRGB::White, float smoothFactor = 0.1f)
 		: _progressRef(progressRef), _color(color), _visualPos(0.0f), _smoothFactor(smoothFactor) {}
 
 	void init() override
