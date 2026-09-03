@@ -1,18 +1,6 @@
 # Muggles' Wand - src
 
-此仓库是[Muggles' Wand](https://github.com/zou-shui/MugglesWand)项目的**固件源码**子仓库。硬件平台：ESP32-S3（Arduino 框架）。构建系统：PlatformIO。如要自行修改源码，请先在VSCode安装插件PlatformIO。
-
-由于PlatformIO官方尚未提供 ESP32-S3FH4R2 的板卡定义文件，请手动将 `esp32-s3-fh4r2.json` 放入 PlatformIO 的 boards 目录：
-
-**Windows:**
-
-> C:/Users/<用户名>/.platformio/platforms/espressif32/boards/
-
-**Linux / macOS:**
-
-> ~/.platformio/platforms/espressif32/boards/
-
-之后即可正常打开工程。
+此仓库是[Muggles' Wand](https://github.com/zou-shui/MugglesWand)项目的**固件源码**子仓库。硬件平台：ESP32-S3（Arduino 框架）。构建系统：PlatformIO。如要自行修改源码，请先在VSCode安装插件PlatformIO。PlatformIO会自动识别工程并下载依赖库，随后即可编译工程。
 
 ## 工程简介
 
