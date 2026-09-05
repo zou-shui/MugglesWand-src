@@ -26,6 +26,8 @@ private:
     uint16_t _startIndex; // 动画起始灯珠下标
     uint16_t _ledCount;   // 参与动画的灯珠数量
     uint32_t _totalMs;    // 动画总时长（毫秒）
+    uint8_t _brightness;  // 汇聚阶段的全带亮度（0~255，默认 20 避免刺眼）；
+                          // FLASH 回闪峰值固定为 200，属于"闪光能量"而非主亮度，不参数化
 
 public:
     /**
@@ -34,14 +36,17 @@ public:
      * @param startIndex 动画起始灯珠下标
      * @param ledCount   参与动画的灯珠数量
      * @param totalMs    动画总时长（毫秒）
+     * @param brightness 汇聚阶段全带亮度（0~255，默认 20 与 AnimTap 对齐）
      */
     AnimShutdown(CRGB color = CRGB::White, bool *done = nullptr,
-                 uint16_t startIndex = 0, uint16_t ledCount = 41, uint32_t totalMs = 500)
+                 uint16_t startIndex = 0, uint16_t ledCount = 41, uint32_t totalMs = 500,
+                 uint8_t brightness = 20)
         : _color(color),
           _done(done),
           _startIndex(startIndex),
           _ledCount(ledCount == 0 ? 1 : ledCount),
-          _totalMs(totalMs == 0 ? 1 : totalMs) {}
+          _totalMs(totalMs == 0 ? 1 : totalMs),
+          _brightness(brightness) {}
 
     void update(CRGB *leds, uint16_t numLeds) override
     {
@@ -69,13 +74,13 @@ public:
         }
 
         const float FLASH_START = 0.85f; // 汇聚阶段占总时长的 85%，之后为回闪阶段
-        const float BASE_BRIGHT = 20.0f; // 与 AnimTap 全亮亮度一致，衔接不跳变
+        const float FLASH_PEAK   = 200.0f; // 中心段正弦脉冲峰值（闪光能量，固定）
 
         if (u >= FLASH_START)
         {
             // 回闪阶段：中心段正弦脉冲，亮起后迅速熄灭
             float fp = (u - FLASH_START) / (1.0f - FLASH_START);
-            float brightness = sin(fp * PI) * 200.0f;
+            float brightness = sin(fp * PI) * FLASH_PEAK;
             if (brightness > 1.0f)
             {
                 CRGB flash = _color;
@@ -91,7 +96,7 @@ public:
             uint16_t shrink = (uint16_t)(_ledCount / 2.0f * ease + 0.5f);
 
             CRGB lit = _color;
-            lit.nscale8(BASE_BRIGHT);
+            lit.nscale8(_brightness);
 
             for (uint16_t i = shrink; i + shrink < _ledCount; i++)
             {

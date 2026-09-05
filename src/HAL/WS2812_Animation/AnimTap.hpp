@@ -25,6 +25,7 @@ private:
     uint16_t _ledCount;   // 参与动画的灯珠数量
     uint32_t _totalMs;    // 从第一颗到完全点亮的总时长（毫秒）
     float _drainSpeed;    // 熄灭速度倍率（相对点亮速度，>1 表示熄灭更快）
+    uint8_t _brightness;  // 点亮亮度（0~255，默认 20，避免刺眼）
 
     uint16_t _litCount;          // 当前已点亮的灯珠数量
     bool _draining;              // 是否处于熄灭阶段（按键已松开）
@@ -41,16 +42,18 @@ public:
      * @param totalMs    从第一颗到完全点亮的总时长（毫秒），取长按判定时长时
      *                   全亮时刻与长按关机同步
      * @param drainSpeed 熄灭速度倍率（相对点亮速度，>1 表示熄灭更快）
+     * @param brightness 点亮亮度（0~255，默认 20 避免刺眼）
      */
     AnimTap(const volatile bool &isPressed, CRGB color = CRGB::White,
             uint16_t startIndex = 0, uint16_t ledCount = 41, uint32_t totalMs = 1000,
-            float drainSpeed = 1.5f)
+            float drainSpeed = 1.5f, uint8_t brightness = 20)
         : _isPressed(isPressed),
           _color(color),
           _startIndex(startIndex),
           _ledCount(ledCount == 0 ? 1 : ledCount),
           _totalMs(totalMs == 0 ? 1 : totalMs),
           _drainSpeed(drainSpeed <= 0.0f ? 1.0f : drainSpeed),
+          _brightness(brightness),
           _litCount(0),
           _draining(false),
           _drainStartTime(0),
@@ -126,7 +129,7 @@ public:
         }
 
         CRGB pixelColor = _color;
-        pixelColor.nscale8(20); // 低亮度，避免刺眼
+        pixelColor.nscale8(_brightness); // 默认 20 避免刺眼，可由构造参数覆盖
 
         for (uint16_t i = 0; i < _litCount; i++)
         {
