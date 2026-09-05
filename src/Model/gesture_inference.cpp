@@ -31,6 +31,7 @@ namespace
 
 void handleGesture(int gesture_id)
 {
+    // 处理手势事件，发布到事件总线
     EventBus::publish(EVENT_GESTURE_DETECTED, gesture_id);
 }
 
@@ -96,8 +97,10 @@ void inference_task(void *pvParameters)
             float inference_time = (end_time - start_time) / 1000.0f; // ms
             float max_probability = probabilities[predicted_class];
 
-            DualSerial.printf("%d,%.2f,%.0fms\n", predicted_class, max_probability, inference_time);
+            // 输出推理结果, 包括类别、概率和推理时间
+            DualSerial.printf("[CNN] C:%d P:%.2f T:%.0fms\n", predicted_class, max_probability, inference_time);
 
+            // 如果最大概率超过阈值，则触发手势事件
             if (max_probability >= 0.6)
             {
                 handleGesture(predicted_class);

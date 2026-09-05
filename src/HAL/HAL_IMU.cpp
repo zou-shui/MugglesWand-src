@@ -3,7 +3,7 @@
 */
 #include "HAL.h"
 #include "HAL_ICM42670P.h"
-#include "config.h"
+#include "Config.h"
 #include "Model/gesture_buffer.h"
 #include <math.h>
 #include "Service/AP.h"
@@ -12,7 +12,7 @@
 
 // Instantiate an ICM42670 with LSB address set to 0
 ICM42670 IMU(Wire, 0, 400000);
-int8_t imu_data_mux = -1; // 1表示数据用于实时输出, 2表示数据用于训练（压入缓冲区）, -1表示imu未启动
+int8_t imu_data_mux = -1; // 1表示数据用于实时输出, 2表示数据压入推理缓冲区, -1表示imu未启动
 TaskHandle_t icm42670p_task_handle = NULL;
 QueueHandle_t icm42670p_queue = NULL;
 SemaphoreHandle_t imu_sem = NULL;
@@ -384,14 +384,15 @@ void event_cb(inv_imu_sensor_event_t *evt)
             DualSerial.printf("%f,%f,%d\n", valid_gx, valid_gz, current_sta);
             break;
         case 2:
-            // 压入神经网络训练缓冲区
+            // 压入神经网络推理缓冲区
             addSample(valid_gx, valid_gz, current_sta >= 4 ? 1 : 0);
             break;
         case 3:
-            // 鼠标模拟模式：通过 EventBus 将 valid_gx/valid_gz 发送给 APP 层
+            // 模拟鼠标模式：通过 EventBus 将 valid_gx/valid_gz 发送给 APP 层
             EventBus::publish(EVENT_IMU_DATA_UPDATED, valid_gx, valid_gz);
             break;
         case 4:
+            // 模拟旋钮模式
             EventBus::publish(EVENT_IMU_DATA_UPDATED, corrected_angle_deg);
             break;
         case 5:
