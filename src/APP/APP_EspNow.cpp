@@ -8,7 +8,7 @@ static void heartbeatTask(void *pvParameters)
     while (true)
     {
         espnow_send_data(&heartbeatData, sizeof(heartbeatData));
-        vTaskDelay(pdMS_TO_TICKS(20)); // 高频广播：20ms
+        vTaskDelay(pdMS_TO_TICKS(30)); // 广播间隔：30ms
     }
 }
 
