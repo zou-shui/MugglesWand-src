@@ -11,6 +11,38 @@
 #include "AP.h"
 #include "Sleep.h"
 #include "HAL/HAL.h"
+#include <esp_system.h>
+
+// 把 esp_reset_reason_t 枚举翻译成可读字符串。
+static const char *reset_reason_to_str(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+    case ESP_RST_POWERON:
+        return "Power-on reset";
+    case ESP_RST_EXT:
+        return "External reset (pin)";
+    case ESP_RST_SW:
+        return "Software reset (esp_restart)";
+    case ESP_RST_PANIC:
+        return "Software reset due to exception/panic";
+    case ESP_RST_INT_WDT:
+        return "Interrupt watchdog";
+    case ESP_RST_TASK_WDT:
+        return "Task watchdog";
+    case ESP_RST_WDT:
+        return "Other watchdog";
+    case ESP_RST_DEEPSLEEP:
+        return "Wake from deep sleep";
+    case ESP_RST_BROWNOUT:
+        return "Brownout reset";
+    case ESP_RST_SDIO:
+        return "Reset by SDIO";
+    case ESP_RST_UNKNOWN:
+    default:
+        return "Unknown";
+    }
+}
 
 QueueHandle_t service_queue = NULL;
 
@@ -25,6 +57,7 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
     EventBus::subscribe(EVENT_SYS_AP, service_queue);
     EventBus::subscribe(EVENT_SYS_ESPNOW, service_queue);
+    EventBus::subscribe(EVENT_SYS_DEBUG, service_queue);
 
     SystemEvent event;
 
@@ -78,6 +111,10 @@ static void system_service_task(void *param)
                 espnow_toggle();
                 break;
 
+            case EVENT_SYS_DEBUG:
+                // 打印系统重启原因
+                DualSerial.printf("[System] Reset reason: %s\n", reset_reason_to_str(esp_reset_reason()));
+                break;
             default:
                 break;
             }
