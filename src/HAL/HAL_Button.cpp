@@ -7,9 +7,10 @@
 #include "Service/EventBus.h"
 #include "HAL/WS2812_Animation/AnimTap.hpp"
 #include "HAL/WS2812_Animation/AnimShutdown.hpp"
+#include "HAL/WS2812_Animation/AnimCombo.hpp"
 
 #define TURN_OFF_TIME 1000       // 长按关机时间（ms）
-#define MULTI_PRESS_INTERVAL 500 // 两次按下最大间隔 (ms)
+#define MULTI_PRESS_INTERVAL 400 // 两次按下最大间隔 (ms)
 #define SHUTDOWN_ANIM_MS 500     // 关机衔接动画总时长（ms）
 
 // 按键实时按下状态（供 AnimTap 反馈动画轮询读取，按下瞬间即时响应）
@@ -83,7 +84,7 @@ static void button_task(void *param)
         }
 
         // 检查是否超过多次按键窗口
-        if (pressCount > 0 && (millis() - lastReleaseTime > MULTI_PRESS_INTERVAL))
+        if (pressCount > 0 && !pressed && (millis() - lastReleaseTime > MULTI_PRESS_INTERVAL))
         {
             // 根据 pressCount 执行不同功能（动画已在按下瞬间响应，此处只做业务逻辑）
             switch (pressCount)
@@ -91,15 +92,20 @@ static void button_task(void *param)
             case 1:
                 DualSerial.println("[Button] 1 short press action");
                 EventBus::publish(EVENT_BTN_SHORT_PRESS, 1);
+                HAL::ws2812_start_fx(new AnimCombo(1)); // 仅点亮 1-3（绿色）
                 break;
             case 2:
                 DualSerial.println("[Button] 2 short press action");
+                HAL::ws2812_start_fx(new AnimCombo(2)); // 点亮 1-3（绿）+ 4-6（黄）
                 break;
             case 3:
                 DualSerial.println("[Button] 3 short press action");
+                HAL::ws2812_start_fx(new AnimCombo(3)); // 点亮 1-3（绿）+ 4-6（黄）+ 7-9（红）
                 break;
             default:
                 DualSerial.println("[Button] 4 or more short presses, ignore");
+                HAL::ws2812_start_fx(new AnimCombo(pressCount > 15 ? 15 : pressCount));
+                // 第 4 段起回退到白色（_fallbackColor）
                 break;
             }
 
