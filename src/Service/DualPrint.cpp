@@ -1,4 +1,3 @@
-// dual_serial.cpp
 #include "DualPrint.h"
 #include "Service/AP.h"
 

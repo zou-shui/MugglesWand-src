@@ -1,7 +1,6 @@
 #include "EventBus.h"
 #include "DualPrint.h"
 
-// 静态变量初始化
 EventBus::Subscription EventBus::subscribers[MAX_SUBSCRIBERS];
 int EventBus::subscriberCount = 0;
 SemaphoreHandle_t EventBus::xMutex = NULL;

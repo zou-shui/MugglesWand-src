@@ -1,7 +1,7 @@
 #include "APP_EspNow.h"
 #include "Service/AP.h"
 
-// 高频心跳任务：每 20ms 发射一次，方便接收端瞬间捕捉
+// 高频心跳任务：每 30ms 发射一次，方便接收端瞬间捕捉
 static void heartbeatTask(void *pvParameters)
 {
     uint8_t heartbeatData = MSG_HEARTBEAT;

@@ -10,7 +10,7 @@
 // @param reverse      是否从最后一行倒序播放（适配反向挥舞）
 void APP_POV_set_params(uint8_t patternIndex, bool reverse);
 
-// @brief 进入 POV 模式（手势 5 触发）：点亮紫色模式指示灯
+// @brief 进入 POV 模式：点亮紫色模式指示灯
 void APP_POV_mode_enter(void);
 
 // @brief 退出 POV 模式（单击按键）：熄灭指示灯并恢复手势状态灯

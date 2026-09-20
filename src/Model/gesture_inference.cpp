@@ -11,9 +11,9 @@
 
 constexpr int kNumClasses = 8; // 输出类别数
 
-// 归一化参数（需要与你的训练数据一致）
-constexpr float kMean[2] = {0.06793611f, -0.10970584f}; // 替换为实际的 mean 值
-constexpr float kStd[2] = {1.5366218f, 2.53526731f};    // 替换为实际的 std 值
+// 归一化参数（由训练脚本输出，必须与之一致）
+constexpr float kMean[2] = {0.06793611f, -0.10970584f};
+constexpr float kStd[2] = {1.5366218f, 2.53526731f};
 
 TaskHandle_t inference_task_handle = NULL;
 

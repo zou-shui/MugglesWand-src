@@ -10,7 +10,7 @@
 #include "Service/EventBus.h"
 #include "HAL/WS2812_Animation/AnimStatus.hpp"
 
-// Instantiate an ICM42670 with LSB address set to 0
+// 创建 ICM42670 实例（LSB 地址 = 0）
 ICM42670 IMU(Wire, 0, 400000);
 int8_t imu_data_mux = -1; // 1表示数据用于实时输出, 2表示数据压入推理缓冲区, -1表示imu未启动
 TaskHandle_t icm42670p_task_handle = NULL;
@@ -267,7 +267,7 @@ int8_t detect_valid_gesture(float gx, float gy)
 
 // ======================== 姿态解算，角速度映射 ========================
 // 互补滤波与对齐算法参数定义
-#define HALF_DT 0.005f // 100Hz采样率 -> 10ms的一半
+#define HALF_DT 0.005f // 100Hz 采样率下，半个采样周期（5ms）
 #define KP 2.0f        // 加速度计反馈增益
 #define KI 0.005f      // 陀螺仪积分误差增益
 

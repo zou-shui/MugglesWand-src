@@ -299,7 +299,7 @@ bool ble_toggle(void)
             xTaskCreatePinnedToCore(
                 ble_battery_task,      // 任务函数
                 "ble_bat_task",        // 任务名称
-                4096,                  // 栈大小小于2472字节将会溢出
+                4096,                  // 实测不应该小于2.4KB，留足余量到 4KB
                 nullptr,               // 传递给任务的参数
                 1,                     // 任务优先级
                 &_battery_task_handle, // 任务句柄

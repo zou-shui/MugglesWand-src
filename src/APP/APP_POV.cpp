@@ -9,7 +9,7 @@
 #include <FastLED.h>
 
 // ==================== POV 模式状态 ====================
-static bool pov_mode_enabled = false; // 模式激活标志（手势5进入，单击退出）
+static bool pov_mode_enabled = false; // 模式激活标志（单击退出）
 static bool pov_trigger_armed = true; // 触发边沿检测：true=静止待命，false=触发冷却中
 static bool pov_anim_playing = false; // 光绘动画播放中标志（由 AnimPOV 析构回调复位）
 

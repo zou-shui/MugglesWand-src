@@ -18,7 +18,7 @@ private:
 public:
     /**
      * @param color 光流核心颜色
-     * @param speedFactor 速度因子（每帧移动的灯珠数，支持小数）
+     * @param speedFactor 速度因子（每帧移动的灯珠数）
      * @param tailLength 拖尾长度（灯珠数）
      */
     AnimFlow(CRGB color = CRGB::White, uint8_t speedFactor = 20, uint8_t tailLength = 20)
@@ -27,7 +27,7 @@ public:
     void update(CRGB *leds, uint16_t numLeds) override
     {
         // 1. 更新当前头部位置
-        // 假设原本 10ms 帧率，可以通过位置递增来实现动画
+        // 10ms 帧率下，通过 _speedFactor 递增 _currentPos 实现光流动画
         _currentPos += (_speedFactor * 0.1f);
 
         int head = (int)_currentPos;

@@ -99,7 +99,7 @@ static void app_task(void *pvParameters)
 
 void APP_init()
 {
-    app_queue = xQueueCreate(16, sizeof(SystemEvent)); // 增大队列以容纳高频鼠标数据
+    app_queue = xQueueCreate(16, sizeof(SystemEvent)); // 深度16，容纳高频鼠标数据
     EventBus::subscribe(EVENT_GESTURE_DETECTED, app_queue);
     EventBus::subscribe(EVENT_BTN_SHORT_PRESS, app_queue);
     EventBus::subscribe(EVENT_IMU_DATA_UPDATED, app_queue);

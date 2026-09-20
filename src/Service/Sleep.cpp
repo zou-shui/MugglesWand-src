@@ -10,9 +10,8 @@
 /************ 进入 Deep Sleep ************/
 void sleep_enter()
 {
-    // 构造唤醒掩码
+    // 唤醒源：按键 + IMU 中断（任一低电平即唤醒）
     uint64_t wakeup_mask = (1ULL << PIN_KEY) | (1ULL << PIN_IMU_INT);
-    // uint64_t wakeup_mask = (1ULL << PIN_KEY);
 
     // 启用 EXT1 唤醒，任意低电平即唤醒
     esp_sleep_enable_ext1_wakeup(

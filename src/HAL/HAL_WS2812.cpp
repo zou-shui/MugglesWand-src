@@ -40,7 +40,7 @@ static void ws2812_task(void *pvParameters)
     (void)pvParameters;
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(10); // 严格的10ms刷新间隔 (100 FPS)
+    const TickType_t xFrequency = pdMS_TO_TICKS(10); // 严格的 10ms 刷新周期（vTaskDelayUntil 锚定绝对时刻）
 
     // 用于记录当前硬件电源状态
     bool is_power_on = false;

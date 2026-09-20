@@ -67,6 +67,7 @@ void setup()
   EventBus::publish(EVENT_SYS_BLE);
   EventBus::publish(EVENT_SYS_AP);
 
+  // 检查IMU和电池状态，如果初始化失败则重启
   if (!imu_ok || !batt_ok)
   {
     for (int i = 5; i > 0; i--)

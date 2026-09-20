@@ -64,8 +64,8 @@ public:
         if (u >= 1.0f)
         {
             // 动画播完：保持全黑驻留 overlay 层，直到电源切断。
-            // 不置 _isFinished——若引擎回收本层，底层 AnimTap 熄灭阶段
-            // 残余的 LED0 会露出约 20~30ms。此处置位 done 通知上层可关机。
+            // 不置 _isFinished——否则引擎回收本层后，底层 AnimTap 熄灭阶段
+            // 残余的 LED0 会短促露出。此处置位 done 通知上层可关机。
             if (_done != nullptr)
             {
                 *_done = true;

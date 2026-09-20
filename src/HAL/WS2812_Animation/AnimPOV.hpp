@@ -64,7 +64,7 @@ public:
 
         if (_brightness >= 255)
         {
-            // 整行直接覆盖（overlay 强制覆盖语义），每 tick 仅拷 123 字节
+            // 整行直接覆盖（overlay 强制覆盖语义），每 tick 拷 n * sizeof(CRGB) 字节
             memcpy(leds, src, n * sizeof(CRGB));
         }
         else
@@ -77,7 +77,7 @@ public:
             }
         }
 
-        _rowIndex++; // 每 tick 推进 1 行（100 行/秒）
+        _rowIndex++; // 每 tick 推进 1 行（频率 = 1000 / 帧间隔 ms）
 
         // 播完最后一行：置完成标志，引擎下一 tick 自动 delete（析构中通知上层 _doneFn）
         if (_rowIndex >= _pattern->rows)

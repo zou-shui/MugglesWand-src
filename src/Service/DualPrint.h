@@ -1,4 +1,3 @@
-// dual_serial.h
 #ifndef DUAL_SERIAL_H
 #define DUAL_SERIAL_H
 
