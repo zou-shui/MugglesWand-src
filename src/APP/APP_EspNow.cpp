@@ -1,5 +1,6 @@
 #include "APP_EspNow.h"
 #include "Service/AP.h"
+#include "Service/EventBus.h"
 
 // 高频心跳任务：每 30ms 发射一次，方便接收端瞬间捕捉
 static void heartbeatTask(void *pvParameters)
@@ -14,7 +15,7 @@ static void heartbeatTask(void *pvParameters)
 
 void APP_espnow_init()
 {
-    espnow_toggle();
+    EventBus::publish(EVENT_SYS_ESPNOW);
     xTaskCreatePinnedToCore(
         heartbeatTask,
         "hb_task",
