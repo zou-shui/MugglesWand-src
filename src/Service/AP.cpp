@@ -24,35 +24,54 @@ static AsyncClient *clients[MAX_CLIENTS] = {nullptr};
 static bool is_ap_enabled = false;
 static bool is_espnow_enabled = false;
 
+// ESP-NOW readiness：init+add_peer 完成后置 true，deinit 前先置 false
+static volatile bool s_espnow_ready = false;
+
+// 已下发到 WiFi 驱动的 mode：用于 update_rf_state() 幂等保护，避免重复 WiFi.mode()
+static wifi_mode_t s_current_wifi_mode = WIFI_MODE_NULL;
+
 // ==================== 核心射频(RF)统一调度器 ====================
+// AP 开启时 WiFi 锁定 APSTA，ESP-NOW 切换不触发 WiFi.mode()，
+// 避免在 NimBLE 运行期间反复拆装 STA 子接口导致共存状态机崩溃。
 static void update_rf_state(void)
 {
-    if (is_ap_enabled && is_espnow_enabled)
+    wifi_mode_t want;
+    if (is_ap_enabled)
     {
-        // 两者都需要：开启 AP+STA 混合模式
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(AP_SSID, AP_PASS);
-        DualSerial.println("[AP] RF Mode -> WIFI_AP_STA");
+        want = WIFI_MODE_APSTA;
     }
-    else if (is_ap_enabled && !is_espnow_enabled)
+    else if (is_espnow_enabled)
     {
-        // 只有 AP 需要：开启纯 AP 模式
-        WiFi.mode(WIFI_AP);
-        WiFi.softAP(AP_SSID, AP_PASS);
-        DualSerial.println("[AP] RF Mode -> WIFI_AP");
-    }
-    else if (!is_ap_enabled && is_espnow_enabled)
-    {
-        // 只有 ESP-NOW 需要：开启纯 STA 模式
-        WiFi.mode(WIFI_STA);
-        DualSerial.println("[AP] RF Mode -> WIFI_STA");
+        want = WIFI_MODE_STA;
     }
     else
     {
-        // 两者都被关闭：安全彻底切断射频，实现极致省电
+        want = WIFI_MODE_NULL;
+    }
+
+    // 幂等保护：避免重复触发 WiFi.mode()
+    if (want == s_current_wifi_mode)
+    {
+        return;
+    }
+    s_current_wifi_mode = want;
+
+    switch (want)
+    {
+    case WIFI_MODE_APSTA:
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP(AP_SSID, AP_PASS);
+        DualSerial.println("[AP] RF Mode -> WIFI_AP_STA");
+        break;
+    case WIFI_MODE_STA:
+        WiFi.mode(WIFI_STA);
+        DualSerial.println("[AP] RF Mode -> WIFI_STA");
+        break;
+    default:
         WiFi.softAPdisconnect(true);
         WiFi.mode(WIFI_OFF);
         DualSerial.println("[AP] RF Mode -> WIFI_OFF");
+        break;
     }
 }
 
@@ -192,11 +211,13 @@ static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {}
 static void start_espnow(void)
 {
     is_espnow_enabled = true;
-    update_rf_state(); // 统一刷新底层 RF 模式
+    update_rf_state();
 
     if (esp_now_init() != ESP_OK)
     {
         DualSerial.println("[AP] ESP-NOW Init Failed!");
+        is_espnow_enabled = false; // init 失败回滚 flag
+        update_rf_state();
         return;
     }
 
@@ -209,15 +230,18 @@ static void start_espnow(void)
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
 
+    s_espnow_ready = true;
     DualSerial.println("[AP] ESP-NOW Started.");
 }
 
 static void stop_espnow(void)
 {
-    esp_now_deinit();
-
+    s_espnow_ready = false;
     is_espnow_enabled = false;
-    update_rf_state(); // 如果 AP 没开，此时会自动 WiFi.mode(WIFI_OFF)
+
+    esp_now_deinit();
+    update_rf_state();
+
     DualSerial.println("[AP] ESP-NOW Stopped.");
 }
 
@@ -237,7 +261,7 @@ bool espnow_is_running(void)
 // 通用底层发送接口：把具体的数据内容与长度完全解耦给外部
 bool espnow_send_data(const uint8_t *data, size_t len)
 {
-    if (!is_espnow_enabled || data == nullptr || len == 0)
+    if (!s_espnow_ready || data == nullptr || len == 0)
         return false;
 
     return (esp_now_send(broadcastMac, data, len) == ESP_OK);
