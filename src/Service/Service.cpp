@@ -113,8 +113,7 @@ static void system_service_task(void *param)
                 break;
 
             case EVENT_SYS_DEBUG:
-                // 打印系统重启原因
-                DualSerial.printf("[System] Reset reason: %s\n", reset_reason_to_str(esp_reset_reason()));
+                DualSerial.printf("[System] Reset reason: %s\n", reset_reason_to_str(esp_reset_reason())); // 打印系统重启原因
                 break;
             default:
                 break;

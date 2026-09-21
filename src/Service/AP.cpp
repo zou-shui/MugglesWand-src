@@ -146,7 +146,7 @@ static void start_ap_server(void)
     tcpServer->onClient(&handleNewClient, nullptr);
     tcpServer->begin();
 
-    DualSerial.println("[AP] TCP Server Started.");
+    DualSerial.println("[AP] TCP Server Started");
     DualSerial.print("[AP] IP Address: ");
     DualSerial.println(WiFi.softAPIP());
     ap_web_start(); // 同时启动 Web 控制面板
@@ -171,7 +171,7 @@ static void stop_ap_server(void)
 
     is_ap_enabled = false;
     update_rf_state(); // 如果 ESP-NOW 没开，此时会自动 WiFi.mode(WIFI_OFF)
-    DualSerial.println("[AP] TCP Server Stopped.");
+    DualSerial.println("[AP] TCP Server Stopped");
     ap_web_stop(); // 同时停止 Web 控制面板
 }
 
@@ -231,7 +231,7 @@ static void start_espnow(void)
     esp_now_add_peer(&peerInfo);
 
     s_espnow_ready = true;
-    DualSerial.println("[AP] ESP-NOW Started.");
+    DualSerial.println("[AP] ESP-NOW Started");
 }
 
 static void stop_espnow(void)
@@ -242,7 +242,7 @@ static void stop_espnow(void)
     esp_now_deinit();
     update_rf_state();
 
-    DualSerial.println("[AP] ESP-NOW Stopped.");
+    DualSerial.println("[AP] ESP-NOW Stopped");
 }
 
 void espnow_toggle(void)

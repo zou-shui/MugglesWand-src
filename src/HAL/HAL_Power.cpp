@@ -85,7 +85,8 @@ static void power_task(void *pvParameters)
                     xTimerStop(shutdown_timer, 0);
                 }
                 autoPowerOffDisabled = true; // 进入禁用模式
-                continue;                    // 不再处理其他逻辑（但任务继续运行）
+                DualSerial.println("[Power] Auto sleep disabled");
+                continue; // 不再处理其他逻辑（但任务继续运行）
             }
 
             // 如果已禁用自动关机，则只消费事件，不处理任何逻辑

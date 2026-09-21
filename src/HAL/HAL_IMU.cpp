@@ -470,7 +470,7 @@ void HAL::ICM42670P_start(int8_t data_mux)
 
     if (imu_data_mux == data_mux)
     {
-        DualSerial.printf("[IMU] Already in the %d mode\n", data_mux);
+        DualSerial.printf("[IMU] Already in mode %d \n", data_mux);
         return; // 已经在期望的模式下，无需重复启动
     }
 
