@@ -82,6 +82,7 @@ static void system_service_task(void *param)
 
             case EVENT_SYS_REBOOT:
                 DualSerial.println("Rebooting...");
+                HAL::ws2812_stop();
                 ESP.restart();
                 break;
             case EVENT_SYS_SLEEP:
