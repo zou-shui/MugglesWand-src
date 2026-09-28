@@ -2,15 +2,15 @@
 
 // Project Information
 #define PROJECT_NAME "Muggles' Wand" // 项目名称
-#define FIRMWARE_VER "5.0"           // 硬件版本.软件版本
+#define FIRMWARE_VER "5.1"           // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
 // AP
-#define AP_SSID "Zoushui's Wand" // AP热点名称
-#define AP_PASS "12345678"       // AP热点密码（至少8位）
+#define AP_SSID "Muggles' Wand" // AP热点名称
+#define AP_PASS "12345678"      // AP热点密码（至少8位）
 
 // BLE
-#define BLE_DEVICE_NAME "Zoushui's Wand" // BLE设备名称
+#define BLE_DEVICE_NAME "Muggles' Wand" // BLE设备名称
 
 // ICM42670P
 #define PIN_IMU_SDA 10 // IMU SDA引脚(外部上拉)
