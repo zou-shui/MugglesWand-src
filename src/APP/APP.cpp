@@ -3,6 +3,7 @@
 #include "APP_BLE_HID.h"
 #include "APP_EspNow.h"
 #include "APP_POV.h"
+#include "OPT_WandHeater.h"
 #include "Service/EventBus.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimFlow.hpp"
@@ -106,6 +107,7 @@ void APP_init()
     EventBus::subscribe(EVENT_POV_SET, app_queue);
 
     APP_espnow_init();
+    OPT_WandHeater_init(); // 可选模块：灯带加热助手（OPT = Optional），编译开关见 OPT_WandHeater.h
 
     xTaskCreatePinnedToCore(
         app_task,

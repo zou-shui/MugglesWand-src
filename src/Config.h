@@ -2,7 +2,7 @@
 
 // Project Information
 #define PROJECT_NAME "Muggles' Wand" // 项目名称
-#define FIRMWARE_VER "5.0"           // 硬件版本.软件版本
+#define FIRMWARE_VER "5.1"           // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
 // AP
