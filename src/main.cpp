@@ -10,6 +10,7 @@
 #include "Model/gesture_inference.h"
 
 #include "APP/APP.h"
+#include "APP/GestureBinding.h"
 #include "HAL/WS2812_Animation/AnimBootup.hpp"
 
 /*
@@ -43,6 +44,7 @@ void setup()
 
   // 系统服务初始化
   EventBus::init();
+  APP_binding_init();
   console_init();
   service_init();
 

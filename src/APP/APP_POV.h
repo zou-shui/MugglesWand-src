@@ -25,3 +25,6 @@ void APP_POV_on_imu_data(float linearX, float linearZ);
 
 // @brief 打印内置图案清单
 void APP_POV_list(void);
+
+// @brief 手势映射入口：无参数时进入 POV 模式
+bool APP_POV_execute(const char *parameter);

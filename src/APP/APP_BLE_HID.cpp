@@ -1,57 +1,190 @@
 #include "APP_BLE_HID.h"
+
 #include "APP_Lumos.h"
+#include "BLEKeySequence.h"
 #include "Service/BLE.h"
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
+
 #include <Arduino.h>
 #include <FastLED.h>
+#include <string.h>
 
-// ====================== 鼠标参数 ============================
-// 鼠标灵敏度：弧度/秒 → 鼠标像素位移的缩放系数
-// 例如 1 rad/s 的旋转 → 1 * 20 = 20 像素的位移
-#define MOUSE_SENSITIVITY 20.0f
+// ============================================================================
+// 键盘
+// ============================================================================
 
-// 死区阈值（弧度/秒）：低于此值的角速度视为噪声，不产生鼠标移动
-#define MOUSE_DEADZONE 0.05f
+namespace
+{
 
-// ======================== 音量旋钮参数 ========================
-// EMA 滤波系数
-#define VOLUME_EMA_ALPHA 0.2f
+    constexpr uint8_t kKeySequenceQueueLength = 4;
 
-// 每触发一次音量步进所需的最小旋转角度（度）
-#define VOLUME_STEP_ANGLE 1.5f
+    // The request owns a complete sequence copy. The parser runs in the dedicated
+    // task, so the APP event task never waits for key holds or inter-key delays.
+    struct KeyboardSequenceRequest
+    {
+        char sequence[BLE_KEY_SEQUENCE_MAX];
+    };
 
-// 角度变化死区（度）：低于此值的旋转视为噪声
-#define VOLUME_DEADZONE 0.0001f
+    QueueHandle_t keyboard_sequence_queue = nullptr;
 
-// 两次 BLE 音量发送之间的最小间隔（毫秒），防止快速旋转时报文洪泛
-#define VOLUME_SEND_INTERVAL_MS 100
+    void copy_sequence(char *destination, size_t capacity, const char *source)
+    {
+        size_t length = 0;
+        while (source[length] != '\0' && length + 1 < capacity)
+            ++length;
+        memcpy(destination, source, length);
+        destination[length] = '\0';
+    }
 
-// 旋转方向死区修正：累计器绝对值超过此阈值时，只允许同向步进
-// 避免从慢速顺向转入慢速逆向时，累积器在阈值附近反复跨越
-#define VOLUME_HYSTERESIS 0.0003f
+    // Executes one parsed action. Returning false aborts the rest of the sequence,
+    // which prevents a disconnected BLE keyboard from replaying stale key events.
+    bool execute_key_action(const BLEKeyAction &action, void *context)
+    {
+        (void)context;
+        if (!ble_keyboard_tap_combo(action.modifiers, action.keycode,
+                                    action.hold_ms))
+        {
+            return false;
+        }
 
-// ==================== 鼠标模式状态 (手势4进入, 单击退出) ====================
-static bool mouse_mode = false;
+        if (action.delay_ms > 0)
+            vTaskDelay(pdMS_TO_TICKS(action.delay_ms));
+        return true;
+    }
+
+    void keyboard_sequence_task(void *parameter)
+    {
+        (void)parameter;
+        KeyboardSequenceRequest request;
+
+        while (true)
+        {
+            if (!xQueueReceive(keyboard_sequence_queue, &request, portMAX_DELAY))
+                continue;
+
+            // Clear a possible key left held by an interrupted previous sequence.
+            ble_keyboard_release_all();
+            bool completed = BLEKeySequence_parse(
+                request.sequence, execute_key_action, nullptr);
+            ble_keyboard_release_all();
+
+            if (!completed)
+                DualSerial.printf("[Keyboard] Sequence aborted: %s\n",
+                                  request.sequence);
+        }
+    }
+
+} // namespace
+
+void APP_ble_keyboard_init(void)
+{
+    if (keyboard_sequence_queue != nullptr)
+        return;
+
+    keyboard_sequence_queue = xQueueCreate(
+        kKeySequenceQueueLength, sizeof(KeyboardSequenceRequest));
+    if (keyboard_sequence_queue == nullptr)
+    {
+        DualSerial.println("[Keyboard] Failed to create sequence queue");
+        return;
+    }
+
+    xTaskCreatePinnedToCore(
+        keyboard_sequence_task,
+        "ble_kbd_task",
+        4096,
+        nullptr,
+        1,
+        nullptr,
+        0);
+}
+
+bool APP_ble_keyboard_validate(const char *parameter)
+{
+    return BLEKeySequence_parse(parameter, nullptr, nullptr);
+}
+
+bool APP_ble_keyboard_execute(const char *parameter)
+{
+    if (parameter == nullptr || parameter[0] == '\0')
+        return false;
+    if (!APP_ble_keyboard_validate(parameter))
+        return false;
+    if (!ble_keyboard_is_ready())
+    {
+        DualSerial.println("[Keyboard] BLE keyboard is not connected");
+        return false;
+    }
+    if (keyboard_sequence_queue == nullptr)
+    {
+        DualSerial.println("[Keyboard] Sequence task is not initialized");
+        return false;
+    }
+
+    size_t length = strlen(parameter);
+    if (length >= BLE_KEY_SEQUENCE_MAX)
+    {
+        DualSerial.println("[Keyboard] Sequence is too long");
+        return false;
+    }
+
+    KeyboardSequenceRequest request = {};
+    copy_sequence(request.sequence, sizeof(request.sequence), parameter);
+    if (xQueueSend(keyboard_sequence_queue, &request, 0) != pdPASS)
+    {
+        DualSerial.println("[Keyboard] Sequence queue is full");
+        return false;
+    }
+    return true;
+}
+
+bool APP_ble_keyboard_press_up(void)
+{
+    return ble_keyboard_tap_key(KEY_UP);
+}
+
+bool APP_ble_keyboard_press_down(void)
+{
+    return ble_keyboard_tap_key(KEY_DOWN);
+}
+
+// ============================================================================
+// 鼠标
+// ============================================================================
+
+namespace
+{
+
+    // Maps angular velocity in rad/s to mouse pixels.
+    constexpr float kMouseSensitivity = 20.0f;
+    constexpr float kMouseDeadzone = 0.05f;
+
+    // Mouse mode receives angular velocity through IMU mux 3.
+    bool mouse_mode = false;
+
+} // namespace
 
 void APP_ble_mouse_mode_enter(void)
 {
     if (mouse_mode)
         return;
+
     mouse_mode = true;
-    APP_Lumos_on(CRGB::Blue); // 蓝色模式指示灯
+    APP_Lumos_on(CRGB::Blue); // Blue indicates mouse mode.
     DualSerial.println("[APP] Mouse mode enabled");
-    EventBus::publish(EVENT_IMU_SET_MUX, 3); // 数据流切换为角速度 (valid_gx/gz)
+    EventBus::publish(EVENT_IMU_SET_MUX, 3);
 }
 
 void APP_ble_mouse_mode_exit(void)
 {
     if (!mouse_mode)
         return;
+
     mouse_mode = false;
-    APP_Lumos_off(); // 熄灭模式指示灯并恢复手势状态灯
+    APP_Lumos_off();
     DualSerial.println("[APP] Mouse mode disabled");
-    EventBus::publish(EVENT_IMU_SET_MUX, 2); // 数据流恢复为手势训练缓冲区
+    EventBus::publish(EVENT_IMU_SET_MUX, 2);
 }
 
 bool APP_ble_mouse_in_mode(void)
@@ -59,27 +192,72 @@ bool APP_ble_mouse_in_mode(void)
     return mouse_mode;
 }
 
-// ==================== 音量旋钮模式状态 (手势6进入, 单击退出) ====================
-static bool volume_mode = false;
+bool APP_ble_mouse_execute(const char *parameter)
+{
+    (void)parameter; // Mouse mode has no gesture-mapping parameter.
+    APP_ble_mouse_mode_enter();
+    return true;
+}
+
+void APP_ble_mouse_move(float gx_rad, float gz_rad)
+{
+    if (fabsf(gx_rad) < kMouseDeadzone)
+        gx_rad = 0.0f;
+    if (fabsf(gz_rad) < kMouseDeadzone)
+        gz_rad = 0.0f;
+
+    int8_t dx = (int8_t)constrain(
+        (int32_t)(gx_rad * kMouseSensitivity), -127L, 127L);
+    int8_t dy = (int8_t)constrain(
+        (int32_t)(-gz_rad * kMouseSensitivity), -127L, 127L);
+
+    // Avoid sending empty mouse reports while the wand is nearly stationary.
+    if (dx == 0 && dy == 0)
+        return;
+
+    ble_mouse_move(dx, dy);
+}
+
+// ============================================================================
+// 音量旋钮
+// ============================================================================
+
+namespace
+{
+
+    constexpr float kVolumeEmaAlpha = 0.2f;
+    constexpr float kVolumeStepAngle = 1.5f;
+    constexpr float kVolumeDeadzone = 0.0001f;
+    constexpr uint32_t kVolumeSendIntervalMs = 100;
+
+    // Prevents oscillation around a step threshold when rotation changes direction.
+    constexpr float kVolumeHysteresis = 0.0003f;
+
+    // Volume mode receives corrected absolute angle through IMU mux 4.
+    bool volume_mode = false;
+
+} // namespace
 
 void APP_ble_volume_mode_enter(void)
 {
     if (volume_mode)
         return;
+
     volume_mode = true;
-    APP_Lumos_on(CRGB::Red); // 红色模式指示灯
+    APP_Lumos_on(CRGB::Red); // Red indicates volume mode.
     DualSerial.println("[APP] Volume mode enabled");
-    EventBus::publish(EVENT_IMU_SET_MUX, 4); // 数据流切换为修正角度 (corrected_angle_deg)
+    EventBus::publish(EVENT_IMU_SET_MUX, 4);
 }
 
 void APP_ble_volume_mode_exit(void)
 {
     if (!volume_mode)
         return;
+
     volume_mode = false;
-    APP_Lumos_off(); // 熄灭模式指示灯并恢复手势状态灯
+    APP_Lumos_off();
     DualSerial.println("[APP] Volume mode disabled");
-    EventBus::publish(EVENT_IMU_SET_MUX, 2); // 数据流恢复为手势训练缓冲区
+    EventBus::publish(EVENT_IMU_SET_MUX, 2);
 }
 
 bool APP_ble_volume_in_mode(void)
@@ -87,47 +265,24 @@ bool APP_ble_volume_in_mode(void)
     return volume_mode;
 }
 
-bool APP_ble_keyboard_press_up(void)
+bool APP_ble_knob_execute(const char *parameter)
 {
-    return ble_keyboard_tap_key(KEY_UP); // KEY_UP 定义在 BLEHIDKeys.h 中为 0x52
-}
-
-bool APP_ble_keyboard_press_down(void)
-{
-    return ble_keyboard_tap_key(KEY_DOWN); // KEY_DOWN 定义在 BLEHIDKeys.h 中为 0x51
-}
-
-void APP_ble_mouse_move(float gx_rad, float gz_rad)
-{
-    // 死区过滤
-    if (fabsf(gx_rad) < MOUSE_DEADZONE)
-        gx_rad = 0.0f;
-    if (fabsf(gz_rad) < MOUSE_DEADZONE)
-        gz_rad = 0.0f;
-
-    // 缩放并钳位到 int8_t 范围
-    int8_t dx = (int8_t)constrain((int32_t)(gx_rad * MOUSE_SENSITIVITY), -127L, 127L);
-    int8_t dy = (int8_t)constrain((int32_t)(-gz_rad * MOUSE_SENSITIVITY), -127L, 127L);
-
-    // 两轴都为 0 则跳过，减少 BLE 报文发送
-    if (dx == 0 && dy == 0)
-        return;
-
-    ble_mouse_move(dx, dy);
+    (void)parameter; // Volume knob mode has no gesture-mapping parameter.
+    APP_ble_volume_mode_enter();
+    return true;
 }
 
 void APP_ble_volume_knob(float angle_deg)
 {
-    // ---- 静态状态：跨调用保持 ----
-    static float last_raw_angle = 0.0f; // 上一次的原始角度（用于计算原始 delta）
-    static bool initialized = false;    // 首次调用标志
-    static float smooth_delta = 0.0f;   // EMA 滤波后的角度变化量（度/周期）
-    static float accumulator = 0.0f;    // 旋转累积器（度）
-    static uint32_t last_send_ms = 0;   // 上次发送 BLE 报文的时间戳
+    // State is shared across 100 Hz calls to convert incremental rotation into
+    // discrete media-volume reports.
+    static float last_raw_angle = 0.0f;
+    static bool initialized = false;
+    static float smooth_delta = 0.0f;
+    static float accumulator = 0.0f;
+    static uint32_t last_send_ms = 0;
 
     uint32_t now_ms = millis();
-
-    // ---- 1. 首次调用初始化 ----
     if (!initialized)
     {
         last_raw_angle = angle_deg;
@@ -138,69 +293,51 @@ void APP_ble_volume_knob(float angle_deg)
         return;
     }
 
-    // ---- 2. 基于原始角度计算 delta（含环绕处理）----
-    // 关键：delta 必须在原始角度上计算，不能在 EMA 滤波后的值上算。
-    //       EMA 是线性运算，无法理解圆环拓扑，跨 ±180° 时会把 179°→-179°
-    //       这样仅 2° 的真实旋转错算成数百度的虚假跳变。
+    // Unwrap the circular angle before filtering. Calculating this delta from
+    // the absolute angle avoids a false 358-degree jump across +/-180 degrees.
     float raw_delta = angle_deg - last_raw_angle;
-
     if (raw_delta > 180.0f)
         raw_delta -= 360.0f;
     else if (raw_delta < -180.0f)
         raw_delta += 360.0f;
-
     last_raw_angle = angle_deg;
 
-    // ---- 3. 安全钳位：拒绝物理上不可能的瞬时角速度 ----
-    // 100Hz 采样率下，人类极限旋转速度 < 2000°/s → 单步 ≤ 20°。
-    // 超过 30° 的 delta 一定是传感器故障或角度回绕异常（如 near-vertical 时
-    // corrected_angle_deg 跌回 0.0），直接丢弃本帧。
+    // Reject physically impossible jumps caused by transient sensor failures.
     if (raw_delta > 30.0f || raw_delta < -30.0f)
-    {
         return;
-    }
 
-    // ---- 4. EMA 低通滤波（作用在 delta 上，而非绝对角度）----
-    smooth_delta = VOLUME_EMA_ALPHA * raw_delta + (1.0f - VOLUME_EMA_ALPHA) * smooth_delta;
+    smooth_delta = kVolumeEmaAlpha * raw_delta +
+                   (1.0f - kVolumeEmaAlpha) * smooth_delta;
 
-    // ---- 5. 死区过滤 ----
-    if (fabsf(smooth_delta) < VOLUME_DEADZONE)
-    {
+    if (fabsf(smooth_delta) < kVolumeDeadzone)
         smooth_delta = 0.0f;
-    }
 
-    // ---- 6. 更新累积器 ----
     accumulator += smooth_delta;
-
-    // ---- 7. 速率限制检查 ----
-    if ((now_ms - last_send_ms) < VOLUME_SEND_INTERVAL_MS)
-    {
+    if ((now_ms - last_send_ms) < kVolumeSendIntervalMs)
         return;
-    }
 
-    // ---- 8. 阈值步进判断 ----
     bool sent = false;
-
-    while (accumulator >= VOLUME_STEP_ANGLE)
+    while (accumulator >= kVolumeStepAngle)
     {
         ble_consumer_send(MEDIA_VOLUME_UP);
-        accumulator -= VOLUME_STEP_ANGLE;
+        accumulator -= kVolumeStepAngle;
         sent = true;
     }
 
-    while (accumulator <= -VOLUME_STEP_ANGLE)
+    while (accumulator <= -kVolumeStepAngle)
     {
         ble_consumer_send(MEDIA_VOLUME_DOWN);
-        accumulator += VOLUME_STEP_ANGLE;
+        accumulator += kVolumeStepAngle;
         sent = true;
     }
 
     if (sent)
     {
         last_send_ms = now_ms;
-
-        // 防止方向反转时累积器在阈值附近抖动
-        if (accumulator > -VOLUME_HYSTERESIS && accumulator < VOLUME_HYSTERESIS)
+        if (accumulator > -kVolumeHysteresis &&
+            accumulator < kVolumeHysteresis)
+        {
             accumulator = 0.0f;
+        }
     }
 }

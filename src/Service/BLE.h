@@ -17,6 +17,25 @@ bool ble_toggle(void);
 bool ble_keyboard_tap_key(uint8_t keycode);
 
 /**
+ * @brief 判断键盘 HID 是否已连接并可以发送报文
+ */
+bool ble_keyboard_is_ready(void);
+
+/**
+ * @brief 发送一次组合键：按下修饰键和普通键，保持一段时间后全部释放
+ * @param modifiers HID 修饰键位图
+ * @param keycode   普通键码；0 表示只按修饰键
+ * @param hold_ms   按下保持时间
+ */
+bool ble_keyboard_tap_combo(uint8_t modifiers, uint8_t keycode,
+                            uint16_t hold_ms);
+
+/**
+ * @brief 发送全部释放报文，清除可能残留的按键状态
+ */
+bool ble_keyboard_release_all(void);
+
+/**
  * @brief 发送鼠标相对位移报文
  * @param dx X 轴位移 (-127 ~ 127)
  * @param dy Y 轴位移 (-127 ~ 127)

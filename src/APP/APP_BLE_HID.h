@@ -2,9 +2,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-bool APP_ble_keyboard_press_up(void);
+// ==================== 键盘 ========================
+/// @brief 创建键盘序列队列和独立发送任务
+void APP_ble_keyboard_init(void);
 
-bool APP_ble_keyboard_press_down(void);
+/// @brief 校验手势映射中的键盘序列
+bool APP_ble_keyboard_validate(const char *parameter);
+
+/// @brief 将手势映射中的键盘序列加入发送队列
+bool APP_ble_keyboard_execute(const char *parameter);
 
 // ==================== 鼠标模式 ====================
 
@@ -17,6 +23,16 @@ void APP_ble_mouse_mode_exit(void);
 /// @brief 当前是否处于鼠标模式
 bool APP_ble_mouse_in_mode(void);
 
+/// @brief 手势映射入口：进入鼠标模式，无参数
+bool APP_ble_mouse_execute(const char *parameter);
+
+/**
+ * @brief 将 IMU 角速度映射为鼠标位移并发送
+ * @param gx_rad valid_gx 值（弧度/秒）
+ * @param gz_rad valid_gz 值（弧度/秒）
+ */
+void APP_ble_mouse_move(float gx_rad, float gz_rad);
+
 // ==================== 音量旋钮模式 ====================
 
 /// @brief 进入音量模式：点亮红色指示灯并切换 IMU 数据流为 mux 4（修正角度）
@@ -28,12 +44,8 @@ void APP_ble_volume_mode_exit(void);
 /// @brief 当前是否处于音量模式
 bool APP_ble_volume_in_mode(void);
 
-/**
- * @brief 将 IMU 角速度映射为鼠标位移并发送
- * @param gx_mrad  valid_gx 值（毫弧度/秒），param1 原始值
- * @param gz_mrad  valid_gz 值（毫弧度/秒），param2 原始值
- */
-void APP_ble_mouse_move(float gx_mrad, float gz_mrad);
+/// @brief 手势映射入口：进入音量旋钮模式，无参数
+bool APP_ble_knob_execute(const char *parameter);
 
 /**
  * @brief 音量旋钮处理函数（相对旋转累积模式）

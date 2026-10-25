@@ -3,11 +3,9 @@
 #include "APP_BLE_HID.h"
 #include "APP_EspNow.h"
 #include "APP_POV.h"
+#include "GestureBinding.h"
 #include "OPT_WandHeater.h"
 #include "Service/EventBus.h"
-#include "HAL/HAL.h"
-#include "HAL/WS2812_Animation/AnimFlow.hpp"
-#include "HAL/WS2812_Animation/AnimBlink.hpp"
 
 QueueHandle_t app_queue = NULL;
 
@@ -22,37 +20,7 @@ static void app_task(void *pvParameters)
             switch (event.id)
             {
             case EVENT_GESTURE_DETECTED:
-                switch (event.param1.i32)
-                {
-                case 0:
-                    HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
-                    APP_espnow_tx_signal(MSG_SIGNAL_1); // 关灯
-                    break;
-                case 1:
-                    HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
-                    APP_espnow_tx_signal(MSG_SIGNAL_2); // 开灯
-                    break;
-                case 2:
-                    HAL::ws2812_start_fx(new AnimFlow(0xFF0000));
-                    APP_ble_keyboard_press_up(); // 键盘↑
-                    break;
-                case 3:
-                    HAL::ws2812_start_fx(new AnimFlow(0x00FF00));
-                    APP_ble_keyboard_press_down(); // 键盘↓
-                    break;
-                case 4:
-                    APP_ble_mouse_mode_enter(); // 鼠标模式
-                    break;
-                case 5:
-                    APP_Lumos_trigger(CRGB::White); // Lumos开关
-                    break;
-                case 6:
-                    APP_ble_volume_mode_enter(); // 音量旋钮模式
-                    break;
-                case 7:
-                    APP_POV_mode_enter(); // POV 光绘模式
-                    break;
-                }
+                APP_binding_execute(event.param1.i32);
                 break;
 
             case EVENT_BTN_SHORT_PRESS:
@@ -107,6 +75,7 @@ void APP_init()
     EventBus::subscribe(EVENT_POV_SET, app_queue);
 
     APP_espnow_init();
+    APP_ble_keyboard_init();
     OPT_WandHeater_init(); // 可选模块：灯带加热助手（OPT = Optional），编译开关见 OPT_WandHeater.h
 
     xTaskCreatePinnedToCore(

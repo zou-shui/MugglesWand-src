@@ -17,6 +17,11 @@ constexpr float kStd[2] = {1.5366218f, 2.53526731f};
 
 TaskHandle_t inference_task_handle = NULL;
 
+int gesture_inference_num_classes()
+{
+    return kNumClasses;
+}
+
 namespace
 {
     tflite::MicroErrorReporter error_reporter;

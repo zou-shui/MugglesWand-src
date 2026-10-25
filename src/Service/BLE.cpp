@@ -19,9 +19,9 @@ static NimBLEServer *pServer = nullptr;
 // HID 核心指针与特征值
 // Report ID 1: Keyboard   |   Report ID 2: Mouse   |   Report ID 3: Consumer Control
 static NimBLEHIDDevice *pHID = nullptr;
-static NimBLECharacteristic *pKeyboardInput  = nullptr; // 键盘输入 (Report ID 1)
-static NimBLECharacteristic *pMouseInput     = nullptr; // 鼠标输入 (Report ID 2)
-static NimBLECharacteristic *pConsumerInput  = nullptr; // 消费类控制输入：音量、播放等媒体键 (Report ID 3)
+static NimBLECharacteristic *pKeyboardInput = nullptr; // 键盘输入 (Report ID 1)
+static NimBLECharacteristic *pMouseInput = nullptr;    // 鼠标输入 (Report ID 2)
+static NimBLECharacteristic *pConsumerInput = nullptr; // 消费类控制输入：音量、播放等媒体键 (Report ID 3)
 
 // ========== 电池 CCCD 订阅回调 ==========
 // 等主机完成 CCCD 订阅后，立即发送一次电量通知
@@ -44,71 +44,122 @@ class BatteryCallbacks : public NimBLECharacteristicCallbacks
 // 各 Report ID 独立，主机端根据 ID 将数据分发到对应驱动子系统
 static const uint8_t _hidReportDescriptor[] = {
     // ==================== Report ID 1: Keyboard ====================
-    0x05, 0x01, // Usage Page (Generic Desktop)
-    0x09, 0x06, // Usage (Keyboard)
-    0xA1, 0x01, // Collection (Application)
-    0x85, 0x01, //   Report ID (1)
+    0x05,
+    0x01, // Usage Page (Generic Desktop)
+    0x09,
+    0x06, // Usage (Keyboard)
+    0xA1,
+    0x01, // Collection (Application)
+    0x85,
+    0x01, //   Report ID (1)
 
     // 修饰键字节 (Ctrl, Shift, Alt, GUI)
-    0x05, 0x07, //   Usage Page (Key Codes)
-    0x19, 0xE0, //   Usage Minimum (Left Control)
-    0x29, 0xE7, //   Usage Maximum (Right GUI)
-    0x15, 0x00, //   Logical Minimum (0)
-    0x25, 0x01, //   Logical Maximum (1)
-    0x75, 0x01, //   Report Size (1 bit)
-    0x95, 0x08, //   Report Count (8)
-    0x81, 0x02, //   Input (Data, Variable, Absolute)
+    0x05,
+    0x07, //   Usage Page (Key Codes)
+    0x19,
+    0xE0, //   Usage Minimum (Left Control)
+    0x29,
+    0xE7, //   Usage Maximum (Right GUI)
+    0x15,
+    0x00, //   Logical Minimum (0)
+    0x25,
+    0x01, //   Logical Maximum (1)
+    0x75,
+    0x01, //   Report Size (1 bit)
+    0x95,
+    0x08, //   Report Count (8)
+    0x81,
+    0x02, //   Input (Data, Variable, Absolute)
 
     // 保留字节
-    0x95, 0x01, //   Report Count (1)
-    0x75, 0x08, //   Report Size (8 bits)
-    0x81, 0x01, //   Input (Constant)
+    0x95,
+    0x01, //   Report Count (1)
+    0x75,
+    0x08, //   Report Size (8 bits)
+    0x81,
+    0x01, //   Input (Constant)
 
     // 6键无冲无优先级键码阵列 (6KRO)
-    0x95, 0x06,       //   Report Count (6)
-    0x75, 0x08,       //   Report Size (8 bits)
-    0x15, 0x00,       //   Logical Minimum (0)
-    0x26, 0xE7, 0x00, //   Logical Maximum (231)
-    0x05, 0x07,       //   Usage Page (Key Codes)
-    0x19, 0x00,       //   Usage Minimum (0)
-    0x2A, 0xE7, 0x00, //   Usage Maximum (231)
-    0x81, 0x00,       //   Input (Data, Array, Absolute)
+    0x95,
+    0x06, //   Report Count (6)
+    0x75,
+    0x08, //   Report Size (8 bits)
+    0x15,
+    0x00, //   Logical Minimum (0)
+    0x26,
+    0xE7,
+    0x00, //   Logical Maximum (231)
+    0x05,
+    0x07, //   Usage Page (Key Codes)
+    0x19,
+    0x00, //   Usage Minimum (0)
+    0x2A,
+    0xE7,
+    0x00, //   Usage Maximum (231)
+    0x81,
+    0x00, //   Input (Data, Array, Absolute)
 
     0xC0, // End Collection (Keyboard)
 
     // ==================== Report ID 2: Mouse ====================
-    0x05, 0x01, // Usage Page (Generic Desktop)
-    0x09, 0x02, // Usage (Mouse)
-    0xA1, 0x01, // Collection (Application)
-    0x85, 0x02, //   Report ID (2)
-    0x09, 0x01, //   Usage (Pointer)
-    0xA1, 0x00, //   Collection (Physical)
+    0x05,
+    0x01, // Usage Page (Generic Desktop)
+    0x09,
+    0x02, // Usage (Mouse)
+    0xA1,
+    0x01, // Collection (Application)
+    0x85,
+    0x02, //   Report ID (2)
+    0x09,
+    0x01, //   Usage (Pointer)
+    0xA1,
+    0x00, //   Collection (Physical)
 
     // 3 个按钮
-    0x05, 0x09, //     Usage Page (Buttons)
-    0x19, 0x01, //     Usage Minimum (Button 1)
-    0x29, 0x03, //     Usage Maximum (Button 3)
-    0x15, 0x00, //     Logical Minimum (0)
-    0x25, 0x01, //     Logical Maximum (1)
-    0x95, 0x03, //     Report Count (3)
-    0x75, 0x01, //     Report Size (1)
-    0x81, 0x02, //     Input (Data, Variable, Absolute)
+    0x05,
+    0x09, //     Usage Page (Buttons)
+    0x19,
+    0x01, //     Usage Minimum (Button 1)
+    0x29,
+    0x03, //     Usage Maximum (Button 3)
+    0x15,
+    0x00, //     Logical Minimum (0)
+    0x25,
+    0x01, //     Logical Maximum (1)
+    0x95,
+    0x03, //     Report Count (3)
+    0x75,
+    0x01, //     Report Size (1)
+    0x81,
+    0x02, //     Input (Data, Variable, Absolute)
 
     // 5 bit 填充
-    0x95, 0x01, //     Report Count (1)
-    0x75, 0x05, //     Report Size (5)
-    0x81, 0x01, //     Input (Constant)
+    0x95,
+    0x01, //     Report Count (1)
+    0x75,
+    0x05, //     Report Size (5)
+    0x81,
+    0x01, //     Input (Constant)
 
     // X, Y, Wheel（相对位移）
-    0x05, 0x01, //     Usage Page (Generic Desktop)
-    0x09, 0x30, //     Usage (X)
-    0x09, 0x31, //     Usage (Y)
-    0x09, 0x38, //     Usage (Wheel)
-    0x15, 0x81, //     Logical Minimum (-127)
-    0x25, 0x7F, //     Logical Maximum (127)
-    0x75, 0x08, //     Report Size (8)
-    0x95, 0x03, //     Report Count (3)
-    0x81, 0x06, //     Input (Data, Variable, Relative)
+    0x05,
+    0x01, //     Usage Page (Generic Desktop)
+    0x09,
+    0x30, //     Usage (X)
+    0x09,
+    0x31, //     Usage (Y)
+    0x09,
+    0x38, //     Usage (Wheel)
+    0x15,
+    0x81, //     Logical Minimum (-127)
+    0x25,
+    0x7F, //     Logical Maximum (127)
+    0x75,
+    0x08, //     Report Size (8)
+    0x95,
+    0x03, //     Report Count (3)
+    0x81,
+    0x06, //     Input (Data, Variable, Relative)
 
     0xC0, //   End Collection (Physical)
     0xC0, // End Collection (Mouse)
@@ -116,18 +167,31 @@ static const uint8_t _hidReportDescriptor[] = {
     // ==================== Report ID 3: Consumer Control ====================
     // 用于发送媒体键（音量 +/-、播放/暂停、静音等），usage code 定义在 BLEHIDKeys.h
     // 报文格式：2 字节小端序 usage code，发送后紧跟全零报文释放
-    0x05, 0x0C,       // Usage Page (Consumer Devices)
-    0x09, 0x01,       // Usage (Consumer Control)
-    0xA1, 0x01,       // Collection (Application)
-    0x85, 0x03,       //   Report ID (3)
-    0x15, 0x00,       //   Logical Minimum (0)
-    0x26, 0xFF, 0x03, //   Logical Maximum (1023)
-    0x19, 0x00,       //   Usage Minimum (0)
-    0x2A, 0xFF, 0x03, //   Usage Maximum (1023)
-    0x75, 0x10,       //   Report Size (16)
-    0x95, 0x01,       //   Report Count (1)
-    0x81, 0x00,       //   Input (Data, Array, Absolute)
-    0xC0,   // End Collection (Consumer Control)
+    0x05,
+    0x0C, // Usage Page (Consumer Devices)
+    0x09,
+    0x01, // Usage (Consumer Control)
+    0xA1,
+    0x01, // Collection (Application)
+    0x85,
+    0x03, //   Report ID (3)
+    0x15,
+    0x00, //   Logical Minimum (0)
+    0x26,
+    0xFF,
+    0x03, //   Logical Maximum (1023)
+    0x19,
+    0x00, //   Usage Minimum (0)
+    0x2A,
+    0xFF,
+    0x03, //   Usage Maximum (1023)
+    0x75,
+    0x10, //   Report Size (16)
+    0x95,
+    0x01, //   Report Count (1)
+    0x81,
+    0x00, //   Input (Data, Array, Absolute)
+    0xC0, // End Collection (Consumer Control)
 };
 
 /**
@@ -210,22 +274,29 @@ static void send_keyboard_report(uint8_t modifiers, uint8_t keycode)
     pKeyboardInput->notify();
 }
 
-// 模拟一次完整的按键点击（按下 + 延迟 + 释放）
-bool ble_keyboard_tap_key(uint8_t keycode)
+bool ble_keyboard_is_ready(void)
 {
-    if (!_is_ble_enabled || !_is_connected || pKeyboardInput == nullptr)
-    {
+    return _is_ble_enabled && _is_connected && pKeyboardInput != nullptr;
+}
+
+bool ble_keyboard_tap_combo(uint8_t modifiers, uint8_t keycode,
+                            uint16_t hold_ms)
+{
+    if (!ble_keyboard_is_ready())
         return false;
-    }
 
-    // 1. 发送按键按下报文
-    send_keyboard_report(0, keycode);
-    delay(25); // 保持时间
-
-    // 2. 发送全释放（空）报文
+    send_keyboard_report(modifiers, keycode);
+    delay(hold_ms);
     send_keyboard_report(0, 0);
-    delay(25); // 间隙时间
+    return true;
+}
 
+bool ble_keyboard_release_all(void)
+{
+    if (!ble_keyboard_is_ready())
+        return false;
+
+    send_keyboard_report(0, 0);
     return true;
 }
 
@@ -379,8 +450,7 @@ bool ble_consumer_send(uint16_t usage_code)
     //   byte[1] = usage_code 高 8 位
     uint8_t report[2] = {
         (uint8_t)(usage_code & 0xFF),
-        (uint8_t)((usage_code >> 8) & 0xFF)
-    };
+        (uint8_t)((usage_code >> 8) & 0xFF)};
 
     // 1. 发送目标按键
     pConsumerInput->setValue(report, sizeof(report));

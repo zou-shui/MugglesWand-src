@@ -37,3 +37,10 @@ void APP_Lumos_off(void)
     // 安全起见，手动将状态置为 false（防止 HAL 层没有立即释放 AnimLumos 对象导致指针回调延迟）
     is_lumos_on = false;
 }
+
+bool APP_Lumos_execute(const char *parameter)
+{
+    (void)parameter;
+    APP_Lumos_trigger(CRGB::White);
+    return true;
+}

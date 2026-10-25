@@ -5,9 +5,12 @@
 #include "Console.h"
 #include "DualPrint.h"
 #include "EventBus.h"
+#include "APP/GestureBinding.h"
 #include "APP/APP_POV.h" // pov 命令的图案清单由 APP 层输出
 
-#define CONSOLE_BUF_SIZE 64
+#include <ctype.h>
+
+#define CONSOLE_BUF_SIZE 256
 
 static char rx_buf[CONSOLE_BUF_SIZE];
 static uint8_t rx_index = 0;
@@ -31,12 +34,39 @@ static void console_print_help()
     DualSerial.println("stop           - Stop IMU task and cut off data output");
     DualSerial.println("gesture <id>   - Simulate gesture detection event with specified ID");
     DualSerial.println("pov [id] [rev] - Set POV pattern params");
+    DualSerial.println("map            - Configure gesture mappings (type 'map' for usage)");
+}
+
+static bool match_command_name(const char *command, const char *name,
+                               const char **arguments)
+{
+    while (*command != '\0' && isspace((unsigned char)*command))
+        ++command;
+
+    const char *start = command;
+    while (*command != '\0' && !isspace((unsigned char)*command))
+        ++command;
+
+    size_t length = (size_t)(command - start);
+    if (length != strlen(name) || strncmp(start, name, length) != 0)
+        return false;
+
+    *arguments = command;
+    return true;
 }
 
 /************ 串口命令解析 ************/
 void console_parse(char *cmd)
 {
     int32_t arg1 = 0, arg2 = 0;
+
+    const char *map_arguments = nullptr;
+    if (match_command_name(cmd, "map", &map_arguments))
+    {
+        DualSerial.println("\n> map");
+        APP_binding_console(map_arguments);
+        return;
+    }
 
     // 使用 strtok 分割字符串
     char *token = strtok(cmd, " \r\n"); // 第一个单词是命令
@@ -147,6 +177,8 @@ void console_parse(char *cmd)
 /************ Console Task ************/
 static void console_task(void *param)
 {
+    bool rx_overflow = false;
+
     while (1)
     {
         while (Serial.available())
@@ -158,18 +190,28 @@ static void console_task(void *param)
             {
                 rx_buf[rx_index] = 0;
 
-                if (rx_index > 0)
+                if (rx_overflow)
+                {
+                    DualSerial.printf("Error: command exceeds %u bytes\n",
+                                      CONSOLE_BUF_SIZE - 1);
+                }
+                else if (rx_index > 0)
                 {
                     console_parse(rx_buf);
                 }
 
                 rx_index = 0;
+                rx_overflow = false;
             }
             else
             {
                 if (rx_index < CONSOLE_BUF_SIZE - 1)
                 {
                     rx_buf[rx_index++] = c;
+                }
+                else
+                {
+                    rx_overflow = true;
                 }
             }
         }
@@ -184,7 +226,7 @@ void console_init()
     xTaskCreatePinnedToCore(
         console_task,
         "console_task",
-        4096,
+        6144,
         NULL,
         2,
         NULL,

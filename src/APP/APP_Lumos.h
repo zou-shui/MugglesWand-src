@@ -4,3 +4,5 @@
 void APP_Lumos_trigger(uint32_t color);
 void APP_Lumos_on(uint32_t color);
 void APP_Lumos_off(void);
+
+bool APP_Lumos_execute(const char *parameter);
