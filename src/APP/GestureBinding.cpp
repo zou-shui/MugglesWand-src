@@ -364,7 +364,7 @@ void print_map_usage()
 {
     DualSerial.println("Gesture mapping:");
     DualSerial.println("  map list");
-    DualSerial.println("  map set <gesture> <app> [parameter]");
+    DualSerial.println("  map bind <gesture> <app> [parameter]");
     DualSerial.println("  map clear <gesture>");
     DualSerial.println("  map reset");
     DualSerial.println("apps: espnow, lumos, pov, ble_keyboard, ble_mouse, ble_knob");
@@ -470,7 +470,7 @@ bool bindings_are_available()
     return false;
 }
 
-void handle_map_set(const char *cursor)
+void handle_map_bind(const char *cursor)
 {
     if (!bindings_are_available())
         return;
@@ -489,7 +489,7 @@ void handle_map_set(const char *cursor)
 
     if (!consume_word(cursor, app_text, sizeof(app_text)))
     {
-        DualSerial.println("Error: map set requires an app name");
+        DualSerial.println("Error: map bind requires an app name");
         print_map_usage();
         return;
     }
@@ -740,11 +740,11 @@ void APP_binding_console(const char *args)
         }
         print_map_list();
     }
-    else if (strcmp(subcommand, "set") == 0)
+    else if (strcmp(subcommand, "bind") == 0)
     {
         if (s_update_mutex != nullptr)
             xSemaphoreTake(s_update_mutex, portMAX_DELAY);
-        handle_map_set(cursor);
+        handle_map_bind(cursor);
         if (s_update_mutex != nullptr)
             xSemaphoreGive(s_update_mutex);
     }

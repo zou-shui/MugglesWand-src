@@ -22,7 +22,8 @@ Core 0:
 | Service           | 3
 | Console parser    | 2
 | Button handling   | 1
-| BLE battery task  | 0
+| BLE keyboard task | 1
+| BLE battery task  | 1
 | Power task        | 0
 
 Core 1:
@@ -31,7 +32,7 @@ Core 1:
 | WS2812 animation  | 4
 | IMU sampling      | 3
 | APP task          | 2
-| Gesture reference | 1
+| Gesture inference | 1
 | ESP-NOW heartbeat | 1
 */
 
@@ -44,7 +45,6 @@ void setup()
 
   // 系统服务初始化
   EventBus::init();
-  APP_binding_init();
   console_init();
   service_init();
 
@@ -62,6 +62,7 @@ void setup()
   HAL::button_init();
 
   // 用户APP初始化
+  APP_binding_init();
   APP_init();
 
   // 启动手势推理、BLE、WiFi热点

@@ -1,5 +1,7 @@
 /*
-    解析串口控制台命令输入，并将命令通过CommandBus发送给Dispatcher处理
+    解析串口/网络终端输入的控制台命令。
+    串口输入由 console_task 轮询收集，网络回调通过 console_submit() 投递，
+    统一由 console_task 串行解析，再通过 EventBus 或 APP 映射模块执行。
 */
 #include <Arduino.h>
 #include "Console.h"
