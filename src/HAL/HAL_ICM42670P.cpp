@@ -247,9 +247,9 @@ int ICM42670::enableFifoInterrupt(uint8_t intpin, ICM42670_irq_handler handler, 
     int1_config.INV_FIFO_THS = INV_IMU_ENABLE;
     rc |= inv_imu_set_config_int1(&icm_driver, &int1_config);
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG2, 1, &fifo_watermark);
-    // Set fifo_wm_int_w generating condition : fifo_wm_int_w generated when counter == threshold
+    // Set fifo_wm_int_w generating condition : fifo_wm_int_w generated when counter >= threshold
     rc |= inv_imu_read_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
-    data &= (uint8_t)~FIFO_CONFIG5_WM_GT_TH_EN;
+    data |= (uint8_t)FIFO_CONFIG5_WM_GT_TH_EN;
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
     // Disable APEX to use 2.25kB of fifo for raw data
     data = SENSOR_CONFIG3_APEX_DISABLE_MASK;
@@ -307,22 +307,22 @@ static int i2c_read(inv_imu_serif *serif, uint8_t reg, uint8_t *rbuffer, uint32_
     }
     while (offset < rlen)
     {
-        uint16_t rx_bytes = 0;
-        if (offset != 0)
-            obj->i2c->beginTransmission(obj->i2c_address);
-        uint16_t length = ((rlen - offset) > ARDUINO_I2C_BUFFER_LENGTH) ? ARDUINO_I2C_BUFFER_LENGTH : (rlen - offset);
-        rx_bytes = obj->i2c->requestFrom(obj->i2c_address, length);
+        uint16_t length = ((rlen - offset) > ARDUINO_I2C_BUFFER_LENGTH) ? ARDUINO_I2C_BUFFER_LENGTH : (uint16_t)(rlen - offset);
+        // 注意：这里不能调用 beginTransmission()。它会阻塞获取 Wire 互斥锁，
+        // 同时把 nonStop 状态清零；随后 requestFrom() 因 nonStop 为 false 会再次
+        // 获取同一把非递归互斥锁，导致当前任务永久自锁（IMU 任务卡死）。
+        // 第 2 块起让 requestFrom() 自行加锁/解锁即可，传感器内部读指针会连续递增。
+        uint16_t rx_bytes = obj->i2c->requestFrom(obj->i2c_address, (uint8_t)length);
         if (rx_bytes != length)
         {
             // 读取失败立即返回错误
             return -1;
         }
-        for (uint8_t i = 0; i < length; i++)
+        for (uint16_t i = 0; i < length; i++)
         {
             rbuffer[offset + i] = obj->i2c->read();
         }
         offset += length;
-        obj->i2c->endTransmission((offset == rlen));
     }
     return 0;
 }
