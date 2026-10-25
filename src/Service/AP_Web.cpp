@@ -28,6 +28,7 @@ header h1{font-size:18px;font-weight:600}
 .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .status-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
 .status-dot.off{background:var(--red)}
+.status-dot.warn{background:var(--orange)} /* 链路质量差：信号弱 */
 main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1200px;margin:0 auto;width:100%}
 .panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
 .panel-head{background:var(--accent);padding:6px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
@@ -87,7 +88,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 <body>
 <header>
   <h1>Muggles' Wand</h1>
-  <span><span class="status-dot on" id="ws-dot"></span><span id="ws-status">已连接</span></span>
+  <span><span class="status-dot off" id="ws-dot"></span><span id="ws-status">重连中...</span></span>
 </header>
 <main>
   <div class="panel">
@@ -151,24 +152,201 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 </main>
 <script>
 // ============ WebSocket ============
-var ws,reconnectTimer;
+var ws=null;
+var reconnectTimer=null;
+var connectingSince=0;
+var lastSeen=0;
+var lastPing=0;
+var hiddenAt=document.hidden?Date.now():0;
+var HEARTBEAT_MS=1000;          // 应用层心跳周期
+var HEARTBEAT_TIMEOUT_MS=4000;  // 超过该时间没收到任何数据，判定链路已死
+var CONNECT_TIMEOUT_MS=4000;    // WebSocket 握手超时
+var RECONNECT_DELAY_MS=1000;    // 固定重连间隔，避免退避导致恢复快慢不定
+var LINK_RTT_WINDOW=4;          // 取最近 N 次心跳 RTT 的平均值
+var LINK_BAD_RTT_MS=150;        // 最近几次心跳平均 RTT 超过该值，判定信号弱
+var LINK_BAD_PEAK_MS=300;       // 最近 2 次心跳中有单次 RTT 超过该值，判定信号弱
+var LINK_BAD_SILENCE_MS=1800;   // 约 2 次心跳没收到 pong，判定信号弱
 var MAX_LOG=500;
 var MAX_COMMAND_BYTES=255;
-function connect(){
-  ws=new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen=function(){
-    document.getElementById('ws-dot').className='status-dot on';
-    document.getElementById('ws-status').textContent='已连接';
-    if(reconnectTimer){clearInterval(reconnectTimer);reconnectTimer=null}
-  };
-  ws.onmessage=function(e){appendLog(e.data)};
-  ws.onclose=function(){
-    document.getElementById('ws-dot').className='status-dot off';
-    document.getElementById('ws-status').textContent='断开,重连中...';
-    if(!reconnectTimer)reconnectTimer=setInterval(connect,3000);
-  };
-  ws.onerror=function(){ws.close()};
+
+// 链路质量状态
+var pingSeq=0;
+var rttSamples=[];
+var lastPongAt=0;
+var linkBad=false;
+var linkBadStreak=0;
+var linkGoodStreak=0;
+
+function setWsStatus(state,text){
+  document.getElementById('ws-dot').className='status-dot '+state;
+  document.getElementById('ws-status').textContent=text;
 }
+function resetLinkQuality(){
+  rttSamples=[];
+  lastPongAt=0;
+  linkBad=false;
+  linkBadStreak=0;
+  linkGoodStreak=0;
+}
+function sendHeartbeat(){
+  if(!ws||ws.readyState!==WebSocket.OPEN)return;
+  lastPing=Date.now();
+  pingSeq++;
+  // 带上序号和时间戳，服务端原样回显，用于计算 RTT
+  try{ws.send('\x01PING:'+pingSeq+':'+lastPing)}catch(e){dropSocket()}
+}
+function handleCtrlMessage(msg){
+  if(msg.indexOf('\x01PONG:')!==0)return;
+  var parts=msg.split(':');
+  if(parts.length<3)return;
+  var ts=parseInt(parts[2],10);
+  if(!ts)return;
+  var rtt=Date.now()-ts;
+  if(rtt<0||rtt>10000)return; // 丢弃异常样本
+  lastPongAt=Date.now();
+  rttSamples.push(rtt);
+  if(rttSamples.length>LINK_RTT_WINDOW)rttSamples.shift();
+  updateLinkQuality();
+}
+function updateLinkQuality(){
+  if(!ws||ws.readyState!==WebSocket.OPEN)return;
+  var now=Date.now();
+  var sum=0;
+  for(var i=0;i<rttSamples.length;i++)sum+=rttSamples[i];
+  var avg=rttSamples.length?sum/rttSamples.length:0;
+  var peak=0;
+  for(var j=Math.max(0,rttSamples.length-2);j<rttSamples.length;j++){
+    if(rttSamples[j]>peak)peak=rttSamples[j];
+  }
+  // 只看心跳：RTT 升高代表链路时延/重传，收不到 pong 代表丢包。
+  // 不把"数据流中断"计入——用户主动 stop 或设备端停止输出并不代表链路差，
+  // 而真实卡顿时 pong 同样会被堵住，上面两项已能覆盖。
+  var bad=(rttSamples.length>=2&&(avg>LINK_BAD_RTT_MS||peak>LINK_BAD_PEAK_MS))||
+          (lastPongAt&&now-lastPongAt>LINK_BAD_SILENCE_MS);
+  if(bad){linkBadStreak++;linkGoodStreak=0}
+  else{linkGoodStreak++;linkBadStreak=0}
+  // 滞回：连续 2 次判定差才变黄，连续 3 次恢复正常才变绿，避免状态闪烁
+  if(!linkBad&&linkBadStreak>=2){
+    linkBad=true;
+    setWsStatus('warn','信号弱');
+  }else if(linkBad&&linkGoodStreak>=3){
+    linkBad=false;
+    setWsStatus('on','已连接');
+  }
+}
+function scheduleReconnect(){
+  if(reconnectTimer)return;
+  reconnectTimer=setTimeout(function(){
+    reconnectTimer=null;
+    connect();
+  },RECONNECT_DELAY_MS);
+}
+function retryNow(){
+  // 网络/页面重新可用时立即尝试，不必等当前的重连定时器
+  if(ws&&(ws.readyState===WebSocket.CONNECTING||ws.readyState===WebSocket.OPEN))return;
+  if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}
+  connect();
+}
+function dropSocket(){
+  // 放弃当前 socket（可能卡在 CONNECTING/CLOSING 的半死状态）并安排重连。
+  // 旧 socket 的事件由各回调里的 ws!==socket 判断统一忽略，不会再影响状态。
+  var old=ws;
+  ws=null;
+  if(old){try{old.close()}catch(e){}}
+  if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}
+  resetLinkQuality();
+  setWsStatus('off','重连中...');
+  scheduleReconnect();
+}
+function connect(){
+  // 单飞：同一时刻只允许存在一个连接/握手。旧实现用 setInterval 反复
+  // 调用 connect()，而握手可能挂起十几秒，会叠加出大量半开 socket；
+  // 网络恢复时它们同时完成握手，表现为一次性刷出很多 "Client # connected"。
+  if(ws&&(ws.readyState===WebSocket.CONNECTING||ws.readyState===WebSocket.OPEN))return;
+  if(ws){try{ws.close()}catch(e){}ws=null}
+  setWsStatus('off','重连中...');
+  var socket;
+  try{
+    socket=new WebSocket('ws://'+location.host+'/ws');
+  }catch(e){
+    scheduleReconnect();
+    return;
+  }
+  ws=socket;
+  connectingSince=Date.now();
+  socket.onopen=function(){
+    if(ws!==socket)return;
+    resetLinkQuality();
+    lastSeen=Date.now();
+    lastPongAt=lastSeen;
+    setWsStatus('on','已连接');
+    sendHeartbeat();
+  };
+  socket.onmessage=function(e){
+    if(ws!==socket)return;
+    lastSeen=Date.now();
+    // \x01 开头是服务端心跳等控制消息，只用于链路质量判断，不写入终端
+    if(e.data.charCodeAt(0)===1){handleCtrlMessage(e.data);return}
+    appendLog(e.data);
+  };
+  socket.onerror=function(){
+    if(ws!==socket)return;
+    dropSocket();
+  };
+  socket.onclose=function(){
+    if(ws!==socket)return;
+    ws=null;
+    resetLinkQuality();
+    setWsStatus('off','重连中...');
+    scheduleReconnect();
+  };
+}
+
+// 看门狗：主动发送心跳，并检测"僵尸连接"——
+// 设备重启/AP 消失时 TCP 可能长时间不报错，页面会一直误显示"已连接"
+setInterval(function(){
+  if(document.hidden)return; // 后台标签页定时器会被浏览器节流，不能据此判断断线
+  var now=Date.now();
+  if(!ws){scheduleReconnect();return}
+  if(ws.readyState===WebSocket.CONNECTING){
+    if(now-connectingSince>CONNECT_TIMEOUT_MS)dropSocket();
+  }else if(ws.readyState===WebSocket.OPEN){
+    updateLinkQuality();
+    if(now-lastSeen>HEARTBEAT_TIMEOUT_MS){
+      dropSocket();
+    }else if(now-lastPing>=HEARTBEAT_MS){
+      sendHeartbeat();
+    }
+  }
+},500);
+
+// 从后台切回前台时立即检查/重连，不必等待被节流的定时器
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){hiddenAt=Date.now();return}
+  var now=Date.now();
+  var hiddenFor=hiddenAt?now-hiddenAt:0;
+  hiddenAt=0;
+  if(!ws||ws.readyState===WebSocket.CLOSED){
+    retryNow();
+  }else if(ws.readyState===WebSocket.OPEN){
+    // 后台期间定时器被节流、应用层心跳停发，不能据此判断断线或链路质量；
+    // 先重新开始一个存活窗口，再发心跳确认
+    if(hiddenFor>HEARTBEAT_MS){
+      lastSeen=now;
+      lastPongAt=now;
+      rttSamples=[];
+    }
+    if(now-lastSeen>HEARTBEAT_TIMEOUT_MS){
+      dropSocket();
+    }else{
+      sendHeartbeat();
+    }
+  }
+});
+
+// 网络恢复 / 窗口重新获得焦点时立即重试，缩短连接恢复等待
+window.addEventListener('online',retryNow);
+window.addEventListener('focus',retryNow);
 function sendCmd(cmd){
   cmd=String(cmd).trim();
   if(!cmd)return false;
@@ -428,12 +606,20 @@ static AsyncWebSocket webSocket("/ws");
 static bool webRunning = false;
 static bool webRoutesSet = false;
 
+// 应用层心跳：0x01 开头的文本帧不进入终端日志，只用于判断链路质量
+static const uint8_t WS_CTRL_PREFIX = 0x01;
+static const char WS_CTRL_PING[] = "PING";
+static const char WS_CTRL_PONG_PREFIX[] = "\x01PONG";
+
 static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
                       AwsEventType type, void *arg, uint8_t *data, size_t len)
 {
   switch (type)
   {
   case WS_EVT_CONNECT:
+    // 服务端定期 ping：客户端失联时尽快触发 ACK 超时并清理，
+    // 避免浏览器换页/重启后残留大量僵尸连接
+    client->keepAlivePeriod(2);
     DualSerial.printf("[Web] Client #%u connected\n", client->id());
     break;
 
@@ -447,6 +633,24 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
     if (info->final && info->index == 0 && info->len == len &&
         info->opcode == WS_TEXT)
     {
+      // 心跳帧不应交给控制台解析
+      if (len >= 1 && data[0] == WS_CTRL_PREFIX)
+      {
+        if (len >= 5 && memcmp(data + 1, WS_CTRL_PING, 4) == 0)
+        {
+          // 原样回显 ":<seq>:<ts>"，浏览器据此计算心跳 RTT
+          const size_t prefixLen = sizeof(WS_CTRL_PONG_PREFIX) - 1;
+          char pong[64];
+          size_t bodyLen = len - 5;
+          if (bodyLen > sizeof(pong) - prefixLen)
+            bodyLen = sizeof(pong) - prefixLen;
+          memcpy(pong, WS_CTRL_PONG_PREFIX, prefixLen);
+          memcpy(pong + prefixLen, data + 5, bodyLen);
+          client->text((const uint8_t *)pong, prefixLen + bodyLen);
+        }
+        break;
+      }
+
       if (!console_submit((const char *)data, len))
       {
         client->text("[Web] Command rejected (empty, too long, or busy)\n");
@@ -472,8 +676,14 @@ void ap_web_start(void)
     webServer.addHandler(&webSocket);
 
     // 根路径：返回内嵌网页
+    // 禁止缓存，确保固件更新后浏览器拿到的是最新页面逻辑
     webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                 { request->send(200, "text/html; charset=utf-8", WEB_PAGE); });
+                 {
+                   AsyncWebServerResponse *response =
+                       request->beginResponse(200, "text/html; charset=utf-8", WEB_PAGE);
+                   response->addHeader("Cache-Control", "no-store");
+                   request->send(response);
+                 });
 
     webRoutesSet = true;
   }
@@ -496,7 +706,12 @@ void ap_web_stop(void)
 
 void ap_web_print(const char *buffer, size_t length)
 {
-  if (!webRunning)
+  if (!webRunning || buffer == nullptr || length == 0)
+    return;
+
+  // 没有客户端时直接返回：textAll 会先分配共享缓冲区，
+  // 日志按行高频输出时这部分开销完全没必要
+  if (webSocket.count() == 0)
     return;
 
   // WebSocket textAll 内部通过 AsyncTCP 排队发送，跨任务安全
