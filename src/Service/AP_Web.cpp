@@ -21,7 +21,7 @@ static const char WEB_PAGE[] = R"raw(
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Muggles' Wand</title>
 <style>
-:root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--purple:#b06fd1;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e}
+:root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--purple:#b06fd1;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e;--mono:'Cascadia Code','Fira Code',Consolas,Menlo,Monaco,'DejaVu Sans Mono','Liberation Mono','Roboto Mono','Droid Sans Mono','Courier New','Microsoft YaHei','PingFang SC','Noto Sans CJK SC','Noto Sans SC',monospace}
 *{box-sizing:border-box;margin:0;padding:0}
 html{overflow-anchor:none}
 body{font:14px/1.5 'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -36,6 +36,8 @@ header h1{font-size:18px;font-weight:600}
 .batt,.volt{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;transition:opacity .2s,filter .2s}
 .ws-state{display:inline-flex;align-items:center}
 .batt-icon{width:30px;height:14px;display:block}
+/* 文字墨迹中心略低于行盒几何中心（数字无下伸部），图标下移半像素做视觉居中 */
+.batt-icon,.volt-icon,.status-dot{position:relative;top:.5px}
 .batt-shell{fill:none;stroke:currentColor;stroke-width:1.2;opacity:.75}
 .batt-cap{fill:currentColor;opacity:.75}
 .batt-fill{fill:var(--green);transition:width .3s,fill .3s}
@@ -56,12 +58,14 @@ header h1{font-size:18px;font-weight:600}
 #batt-volt{min-width:5ch}
 main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1200px;margin:0 auto;width:100%}
 .panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
-.panel-head{background:var(--accent);padding:6px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
-.panel-head button{display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--border);color:var(--text);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1.2}
-.panel-head button:hover{background:var(--btn-hover)}
+/* 固定高度：有无右侧控件都不会把标题栏撑高 */
+.panel-head{background:var(--accent);height:32px;padding:0 14px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
+/* 右侧控件统一样式：清空按钮与折叠开关外观、边距一致，右边缘自然对齐 */
+.panel-head button,.collapse-toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:none;border:1px solid var(--border);color:var(--text);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1.2}
+.panel-head button:hover,.collapse-toggle:hover{background:var(--btn-hover)}
 .panel.collapsible>.panel-head{cursor:pointer;user-select:none}
 .panel.collapsible>.panel-head:hover{background:var(--btn-hover)}
-.collapse-toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:400}
+.collapse-toggle{font-weight:400}
 .collapse-arrow{position:relative;display:inline-block;width:12px;height:12px;transition:transform .2s}
 .collapse-arrow::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid currentColor}
 .collapse-text-collapsed{display:none}
@@ -70,13 +74,13 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .panel.collapsible.collapsed .collapse-text-collapsed{display:inline}
 .panel.collapsible.collapsed>.panel-body{display:none}
 .terminal{background:#0d0d1a}
-#log-window{height:420px;overflow-y:auto;padding:8px 14px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;background:#0d0d1a}
+#log-window{height:420px;overflow-y:auto;padding:8px 14px;font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;background:#0d0d1a}
 #log-window::-webkit-scrollbar{width:6px}
 #log-window::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 .terminal-command{color:var(--green)}
-.terminal-input-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);background:#0a0a16;font-family:'Cascadia Code','Fira Code',monospace}
+.terminal-input-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);background:#0a0a16;font-family:var(--mono)}
 .terminal-prompt{color:var(--green);font-size:13px;font-weight:600}
-.terminal-input-row input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:12px/1.6 'Cascadia Code','Fira Code',monospace;caret-color:var(--green);padding:6px 0}
+.terminal-input-row input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.6;caret-color:var(--green);padding:6px 0}
 .terminal-input-row input::placeholder{color:#66708a}
 .btn-row{display:flex;gap:8px;padding:6px 12px}
 .btn-row:first-child{padding-top:12px}
@@ -142,7 +146,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
       <div id="log-window"></div>
       <form class="terminal-input-row" id="terminal-form">
         <span class="terminal-prompt" aria-hidden="true">&gt;</span>
-        <input id="terminal-input" type="text" maxlength="255" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="终端命令" placeholder="（使用help查看命令列表，上下键查看历史命令）">
+        <input id="terminal-input" type="text" maxlength="255" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="终端命令" placeholder="输入help查看命令列表，上下键查看历史命令">
       </form>
     </div>
   </div>
