@@ -7,6 +7,7 @@
 #include "Service/Console.h"
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
+#include "HAL/HAL.h"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 
@@ -29,6 +30,29 @@ header h1{font-size:18px;font-weight:600}
 .status-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
 .status-dot.off{background:var(--red)}
 .status-dot.warn{background:var(--orange)} /* 链路质量差：信号弱 */
+/* 右上角系统状态：电量 / 电压 / 连接 */
+.sys-info{display:inline-flex;align-items:center;gap:14px;flex-wrap:wrap}
+.batt,.volt{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;transition:opacity .2s,filter .2s}
+.ws-state{display:inline-flex;align-items:center}
+.batt-icon{width:30px;height:14px;display:block}
+.batt-shell{fill:none;stroke:currentColor;stroke-width:1.2;opacity:.75}
+.batt-cap{fill:currentColor;opacity:.75}
+.batt-fill{fill:var(--green);transition:width .3s,fill .3s}
+.batt.mid .batt-fill{fill:var(--orange)}
+.batt.low .batt-fill{fill:var(--red)}
+/* 闪电用同色圆角描边勾出柔和轮廓，上下可略微超出电池外壳 */
+.batt-bolt{fill:#fff;stroke:#fff;stroke-width:1.2;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 .4px .5px rgba(0,0,0,.35));display:none}
+.batt.charging .batt-bolt{display:block}
+/* 断连时电量/电压置灰：数值保留，但当前不可信 */
+.sys-info.stale .batt,.sys-info.stale .volt{opacity:.4;filter:grayscale(1)}
+#batt-pct{min-width:4ch}
+/* 电压图标：整块圆角矩形徽标，内嵌万用表直流电压符号 V⎓ */
+.volt-icon{width:24px;height:16px;display:block}
+.volt-icon .volt-bg{fill:#3c5f91} /* 比 --btn-bg 更亮，和电池图标的视觉权重对齐 */
+.volt-icon path{fill:none;stroke:currentColor}
+.volt-icon .volt-v{stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.volt-icon .volt-dc{stroke-width:1.2;stroke-linecap:butt}
+#batt-volt{min-width:5ch}
 main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1200px;margin:0 auto;width:100%}
 .panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
 .panel-head{background:var(--accent);padding:6px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
@@ -88,7 +112,27 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 <body>
 <header>
   <h1>Muggles' Wand</h1>
-  <span><span class="status-dot off" id="ws-dot"></span><span id="ws-status">重连中...</span></span>
+  <span class="sys-info stale">
+    <span class="batt" id="batt" title="电量未知">
+      <svg class="batt-icon" viewBox="0 0 30 14" aria-hidden="true">
+        <rect class="batt-shell" x="1" y="1.5" width="24" height="11" rx="2.5"/>
+        <rect class="batt-cap" x="26" y="4.5" width="2" height="5" rx="0.8"/>
+        <rect class="batt-fill" id="batt-fill" x="3" y="3.5" width="0" height="7" rx="1.2"/>
+        <path class="batt-bolt" d="M15 1 8.4 8.6h4.1l-1.4 4.2 6.5-7h-4.1z"/>
+      </svg>
+      <span id="batt-pct">--%</span>
+    </span>
+    <span class="volt" title="电池电压">
+      <svg class="volt-icon" viewBox="0 0 24 16" aria-hidden="true">
+        <rect class="volt-bg" x="0.5" y="0.5" width="23" height="15" rx="4"/>
+        <path class="volt-v" d="M4.4 4.8 6.9 11.2 9.4 4.8"/>
+        <path class="volt-dc" d="M11.4 6.5h8.4"/>
+        <path class="volt-dc" d="M11.4 9.5h1.7M14.75 9.5h1.7M18.1 9.5h1.7"/>
+      </svg>
+      <span id="batt-volt">--V</span>
+    </span>
+    <span class="ws-state"><span class="status-dot off" id="ws-dot"></span><span id="ws-status">重连中...</span></span>
+  </span>
 </header>
 <main>
   <div class="panel">
@@ -180,6 +224,8 @@ var linkGoodStreak=0;
 function setWsStatus(state,text){
   document.getElementById('ws-dot').className='status-dot '+state;
   document.getElementById('ws-status').textContent=text;
+  // 断开时电量/电压置灰，提示当前显示的是断连前的旧数据
+  document.querySelector('.sys-info').classList.toggle('stale',state==='off');
 }
 function resetLinkQuality(){
   rttSamples=[];
@@ -195,10 +241,32 @@ function sendHeartbeat(){
   // 带上序号和时间戳，服务端原样回显，用于计算 RTT
   try{ws.send('\x01PING:'+pingSeq+':'+lastPing)}catch(e){dropSocket()}
 }
+function updateBattery(soc,mv,chg){
+  if(!isFinite(soc)||!isFinite(mv)||mv<=0)return;
+  soc=Math.max(0,Math.min(100,soc));
+  var pct=Math.round(soc);
+  var batt=document.getElementById('batt');
+  var cls='batt';
+  if(chg)cls+=' charging';        // 充电时统一绿色 + 闪电
+  else if(pct<10)cls+=' low';
+  else if(pct<30)cls+=' mid';
+  batt.className=cls;
+  var volts=(mv/1000).toFixed(2)+'V';
+  document.getElementById('batt-fill').setAttribute('width',(20*soc/100).toFixed(2));
+  document.getElementById('batt-pct').textContent=pct+'%';
+  document.getElementById('batt-volt').textContent=volts;
+  batt.title='电量 '+pct+'%'+(chg?'，充电中':'')+'，'+volts;
+}
 function handleCtrlMessage(msg){
   if(msg.indexOf('\x01PONG:')!==0)return;
   var parts=msg.split(':');
   if(parts.length<3)return;
+  // 服务端在 pong 末尾附带设备状态：:<电量%>:<电压mV>:<充电标志>
+  if(parts.length>=6){
+    updateBattery(parseFloat(parts[parts.length-3]),
+                  parseInt(parts[parts.length-2],10),
+                  parts[parts.length-1]==='1');
+  }
   var ts=parseInt(parts[2],10);
   if(!ts)return;
   var rtt=Date.now()-ts;
@@ -638,15 +706,30 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
       {
         if (len >= 5 && memcmp(data + 1, WS_CTRL_PING, 4) == 0)
         {
-          // 原样回显 ":<seq>:<ts>"，浏览器据此计算心跳 RTT
+          // 回显 ":<seq>:<ts>" 供浏览器计算 RTT，并追加设备状态
+          // :<电量%>:<电压mV>:<是否充电>，前端据此更新右上角电量显示
+          int soc = (int)(HAL::MAX17048_getSOC() + 0.5f);
+          if (soc < 0)
+            soc = 0;
+          else if (soc > 100)
+            soc = 100;
+          int mv = (int)(HAL::MAX17048_getVoltage() * 1000.0f + 0.5f);
+
+          char status[32];
+          int statusLen = snprintf(status, sizeof(status), ":%d:%d:%d",
+                                   soc, mv, HAL::power_getChargeStatus() ? 1 : 0);
+          if (statusLen < 0 || statusLen >= (int)sizeof(status))
+            statusLen = 0;
+
           const size_t prefixLen = sizeof(WS_CTRL_PONG_PREFIX) - 1;
-          char pong[64];
+          char pong[80];
           size_t bodyLen = len - 5;
-          if (bodyLen > sizeof(pong) - prefixLen)
-            bodyLen = sizeof(pong) - prefixLen;
+          if (bodyLen > sizeof(pong) - prefixLen - (size_t)statusLen)
+            bodyLen = sizeof(pong) - prefixLen - (size_t)statusLen;
           memcpy(pong, WS_CTRL_PONG_PREFIX, prefixLen);
           memcpy(pong + prefixLen, data + 5, bodyLen);
-          client->text((const uint8_t *)pong, prefixLen + bodyLen);
+          memcpy(pong + prefixLen + bodyLen, status, (size_t)statusLen);
+          client->text((const uint8_t *)pong, prefixLen + bodyLen + (size_t)statusLen);
         }
         break;
       }

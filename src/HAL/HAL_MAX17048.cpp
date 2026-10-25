@@ -9,23 +9,47 @@
 
 SFE_MAX1704X lipo(MAX1704X_MAX17048); // Create a MAX17048
 
+// 电量计会被 BLE 上报、Web 心跳、info 命令等多个任务读取。
+// SparkFun 库的一次读取由多段 I2C 事务组成，需要任务级互斥避免交错。
+static SemaphoreHandle_t gauge_mutex = nullptr;
+
+struct GaugeLock
+{
+    GaugeLock()
+    {
+        if (gauge_mutex != nullptr)
+            xSemaphoreTake(gauge_mutex, portMAX_DELAY);
+    }
+    ~GaugeLock()
+    {
+        if (gauge_mutex != nullptr)
+            xSemaphoreGive(gauge_mutex);
+    }
+};
+
 float HAL::MAX17048_getVoltage()
 {
+    GaugeLock lock;
     return lipo.getVoltage();
 }
 
 float HAL::MAX17048_getSOC()
 {
+    GaugeLock lock;
     return lipo.getSOC();
 }
 
 float HAL::MAX17048_getChangeRate()
 {
+    GaugeLock lock;
     return lipo.getChangeRate();
 }
 
 bool HAL::MAX17048_init()
 {
+    if (gauge_mutex == nullptr)
+        gauge_mutex = xSemaphoreCreateMutex();
+
     Wire1.begin(PIN_BATT_GAUGE_SDA, PIN_BATT_GAUGE_SCL, 400000);
 
     if (lipo.begin(Wire1) == false)
