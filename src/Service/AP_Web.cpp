@@ -23,6 +23,7 @@ static const char WEB_PAGE[] = R"raw(
 <style>
 :root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--purple:#b06fd1;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e}
 *{box-sizing:border-box;margin:0;padding:0}
+html{overflow-anchor:none}
 body{font:14px/1.5 'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
 header{background:var(--panel);padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 header h1{font-size:18px;font-weight:600}
@@ -765,8 +766,7 @@ void ap_web_start(void)
                    AsyncWebServerResponse *response =
                        request->beginResponse(200, "text/html; charset=utf-8", WEB_PAGE);
                    response->addHeader("Cache-Control", "no-store");
-                   request->send(response);
-                 });
+                   request->send(response); });
 
     webRoutesSet = true;
   }
