@@ -31,10 +31,20 @@ header h1{font-size:18px;font-weight:600}
 main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1200px;margin:0 auto;width:100%}
 .panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
 .panel-head{background:var(--accent);padding:6px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
-.panel-head button{background:none;border:1px solid var(--border);color:var(--text);padding:2px 10px;border-radius:4px;cursor:pointer;font-size:12px}
+.panel-head button{display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--border);color:var(--text);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1.2}
 .panel-head button:hover{background:var(--btn-hover)}
+.panel.collapsible>.panel-head{cursor:pointer;user-select:none}
+.panel.collapsible>.panel-head:hover{background:var(--btn-hover)}
+.collapse-toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:400}
+.collapse-arrow{position:relative;display:inline-block;width:12px;height:12px;transition:transform .2s}
+.collapse-arrow::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid currentColor}
+.collapse-text-collapsed{display:none}
+.panel.collapsible.collapsed .collapse-arrow{transform:rotate(-90deg)}
+.panel.collapsible.collapsed .collapse-text-expanded{display:none}
+.panel.collapsible.collapsed .collapse-text-collapsed{display:inline}
+.panel.collapsible.collapsed>.panel-body{display:none}
 .terminal{background:#0d0d1a}
-#log-window{height:200px;overflow-y:auto;padding:8px 14px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;background:#0d0d1a}
+#log-window{height:420px;overflow-y:auto;padding:8px 14px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;background:#0d0d1a}
 #log-window::-webkit-scrollbar{width:6px}
 #log-window::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 .terminal-command{color:var(--green)}
@@ -45,7 +55,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .btn-row{display:flex;gap:8px;padding:6px 12px}
 .btn-row:first-child{padding-top:12px}
 .btn-row:last-child{padding-bottom:12px}
-.btn-row button{flex:1;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:10px 8px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s;text-align:center;min-height:44px;min-width:0}
+.btn-row button{display:flex;align-items:center;justify-content:center;flex:1;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:10px 8px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s;text-align:center;min-height:44px;min-width:0}
 .btn-row button:hover{background:var(--btn-hover)}
 .btn-row button:active{background:var(--accent)}
 .btn-row button.accent{background:var(--orange);border-color:var(--orange);color:#fff}
@@ -71,7 +81,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .chart-panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
 .chart-panel .panel-head{font-size:12px}
 .chart-panel canvas{display:block;width:100%;height:220px;background:#0a0a16}
-@media(max-width:768px){.chart-panel canvas{height:180px}}
+@media(max-width:768px){#log-window{height:300px}.chart-panel canvas{height:180px}}
 </style>
 </head>
 <body>
@@ -86,40 +96,45 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
       <div id="log-window"></div>
       <form class="terminal-input-row" id="terminal-form">
         <span class="terminal-prompt" aria-hidden="true">&gt;</span>
-        <input id="terminal-input" type="text" maxlength="255" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="终端命令" placeholder="输入命令，回车发送（使用help查看命令列表）">
+        <input id="terminal-input" type="text" maxlength="255" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="终端命令" placeholder="（使用help查看命令列表，上下键查看历史命令）">
       </form>
     </div>
   </div>
-  <div class="panel">
-    <div class="panel-head">控制面板</div>
-    <div class="btn-row">
-      <button onclick="sendCmd('help')">帮助</button>
-      <button onclick="sendCmd('debug')">调试</button>
-      <button onclick="sendCmd('info')">信息</button>
-      <button onclick="sendCmd('reboot')" class="warning">重启</button>
-      <button onclick="sendCmd('sleep')" class="warning">休眠</button>
-      <button onclick="sendCmd('shutdown')" class="danger">关机</button>
+  <div class="panel collapsible">
+    <div class="panel-head" role="button" tabindex="0" aria-expanded="true">
+      <span>控制面板</span>
+      <span class="collapse-toggle" aria-hidden="true"><span class="collapse-text-expanded">收起</span><span class="collapse-text-collapsed">展开</span><span class="collapse-arrow"></span></span>
     </div>
-    <div class="btn-row">
-      <button onclick="sendCmd('ota');setTimeout(function(){window.open('http://192.168.4.1/update','_blank')},500)" class="accent">OTA</button>
-      <button onclick="sendCmd('ap')" class="accent">AP</button>
-      <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
-      <button onclick="sendCmd('ble')" class="blue">BLE</button>
-    </div>
-    <div class="btn-row">
-      <button onclick="sendCmd('inference')">IMU推理</button>
-      <button onclick="sendCmd('imu')">IMU数据</button>
-      <button onclick="sendCmd('stop')">IMU停止</button>
-    </div>
-    <div class="btn-row">
-      <div class="ctrl-group">
-        <input type="number" id="gesture-id" placeholder="手势 ID" min="0">
-        <button onclick="sendGesture()" class="purple">触发手势</button>
+    <div class="panel-body">
+      <div class="btn-row">
+        <button onclick="sendCmd('help')">帮助</button>
+        <button onclick="sendCmd('debug')">调试</button>
+        <button onclick="sendCmd('info')">信息</button>
+        <button onclick="sendCmd('reboot')" class="warning">重启</button>
+        <button onclick="sendCmd('sleep')" class="warning">休眠</button>
+        <button onclick="sendCmd('shutdown')" class="danger">关机</button>
       </div>
-      <div class="ctrl-group">
-        <input type="number" id="pov-id" placeholder="图案 ID" min="0">
-        <label class="switch" title="reverse"><input type="checkbox" id="pov-rev"><span class="rocker"><span class="rocker-dir">反向</span></span></label>
-        <button onclick="sendPov()" class="purple">POV</button>
+      <div class="btn-row">
+        <button onclick="sendCmd('ota');setTimeout(function(){window.open('http://192.168.4.1/update','_blank')},500)" class="accent">OTA</button>
+        <button onclick="sendCmd('ap')" class="accent">AP</button>
+        <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
+        <button onclick="sendCmd('ble')" class="blue">BLE</button>
+      </div>
+      <div class="btn-row">
+        <button onclick="sendCmd('inference')">IMU推理</button>
+        <button onclick="sendCmd('imu')">IMU数据</button>
+        <button onclick="sendCmd('stop')">IMU停止</button>
+      </div>
+      <div class="btn-row">
+        <div class="ctrl-group">
+          <input type="number" id="gesture-id" placeholder="手势 ID" min="0">
+          <button onclick="sendGesture()" class="purple">触发手势</button>
+        </div>
+        <div class="ctrl-group">
+          <input type="number" id="pov-id" placeholder="图案 ID" min="0">
+          <label class="switch" title="reverse"><input type="checkbox" id="pov-rev"><span class="rocker"><span class="rocker-dir">反向</span></span></label>
+          <button onclick="sendPov()" class="purple">POV</button>
+        </div>
       </div>
     </div>
   </div>
@@ -178,6 +193,18 @@ function sendPov(){
   var rev=document.getElementById('pov-rev').checked?1:0;
   sendCmd('pov '+v+' '+rev);
 }
+
+// ============ 可折叠面板 ============
+Array.prototype.forEach.call(document.querySelectorAll('.panel.collapsible>.panel-head'),function(head){
+  function toggle(){
+    var collapsed=head.parentElement.classList.toggle('collapsed');
+    head.setAttribute('aria-expanded',collapsed?'false':'true');
+  }
+  head.addEventListener('click',toggle);
+  head.addEventListener('keydown',function(event){
+    if(event.key==='Enter'||event.key===' '){event.preventDefault();toggle()}
+  });
+});
 
 // ============ 交互式终端 ============
 var logEl=document.getElementById('log-window');
@@ -402,76 +429,76 @@ static bool webRunning = false;
 static bool webRoutesSet = false;
 
 static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
-                       AwsEventType type, void *arg, uint8_t *data, size_t len)
+                      AwsEventType type, void *arg, uint8_t *data, size_t len)
 {
-    switch (type)
+  switch (type)
+  {
+  case WS_EVT_CONNECT:
+    DualSerial.printf("[Web] Client #%u connected\n", client->id());
+    break;
+
+  case WS_EVT_DISCONNECT:
+    DualSerial.printf("[Web] Client #%u disconnected\n", client->id());
+    break;
+
+  case WS_EVT_DATA:
+  {
+    AwsFrameInfo *info = (AwsFrameInfo *)arg;
+    if (info->final && info->index == 0 && info->len == len &&
+        info->opcode == WS_TEXT)
     {
-    case WS_EVT_CONNECT:
-        DualSerial.printf("[Web] Client #%u connected\n", client->id());
-        break;
-
-    case WS_EVT_DISCONNECT:
-        DualSerial.printf("[Web] Client #%u disconnected\n", client->id());
-        break;
-
-    case WS_EVT_DATA:
-    {
-        AwsFrameInfo *info = (AwsFrameInfo *)arg;
-        if (info->final && info->index == 0 && info->len == len &&
-            info->opcode == WS_TEXT)
-        {
-            if (!console_submit((const char *)data, len))
-            {
-                client->text("[Web] Command rejected (empty, too long, or busy)\n");
-            }
-        }
-        break;
+      if (!console_submit((const char *)data, len))
+      {
+        client->text("[Web] Command rejected (empty, too long, or busy)\n");
+      }
     }
+    break;
+  }
 
-    case WS_EVT_PONG:
-    case WS_EVT_ERROR:
-        break;
-    }
+  case WS_EVT_PONG:
+  case WS_EVT_ERROR:
+    break;
+  }
 }
 
 void ap_web_start(void)
 {
-    if (webRunning)
-        return;
+  if (webRunning)
+    return;
 
-    if (!webRoutesSet)
-    {
-        webSocket.onEvent(onWsEvent);
-        webServer.addHandler(&webSocket);
+  if (!webRoutesSet)
+  {
+    webSocket.onEvent(onWsEvent);
+    webServer.addHandler(&webSocket);
 
-        // 根路径：返回内嵌网页
-        webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                      { request->send(200, "text/html; charset=utf-8", WEB_PAGE); });
+    // 根路径：返回内嵌网页
+    webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+                 { request->send(200, "text/html; charset=utf-8", WEB_PAGE); });
 
-        webRoutesSet = true;
-    }
+    webRoutesSet = true;
+  }
 
-    webServer.begin();
-    webRunning = true;
-    DualSerial.println("[Web] HTTP + WebSocket server started on port 80");
+  webServer.begin();
+  webRunning = true;
+  DualSerial.println("[Web] HTTP + WebSocket server started on port 80");
 }
 
 void ap_web_stop(void)
 {
-    if (!webRunning)
-        return;
+  if (!webRunning)
+    return;
 
-    webSocket.closeAll();
-    webServer.end();
-    webRunning = false;
-    DualSerial.println("[Web] Server stopped");
+  webSocket.closeAll();
+  webServer.end();
+  webRunning = false;
+  DualSerial.println("[Web] Server stopped");
 }
 
 void ap_web_print(const char *buffer, size_t length)
 {
-    if (!webRunning)
-        return;
+  if (!webRunning)
+    return;
 
-    // WebSocket textAll 内部通过 AsyncTCP 排队发送，跨任务安全
-    webSocket.textAll(buffer, length);
+  // WebSocket textAll 内部通过 AsyncTCP 排队发送，跨任务安全
+  webSocket.textAll(buffer, length);
 }
