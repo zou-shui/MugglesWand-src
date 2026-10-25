@@ -1,6 +1,6 @@
 /*
     AP Web Dashboard — 为AP模式提供网页控制面板
-    功能：实时日志窗口、控制按钮、IMU数据绘制
+    功能：交互式终端、控制按钮、IMU数据绘制
 */
 #include "AP_Web.h"
 #include "Config.h"
@@ -33,9 +33,15 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .panel-head{background:var(--accent);padding:6px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
 .panel-head button{background:none;border:1px solid var(--border);color:var(--text);padding:2px 10px;border-radius:4px;cursor:pointer;font-size:12px}
 .panel-head button:hover{background:var(--btn-hover)}
+.terminal{background:#0d0d1a}
 #log-window{height:200px;overflow-y:auto;padding:8px 14px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all;background:#0d0d1a}
 #log-window::-webkit-scrollbar{width:6px}
 #log-window::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.terminal-command{color:var(--green)}
+.terminal-input-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);background:#0a0a16;font-family:'Cascadia Code','Fira Code',monospace}
+.terminal-prompt{color:var(--green);font-size:13px;font-weight:600}
+.terminal-input-row input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:12px/1.6 'Cascadia Code','Fira Code',monospace;caret-color:var(--green);padding:6px 0}
+.terminal-input-row input::placeholder{color:#66708a}
 .btn-row{display:flex;gap:8px;padding:6px 12px}
 .btn-row:first-child{padding-top:12px}
 .btn-row:last-child{padding-bottom:12px}
@@ -75,8 +81,14 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 </header>
 <main>
   <div class="panel">
-    <div class="panel-head"><span>日志窗口</span><button onclick="clearLog()">清空</button></div>
-    <div id="log-window"></div>
+    <div class="panel-head"><span>交互式终端</span><button type="button" onclick="clearLog();terminalInput.focus()">清空 (Ctrl+L)</button></div>
+    <div class="terminal">
+      <div id="log-window"></div>
+      <form class="terminal-input-row" id="terminal-form">
+        <span class="terminal-prompt" aria-hidden="true">&gt;</span>
+        <input id="terminal-input" type="text" maxlength="255" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="终端命令" placeholder="输入命令，回车发送（使用help查看命令列表）">
+      </form>
+    </div>
   </div>
   <div class="panel">
     <div class="panel-head">控制面板</div>
@@ -126,6 +138,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 // ============ WebSocket ============
 var ws,reconnectTimer;
 var MAX_LOG=500;
+var MAX_COMMAND_BYTES=255;
 function connect(){
   ws=new WebSocket('ws://'+location.host+'/ws');
   ws.onopen=function(){
@@ -141,7 +154,20 @@ function connect(){
   };
   ws.onerror=function(){ws.close()};
 }
-function sendCmd(cmd){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(cmd)}
+function sendCmd(cmd){
+  cmd=String(cmd).trim();
+  if(!cmd)return false;
+  if(new TextEncoder().encode(cmd).length>MAX_COMMAND_BYTES){
+    appendLog('[Web] 命令过长，最多 '+MAX_COMMAND_BYTES+' 字节。\n');
+    return false;
+  }
+  if(!ws||ws.readyState!==WebSocket.OPEN){
+    appendLog('[Web] 未连接，命令未发送。\n');
+    return false;
+  }
+  ws.send(cmd);
+  return true;
+}
 function sendGesture(){
   var v=document.getElementById('gesture-id').value.trim();
   if(v!=='')sendCmd('gesture '+v);
@@ -153,10 +179,71 @@ function sendPov(){
   sendCmd('pov '+v+' '+rev);
 }
 
-// ============ 日志窗口 ============
+// ============ 交互式终端 ============
 var logEl=document.getElementById('log-window');
-var logLines=[];
+var terminalForm=document.getElementById('terminal-form');
+var terminalInput=document.getElementById('terminal-input');
 var pendingText='';
+var followLog=true;
+var cmdHistory=[];
+var historyIndex=0;
+var historyDraft='';
+
+function clearLog(){
+  pendingText='';
+  logEl.replaceChildren();
+  followLog=true;
+  chartGxGz.clear();
+  chartSta.clear();
+}
+
+function submitCommand(event){
+  event.preventDefault();
+  var cmd=terminalInput.value.trim();
+  if(!cmd)return;
+  if(sendCmd(cmd)){
+    if(cmdHistory[cmdHistory.length-1]!==cmd)cmdHistory.push(cmd);
+    if(cmdHistory.length>100)cmdHistory.shift();
+    historyIndex=cmdHistory.length;
+    historyDraft='';
+    terminalInput.value='';
+  }
+  terminalInput.focus();
+}
+
+function recallHistory(direction){
+  if(!cmdHistory.length)return;
+  if(direction<0){
+    if(historyIndex===cmdHistory.length)historyDraft=terminalInput.value;
+    if(historyIndex>0)historyIndex--;
+  }else if(historyIndex<cmdHistory.length){
+    historyIndex++;
+  }
+  terminalInput.value=historyIndex===cmdHistory.length?historyDraft:cmdHistory[historyIndex];
+  terminalInput.setSelectionRange(terminalInput.value.length,terminalInput.value.length);
+}
+
+terminalForm.addEventListener('submit',submitCommand);
+terminalInput.addEventListener('keydown',function(event){
+  if(event.key==='ArrowUp'){
+    event.preventDefault();
+    recallHistory(-1);
+  }else if(event.key==='ArrowDown'){
+    event.preventDefault();
+    recallHistory(1);
+  }
+});
+document.addEventListener('keydown',function(event){
+  if((event.ctrlKey||event.metaKey)&&!event.altKey&&event.key.toLowerCase()==='l'){
+    event.preventDefault();
+    clearLog();
+    terminalInput.focus();
+  }
+});
+logEl.addEventListener('scroll',function(){
+  followLog=logEl.scrollHeight-logEl.scrollTop-logEl.clientHeight<24;
+});
+
 function appendLog(text){
   pendingText+=text;
   var lines=pendingText.split('\n');
@@ -165,16 +252,17 @@ function appendLog(text){
   for(var i=0;i<lines.length;i++){
     var l=lines[i].replace(/\r$/,'');
     if(!l)continue;
-    logLines.push(l);
-    if(logLines.length>MAX_LOG)logLines.shift();
+    var row=document.createElement('div');
+    row.textContent=l;
+    if(l.indexOf('> ')===0)row.className='terminal-command';
+    logEl.appendChild(row);
+    if(logEl.childElementCount>MAX_LOG)logEl.firstElementChild.remove();
     // 尝试解析 IMU CSV 数据: valid_gx,valid_gz,current_sta
     var m=l.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*),(-?\d+)$/);
     if(m)addImuPoint(parseFloat(m[1]),parseFloat(m[2]),parseInt(m[3]));
   }
-  logEl.textContent=logLines.join('\n');
-  logEl.scrollTop=logEl.scrollHeight;
+  if(followLog)logEl.scrollTop=logEl.scrollHeight;
 }
-function clearLog(){logLines=[];pendingText='';logEl.textContent='';chartGxGz.clear();chartSta.clear()}
 
 // ============ 轻量 Canvas 图表 ============
 function Chart(canvasId,config){
@@ -332,11 +420,10 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
         if (info->final && info->index == 0 && info->len == len &&
             info->opcode == WS_TEXT)
         {
-            // 确保 null 终止
-            char *cmd = (char *)data;
-            cmd[len] = '\0';
-            // 复用控制台解析逻辑
-            console_parse(cmd);
+            if (!console_submit((const char *)data, len))
+            {
+                client->text("[Web] Command rejected (empty, too long, or busy)\n");
+            }
         }
         break;
     }

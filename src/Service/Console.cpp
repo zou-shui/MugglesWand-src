@@ -11,9 +11,16 @@
 #include <ctype.h>
 
 #define CONSOLE_BUF_SIZE 256
+#define CONSOLE_QUEUE_DEPTH 4
+
+struct ConsoleCommand
+{
+    char text[CONSOLE_BUF_SIZE];
+};
 
 static char rx_buf[CONSOLE_BUF_SIZE];
 static uint8_t rx_index = 0;
+static QueueHandle_t command_queue = nullptr;
 
 /************ 显示帮助信息 ************/
 static void console_print_help()
@@ -55,15 +62,37 @@ static bool match_command_name(const char *command, const char *name,
     return true;
 }
 
-/************ 串口命令解析 ************/
-void console_parse(char *cmd)
+/************ 命令回显 ************/
+static void console_print_echo(const char *cmd)
 {
+    while (cmd != nullptr && isspace((unsigned char)*cmd))
+        ++cmd;
+
+    if (cmd == nullptr || *cmd == '\0')
+        return;
+
+    const char *end = cmd + strlen(cmd);
+    while (end > cmd && isspace((unsigned char)end[-1]))
+        --end;
+
+    DualSerial.print("\n> ");
+    DualSerial.write((const uint8_t *)cmd, (size_t)(end - cmd));
+    DualSerial.println();
+}
+
+/************ 命令解析（仅由 console_task 调用） ************/
+static void console_parse(char *cmd)
+{
+    if (cmd == nullptr)
+        return;
+
+    console_print_echo(cmd);
+
     int32_t arg1 = 0, arg2 = 0;
 
     const char *map_arguments = nullptr;
     if (match_command_name(cmd, "map", &map_arguments))
     {
-        DualSerial.println("\n> map");
         APP_binding_console(map_arguments);
         return;
     }
@@ -72,9 +101,6 @@ void console_parse(char *cmd)
     char *token = strtok(cmd, " \r\n"); // 第一个单词是命令
     if (token == NULL)
         return;
-
-    DualSerial.print("\n> ");
-    DualSerial.println(token);
 
     if (!strcmp(token, "debug"))
     {
@@ -174,6 +200,31 @@ void console_parse(char *cmd)
     }
 }
 
+/************ 外部命令提交 ************/
+bool console_submit(const char *command, size_t length)
+{
+    if (command_queue == nullptr || command == nullptr || length == 0)
+        return false;
+
+    // 网络消息可能包含行尾，去除后再检查固件缓冲区容量
+    while (length > 0 &&
+           (command[length - 1] == '\0' || command[length - 1] == '\r' ||
+            command[length - 1] == '\n'))
+    {
+        --length;
+    }
+
+    if (length == 0 || length >= CONSOLE_BUF_SIZE)
+        return false;
+
+    ConsoleCommand queued = {};
+    memcpy(queued.text, command, length);
+    queued.text[length] = '\0';
+
+    // 不阻塞 AsyncTCP 回调；队列满时由调用方反馈错误
+    return xQueueSend(command_queue, &queued, 0) == pdPASS;
+}
+
 /************ Console Task ************/
 static void console_task(void *param)
 {
@@ -181,6 +232,13 @@ static void console_task(void *param)
 
     while (1)
     {
+        ConsoleCommand queued;
+        while (command_queue != nullptr &&
+               xQueueReceive(command_queue, &queued, 0) == pdPASS)
+        {
+            console_parse(queued.text);
+        }
+
         while (Serial.available())
         {
             char c = Serial.read();
@@ -223,6 +281,12 @@ static void console_task(void *param)
 /************ Init ************/
 void console_init()
 {
+    command_queue = xQueueCreate(CONSOLE_QUEUE_DEPTH, sizeof(ConsoleCommand));
+    if (command_queue == nullptr)
+    {
+        DualSerial.println("[Console] Failed to create command queue");
+    }
+
     xTaskCreatePinnedToCore(
         console_task,
         "console_task",

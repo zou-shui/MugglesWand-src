@@ -79,11 +79,10 @@ static void update_rf_state(void)
 // 回调：当网络收到数据时
 static void handleData(void *arg, AsyncClient *client, void *data, size_t len)
 {
-    char *str = (char *)data;
-
-    //  利用 len 找到当前数据的真正末尾，强制加上 C 字符串结束符
-    str[len] = '\0';
-    console_parse(str); // 将接收到的数据传递给串口命令解析器
+    if (!console_submit((const char *)data, len))
+    {
+        DualSerial.println("[AP] TCP command rejected (empty, too long, or busy)");
+    }
 }
 // 回调：当客户端断开连接时
 static void handleDisconnect(void *arg, AsyncClient *client)
