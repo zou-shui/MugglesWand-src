@@ -7,6 +7,8 @@
 #include "Service/Console.h"
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
+#include "Service/BLE.h"
+#include "Service/AP.h"
 #include "HAL/HAL.h"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -37,7 +39,7 @@ header h1{font-size:18px;font-weight:600}
 .ws-state{display:inline-flex;align-items:center}
 .batt-icon{width:30px;height:14px;display:block}
 /* 文字墨迹中心略低于行盒几何中心（数字无下伸部），图标下移半像素做视觉居中 */
-.batt-icon,.volt-icon,.status-dot{position:relative;top:.5px}
+.batt-icon,.volt-icon,.ble-icon,.espnow-icon,.status-dot{position:relative;top:.5px}
 .batt-shell{fill:none;stroke:currentColor;stroke-width:1.2;opacity:.75}
 .batt-cap{fill:currentColor;opacity:.75}
 .batt-fill{fill:var(--green);transition:width .3s,fill .3s}
@@ -46,8 +48,8 @@ header h1{font-size:18px;font-weight:600}
 /* 闪电用同色圆角描边勾出柔和轮廓，上下可略微超出电池外壳 */
 .batt-bolt{fill:#fff;stroke:#fff;stroke-width:1.2;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 .4px .5px rgba(0,0,0,.35));display:none}
 .batt.charging .batt-bolt{display:block}
-/* 断连时电量/电压置灰：数值保留，但当前不可信 */
-.sys-info.stale .batt,.sys-info.stale .volt{opacity:.4;filter:grayscale(1)}
+/* 断连时状态置灰：数值保留，但当前不可信 */
+.sys-info.stale .batt,.sys-info.stale .volt,.sys-info.stale .ble,.sys-info.stale .espnow{opacity:.4;filter:grayscale(1)}
 #batt-pct{min-width:4ch}
 /* 电压图标：整块圆角矩形徽标，内嵌万用表直流电压符号 V⎓ */
 .volt-icon{width:24px;height:16px;display:block}
@@ -56,6 +58,19 @@ header h1{font-size:18px;font-weight:600}
 .volt-icon .volt-v{stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .volt-icon .volt-dc{stroke-width:1.2;stroke-linecap:butt}
 #batt-volt{min-width:5ch}
+/* 无线状态图标：蓝牙三态（关闭/广播中/已连接）与 ESP-NOW 开关 */
+.ble,.espnow{display:inline-flex;align-items:center;transition:opacity .2s,filter .2s}
+.ble-icon{width:14px;height:20px;display:block}
+.espnow-icon{width:18px;height:18px;display:block}
+.wireless-glyph{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ble-icon .wireless-glyph{stroke-width:1.8} /* 蓝牙线条略粗于 ESP-NOW */
+.espnow-icon .node{fill:currentColor}
+.bt-dot{fill:currentColor;display:none} /* 已连接时在两侧空缺处点亮 */
+.ble.connected .bt-dot{display:block}
+.ble.off,.espnow.off{color:#66708a}
+.ble.on{color:var(--blue)} /* 已开启、等待主机连接 */
+.ble.connected,.espnow.on{color:var(--green);filter:drop-shadow(0 0 4px rgba(76,175,132,.5))}
+.ble.unknown,.espnow.unknown{opacity:.35}
 main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1200px;margin:0 auto;width:100%}
 .panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
 /* 固定高度：有无右侧控件都不会把标题栏撑高 */
@@ -118,6 +133,20 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 <header>
   <h1>Muggles' Wand</h1>
   <span class="sys-info stale">
+    <span class="ble unknown" id="ble" title="蓝牙状态未知">
+      <svg class="ble-icon" viewBox="0 0 16 22" aria-hidden="true">
+        <path class="wireless-glyph" d="M3 6l10 10-5 5V1l5 5L3 16"/>
+        <circle class="bt-dot" cx="1.7" cy="11" r="1.6"/>
+        <circle class="bt-dot" cx="14.3" cy="11" r="1.6"/>
+      </svg>
+    </span>
+    <span class="espnow unknown" id="espnow" title="ESP-NOW 状态未知">
+      <svg class="espnow-icon" viewBox="0 0 20 20" aria-hidden="true">
+        <circle class="wireless-glyph" cx="10" cy="10" r="8.3"/>
+        <circle class="node" cx="5.6" cy="14.4" r="1.45"/>
+        <path class="wireless-glyph" d="M5.6 10.4A4 4 0 0 1 9.6 14.4M5.6 7.9A6.5 6.5 0 0 1 12.1 14.4"/>
+      </svg>
+    </span>
     <span class="batt" id="batt" title="电量未知">
       <svg class="batt-icon" viewBox="0 0 30 14" aria-hidden="true">
         <rect class="batt-shell" x="1" y="1.5" width="24" height="11" rx="2.5"/>
@@ -127,7 +156,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
       </svg>
       <span id="batt-pct">--%</span>
     </span>
-    <span class="volt" title="电池电压">
+    <span class="volt" id="volt" title="电压未知">
       <svg class="volt-icon" viewBox="0 0 24 16" aria-hidden="true">
         <rect class="volt-bg" x="0.5" y="0.5" width="23" height="15" rx="4"/>
         <path class="volt-v" d="M4.4 4.8 6.9 11.2 9.4 4.8"/>
@@ -260,17 +289,32 @@ function updateBattery(soc,mv,chg){
   document.getElementById('batt-fill').setAttribute('width',(20*soc/100).toFixed(2));
   document.getElementById('batt-pct').textContent=pct+'%';
   document.getElementById('batt-volt').textContent=volts;
-  batt.title='电量 '+pct+'%'+(chg?'，充电中':'')+'，'+volts;
+  // 电量与电压各自独立显示在悬停提示中
+  batt.title='电量 '+pct+'%';
+  document.getElementById('volt').title='电压 '+volts;
+}
+function updateWireless(ble,espnowOn){
+  var bt=document.getElementById('ble');
+  if(isFinite(ble)){
+    bt.className='ble '+(ble===2?'connected':ble===1?'on':'off');
+    bt.title=ble===2?'蓝牙已连接':ble===1?'蓝牙已开启，未连接':'蓝牙已关闭';
+  }
+  var en=document.getElementById('espnow');
+  en.className='espnow '+(espnowOn?'on':'off');
+  en.title=espnowOn?'ESP-NOW 已开启':'ESP-NOW 已关闭';
 }
 function handleCtrlMessage(msg){
   if(msg.indexOf('\x01PONG:')!==0)return;
   var parts=msg.split(':');
   if(parts.length<3)return;
-  // 服务端在 pong 末尾附带设备状态：:<电量%>:<电压mV>:<充电标志>
-  if(parts.length>=6){
-    updateBattery(parseFloat(parts[parts.length-3]),
-                  parseInt(parts[parts.length-2],10),
-                  parts[parts.length-1]==='1');
+  // 服务端在 pong 末尾附带设备状态：
+  // :<蓝牙0/1/2>:<ESP-NOW 0/1>:<电量%>:<电压mV>:<充电标志>
+  // 电量三字段保留在末尾，兼容固件更新时仍开着的旧页面
+  if(parts.length>=8){
+    updateWireless(parseInt(parts[3],10),parts[4]==='1');
+    updateBattery(parseFloat(parts[5]),
+                  parseInt(parts[6],10),
+                  parts[7]==='1');
   }
   var ts=parseInt(parts[2],10);
   if(!ts)return;
@@ -711,17 +755,21 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
       {
         if (len >= 5 && memcmp(data + 1, WS_CTRL_PING, 4) == 0)
         {
-          // 回显 ":<seq>:<ts>" 供浏览器计算 RTT，并追加设备状态
-          // :<电量%>:<电压mV>:<是否充电>，前端据此更新右上角电量显示
+          // 回显 ":<seq>:<ts>" 供浏览器计算 RTT，并追加设备状态：
+          // :<蓝牙0/1/2>:<ESP-NOW 0/1>:<电量%>:<电压mV>:<是否充电>
+          // 电量三字段保留在末尾，旧页面按末尾三字段解析，固件更新后可继续工作
           int soc = (int)(HAL::MAX17048_getSOC() + 0.5f);
           if (soc < 0)
             soc = 0;
           else if (soc > 100)
             soc = 100;
           int mv = (int)(HAL::MAX17048_getVoltage() * 1000.0f + 0.5f);
+          // 蓝牙：0=已关闭，1=已开启但未连接，2=已连接
+          int ble = !ble_is_enabled() ? 0 : (ble_is_connected() ? 2 : 1);
 
           char status[32];
-          int statusLen = snprintf(status, sizeof(status), ":%d:%d:%d",
+          int statusLen = snprintf(status, sizeof(status), ":%d:%d:%d:%d:%d",
+                                   ble, espnow_is_running() ? 1 : 0,
                                    soc, mv, HAL::power_getChargeStatus() ? 1 : 0);
           if (statusLen < 0 || statusLen >= (int)sizeof(status))
             statusLen = 0;

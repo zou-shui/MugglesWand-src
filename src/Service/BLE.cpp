@@ -274,6 +274,16 @@ static void send_keyboard_report(uint8_t modifiers, uint8_t keycode)
     pKeyboardInput->notify();
 }
 
+bool ble_is_enabled(void)
+{
+    return _is_ble_enabled;
+}
+
+bool ble_is_connected(void)
+{
+    return _is_connected;
+}
+
 bool ble_keyboard_is_ready(void)
 {
     return _is_ble_enabled && _is_connected && pKeyboardInput != nullptr;

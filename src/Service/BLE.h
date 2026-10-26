@@ -10,6 +10,16 @@
 bool ble_toggle(void);
 
 /**
+ * @brief 查询 BLE 是否已开启（包括已开启但尚未连接主机的状态）
+ */
+bool ble_is_enabled(void);
+
+/**
+ * @brief 查询 BLE 是否已有主机连接
+ */
+bool ble_is_connected(void);
+
+/**
  * @brief 模拟单击指定的键盘按键（按下 + 延迟 + 释放）
  * @param keycode 键码 (定义在 BLEHIDKeys.h 中)
  * @return bool 发送成功返回 true，未连接或未开启返回 false
