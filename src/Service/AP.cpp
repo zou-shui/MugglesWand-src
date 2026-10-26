@@ -10,6 +10,7 @@
 #include "Config.h"
 #include "Service/Console.h"
 #include "Service/DualPrint.h"
+#include <esp_heap_caps.h>
 
 // ==================== 配置与常量定义 ====================
 #define TCP_PORT 8080 // TCP 服务器监听端口
@@ -131,10 +132,92 @@ static void handleNewClient(void *arg, AsyncClient *client)
     DualSerial.printf("[AP] TCP Client connected to slot [%d]\n", freeIndex);
 }
 
+// ==================== 低内存自愈 ====================
+// ESP-IDF SoftAP 在客户端 802.11 省电模式下会偶发缓存单播帧却不置 TIM 位
+// （IDFGH-18026），帧滞留到客户端重新关联才释放。下行流量持续时驱动缓冲
+// 和 lwIP 重传会不断累积，内部堆耗尽后 WiFi 发不出包——表现为 AP 能搜到/
+// 能关联，但网页打不开。
+// 保底策略：堆到临界值后只重启 WiFi 射频回收驱动缓冲，HTTP/TCP 监听保留，
+// 客户端会自动重连（不能调用 stop_ap_server：会丢 80 端口监听）。
+#define AP_HEAP_GUARD_FREE_MIN (32 * 1024)
+#define AP_HEAP_GUARD_LARGEST_MIN (16 * 1024)
+#define AP_HEAP_GUARD_EMERGENCY_LARGEST (8 * 1024)
+
+static bool s_heap_guard_started = false;
+
+static void ap_rf_restart(void)
+{
+    // 关闭现有连接，但不动监听 socket
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (clients[i] && clients[i]->connected())
+        {
+            clients[i]->close();
+        }
+        clients[i] = nullptr;
+    }
+    ap_web_close_all();
+
+    is_ap_enabled = false;
+    update_rf_state(); // APSTA -> STA(ESP-NOW) / OFF，驱动回收 AP 缓冲
+    vTaskDelay(pdMS_TO_TICKS(500));
+    is_ap_enabled = true;
+    update_rf_state(); // -> APSTA，重新 softAP
+}
+
+static void ap_heap_guard_task(void *param)
+{
+    (void)param;
+    uint32_t low_since = 0;
+    uint32_t last_restart = 0;
+
+    while (1)
+    {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (!is_ap_enabled)
+        {
+            low_since = 0;
+            continue;
+        }
+
+        uint32_t int_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (int_free >= AP_HEAP_GUARD_FREE_MIN && largest >= AP_HEAP_GUARD_LARGEST_MIN)
+        {
+            low_since = 0;
+            continue;
+        }
+
+        if (low_since == 0)
+        {
+            low_since = millis();
+        }
+
+        // 连续 2 秒低内存才动手，避免页面加载等瞬时分配误触发；
+        // 已经逼近 WiFi 发不出去包（最大块 <8KB）时立即处理。
+        if (largest >= AP_HEAP_GUARD_EMERGENCY_LARGEST && millis() - low_since < 2000)
+            continue;
+        if (millis() - last_restart < 10000)
+            continue;
+
+        last_restart = millis();
+        low_since = millis();
+        DualSerial.printf("[AP] low heap (int=%u largest=%u), restarting WiFi RF\n",
+                          (unsigned)int_free, (unsigned)largest);
+        ap_rf_restart();
+    }
+}
+
 static void start_ap_server(void)
 {
     is_ap_enabled = true;
     update_rf_state(); // 统一刷新底层 RF 模式
+
+    if (!s_heap_guard_started)
+    {
+        s_heap_guard_started = true;
+        xTaskCreatePinnedToCore(ap_heap_guard_task, "ap_heap_guard", 3072, nullptr, 1, nullptr, 0);
+    }
 
     if (tcpServer == nullptr)
     {

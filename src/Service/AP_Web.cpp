@@ -804,3 +804,9 @@ void ap_web_print(const char *buffer, size_t length)
   // WebSocket textAll 内部通过 AsyncTCP 排队发送，跨任务安全
   webSocket.textAll(buffer, length);
 }
+
+void ap_web_close_all(void)
+{
+  if (webRunning)
+    webSocket.closeAll();
+}

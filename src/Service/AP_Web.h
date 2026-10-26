@@ -8,3 +8,6 @@ void ap_web_stop(void);
 
 // 向所有 WebSocket 客户端广播日志数据
 void ap_web_print(const char *buffer, size_t length);
+
+// 关闭所有 WebSocket 客户端（保留 HTTP 监听）
+void ap_web_close_all(void);
