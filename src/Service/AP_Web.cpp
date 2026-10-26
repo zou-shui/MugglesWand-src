@@ -50,20 +50,20 @@ header h1{font-size:18px;font-weight:600}
 .batt.charging .batt-bolt{display:block}
 /* 断连时状态置灰：数值保留，但当前不可信 */
 .sys-info.stale .batt,.sys-info.stale .volt,.sys-info.stale .ble,.sys-info.stale .espnow{opacity:.4;filter:grayscale(1)}
-#batt-pct{min-width:4ch}
+/* 电量/电压文本不预留固定宽度：多出的透明余量会把右侧间距撑大，导致图标疏密不均；
+   电压恒为 5 字符且启用等宽数字，宽度本就稳定 */
 /* 电压图标：整块圆角矩形徽标，内嵌万用表直流电压符号 V⎓ */
 .volt-icon{width:24px;height:16px;display:block}
 .volt-icon .volt-bg{fill:#3c5f91} /* 比 --btn-bg 更亮，和电池图标的视觉权重对齐 */
 .volt-icon path{fill:none;stroke:currentColor}
 .volt-icon .volt-v{stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .volt-icon .volt-dc{stroke-width:1.2;stroke-linecap:butt}
-#batt-volt{min-width:5ch}
 /* 无线状态图标：蓝牙三态（关闭/广播中/已连接）与 ESP-NOW 开关 */
 .ble,.espnow{display:inline-flex;align-items:center;transition:opacity .2s,filter .2s}
 .ble-icon{width:14px;height:20px;display:block}
-.espnow-icon{width:18px;height:18px;display:block}
+.espnow-icon{width:20px;height:20px;display:block}
 .wireless-glyph{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.ble-icon .wireless-glyph{stroke-width:1.8} /* 蓝牙线条略粗于 ESP-NOW */
+.ble-icon .wireless-glyph{stroke-width:1.8} /* 蓝牙 viewBox 16→14px 有缩放，1.8×0.875≈1.6px，与 ESP-NOW 渲染粗细一致 */
 .espnow-icon .node{fill:currentColor}
 .bt-dot{fill:currentColor;display:none} /* 已连接时在两侧空缺处点亮 */
 .ble.connected .bt-dot{display:block}
