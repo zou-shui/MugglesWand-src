@@ -1,8 +1,10 @@
 #include <Arduino.h>
+#include <WiFi.h>
 
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
 #include "Service/Console.h"
+#include "Service/DeviceConfig.h"
 #include "Service/Service.h"
 
 #include "HAL/HAL.h"
@@ -43,7 +45,12 @@ void setup()
 
   DualSerial.println("[System] Initializing...");
 
+  // WiFi 驱动默认会把 AP 配置持久化到自己的 NVS，旧值可能与运行时配置冲突。
+  // 关闭后由 DeviceConfig 统一管理 AP 凭据，也避免驱动反复写 flash。
+  WiFi.persistent(false);
+
   // 系统服务初始化
+  device_config_init();
   EventBus::init();
   console_init();
   service_init();

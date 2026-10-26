@@ -2,10 +2,10 @@
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include "HAL/HAL.h"
-#include "Config.h"
+#include "Service/DeviceConfig.h"
 
 // 全局静态变量管理内部状态
-static String _device_name = BLE_DEVICE_NAME;
+static String _device_name;
 static bool _is_ble_enabled = false;
 static bool _is_connected = false;
 
@@ -337,6 +337,12 @@ bool ble_toggle(void)
     if (!_is_ble_enabled)
     {
         // --- 开启 BLE 逻辑 ---
+
+        // 每次开启时读取最新配置；config ble 修改后重启或重新开启 BLE 生效
+        char device_name[30];
+        device_config_get_ble_name(device_name, sizeof(device_name));
+        _device_name = device_name;
+
         DualSerial.println("[BLE] Initializing BLE service with HID Keyboard...");
 
         // 1. 初始化 NimBLE 堆栈

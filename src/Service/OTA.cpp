@@ -3,18 +3,14 @@
 */
 #include <Arduino.h>
 #include "OTA.h"
-#include "Config.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimProgress.hpp"
 #include "HAL/WS2812_Animation/AnimBreathe.hpp"
 #include "Service/AP.h"
+#include "Service/DeviceConfig.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
-
-/************ AP配置 ************/
-const char *ap_ssid = AP_SSID;     // WiFi AP名称
-const char *ap_password = AP_PASS; // WiFi AP密码
 
 /************ Web服务器 ************/
 WebServer server(80);
@@ -78,6 +74,10 @@ IPAddress OTA_get_ip()
 /************ OTA启动 ************/
 void OTA_begin()
 {
+    char ap_ssid[33];
+    char ap_password[64];
+    device_config_get_ap(ap_ssid, sizeof(ap_ssid), ap_password, sizeof(ap_password));
+
     static bool ota_running = false;
     if (ota_running)
     {

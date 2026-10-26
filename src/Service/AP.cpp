@@ -7,8 +7,8 @@
 #include <esp_wifi.h>
 #include <esp_now.h>
 #include <AsyncTCP.h>
-#include "Config.h"
 #include "Service/Console.h"
+#include "Service/DeviceConfig.h"
 #include "Service/DualPrint.h"
 #include <esp_heap_caps.h>
 
@@ -60,10 +60,17 @@ static void update_rf_state(void)
     switch (want)
     {
     case WIFI_MODE_APSTA:
+    {
         WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(AP_SSID, AP_PASS);
+
+        char ssid[33];
+        char pass[64];
+        device_config_get_ap(ssid, sizeof(ssid), pass, sizeof(pass));
+        WiFi.softAP(ssid, pass);
+
         DualSerial.println("[AP] RF Mode -> WIFI_AP_STA");
         break;
+    }
     case WIFI_MODE_STA:
         WiFi.mode(WIFI_STA);
         DualSerial.println("[AP] RF Mode -> WIFI_STA");

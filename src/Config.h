@@ -5,12 +5,12 @@
 #define FIRMWARE_VER "5.1"           // 硬件版本.软件版本
 #define BUILD_TIME __DATE__ "  " __TIME__
 
-// AP
-#define AP_SSID "Zoushui's Wand" // AP热点名称
-#define AP_PASS "12345678"       // AP热点密码（至少8位）
+// AP 默认值
+#define AP_SSID "Zoushui's Wand" // AP热点默认名称
+#define AP_PASS "12345678"       // AP热点默认密码（8~63位）
 
-// BLE
-#define BLE_DEVICE_NAME "Zoushui's Wand" // BLE设备名称
+// BLE 默认值
+#define BLE_DEVICE_NAME "Zoushui's Wand" // BLE默认设备名称
 
 // ICM42670P
 #define PIN_IMU_SDA 10 // IMU SDA引脚(外部上拉)

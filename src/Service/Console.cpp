@@ -5,6 +5,7 @@
 */
 #include <Arduino.h>
 #include "Console.h"
+#include "DeviceConfig.h"
 #include "DualPrint.h"
 #include "EventBus.h"
 #include "APP/GestureBinding.h"
@@ -42,8 +43,9 @@ static void console_print_help()
     DualSerial.println("imu            - Switch IMU to real-time output mode (send data via AP&UART)");
     DualSerial.println("stop           - Stop IMU task and cut off data output");
     DualSerial.println("gesture <id>   - Simulate gesture detection event with specified ID");
-    DualSerial.println("pov [id] [rev] - Set POV pattern params");
+    DualSerial.println("pov [id] [rev] - Set POV pattern params (type 'pov' for usage)");
     DualSerial.println("map            - Configure gesture mappings (type 'map' for usage)");
+    DualSerial.println("config         - Configure AP/BLE identity (type 'config' for usage)");
 }
 
 static bool match_command_name(const char *command, const char *name,
@@ -96,6 +98,13 @@ static void console_parse(char *cmd)
     if (match_command_name(cmd, "map", &map_arguments))
     {
         APP_binding_console(map_arguments);
+        return;
+    }
+
+    const char *config_arguments = nullptr;
+    if (match_command_name(cmd, "config", &config_arguments))
+    {
+        device_config_console(config_arguments);
         return;
     }
 
