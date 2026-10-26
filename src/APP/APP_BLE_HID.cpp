@@ -2,6 +2,8 @@
 
 #include "APP_Lumos.h"
 #include "BLEKeySequence.h"
+#include "HAL/HAL.h"
+#include "HAL/WS2812_Animation/AnimFlow.hpp"
 #include "Service/BLE.h"
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
@@ -136,17 +138,9 @@ bool APP_ble_keyboard_execute(const char *parameter)
         DualSerial.println("[Keyboard] Sequence queue is full");
         return false;
     }
+
+    HAL::ws2812_start_fx(new AnimFlow(CRGB::White));
     return true;
-}
-
-bool APP_ble_keyboard_press_up(void)
-{
-    return ble_keyboard_tap_key(KEY_UP);
-}
-
-bool APP_ble_keyboard_press_down(void)
-{
-    return ble_keyboard_tap_key(KEY_DOWN);
 }
 
 // ============================================================================

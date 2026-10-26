@@ -1,4 +1,7 @@
 #include "APP_EspNow.h"
+#include "HAL/HAL.h"
+#include "HAL/WS2812_Animation/AnimBlink.hpp"
+#include "HAL/WS2812_Animation/AnimFlow.hpp"
 #include "Service/AP.h"
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
@@ -65,6 +68,24 @@ bool APP_espnow_execute(const char *parameter)
 
     while (isspace((unsigned char)*parameter))
         ++parameter;
-    APP_espnow_tx_signal((uint8_t)strtoul(parameter, nullptr, 0));
+
+    uint8_t signal = (uint8_t)strtoul(parameter, nullptr, 0);
+
+    // 不同信号的反馈灯效由本 APP 自己决定
+    switch (signal)
+    {
+    case MSG_SIGNAL_1: // 0x02：白色光流
+        HAL::ws2812_start_fx(new AnimFlow(CRGB::White));
+        break;
+    case MSG_SIGNAL_2: // 0x03：白色闪烁
+        HAL::ws2812_start_fx(new AnimBlink(CRGB::White, 200));
+        break;
+    default:
+        HAL::ws2812_start_fx(new AnimFlow(CRGB::White));
+        break;
+    }
+
+    APP_espnow_tx_signal(signal);
+
     return true;
 }

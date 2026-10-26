@@ -4,8 +4,6 @@
 #include "APP_EspNow.h"
 #include "APP_Lumos.h"
 #include "APP_POV.h"
-#include "HAL/HAL.h"
-#include "HAL/WS2812_Animation/AnimFlow.hpp"
 #include "Model/gesture_inference.h"
 #include "Service/DualPrint.h"
 
@@ -26,7 +24,6 @@ struct AppHandler
     const char *name;
     BindingValidator validate;
     BindingExecutor execute;
-    bool action_fx;
     bool blank_parameter_only;
 };
 
@@ -142,12 +139,12 @@ void load_defaults(GestureBinding *bindings, size_t count)
 }
 
 const AppHandler kAppHandlers[] = {
-    {"espnow", APP_espnow_validate, APP_espnow_execute, true, false},
-    {"lumos", validate_blank, APP_Lumos_execute, false, true},
-    {"pov", validate_blank, APP_POV_execute, false, true},
-    {"ble_keyboard", APP_ble_keyboard_validate, APP_ble_keyboard_execute, true, false},
-    {"ble_mouse", validate_blank, APP_ble_mouse_execute, false, true},
-    {"ble_knob", validate_blank, APP_ble_knob_execute, false, true},
+    {"espnow", APP_espnow_validate, APP_espnow_execute, false},
+    {"lumos", validate_blank, APP_Lumos_execute, true},
+    {"pov", validate_blank, APP_POV_execute, true},
+    {"ble_keyboard", APP_ble_keyboard_validate, APP_ble_keyboard_execute, false},
+    {"ble_mouse", validate_blank, APP_ble_mouse_execute, true},
+    {"ble_knob", validate_blank, APP_ble_knob_execute, true},
 };
 
 const AppHandler *find_app_handler(const char *app)
@@ -713,9 +710,6 @@ void APP_binding_execute(int32_t gesture)
                           (long)gesture);
         return;
     }
-
-    if (handler->action_fx)
-        HAL::ws2812_start_fx(new AnimFlow(0xFFFFFF));
 
     handler->execute(binding.parameter);
 }
