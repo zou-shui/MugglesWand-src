@@ -44,8 +44,16 @@ namespace
     bool execute_key_action(const BLEKeyAction &action, void *context)
     {
         (void)context;
-        if (!ble_keyboard_tap_combo(action.modifiers, action.keycode,
-                                    action.hold_ms))
+
+        if (action.consumer_usage != 0)
+        {
+            // Media keys go through the Consumer Control report and are always
+            // a press-release pair, so hold_ms does not apply to them.
+            if (!ble_consumer_send(action.consumer_usage))
+                return false;
+        }
+        else if (!ble_keyboard_tap_combo(action.modifiers, action.keycode,
+                                         action.hold_ms))
         {
             return false;
         }
