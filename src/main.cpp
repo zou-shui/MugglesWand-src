@@ -5,6 +5,7 @@
 #include "Service/EventBus.h"
 #include "Service/Console.h"
 #include "Service/DeviceConfig.h"
+#include "Service/AP.h"
 #include "Service/Service.h"
 
 #include "HAL/HAL.h"
@@ -26,6 +27,7 @@ Core 0:
 | Button handling   | 1
 | BLE keyboard task | 1
 | BLE battery task  | 1
+| HA MQTT task      | 1
 | Power task        | 0
 
 Core 1:
@@ -70,12 +72,15 @@ void setup()
 
   // 用户APP初始化
   APP_binding_init();
+
+  // 网络接入：根据 DeviceConfig 选择 STA 或 AP，并启动 TCP/Web 服务
+  network_init();
+
   APP_init();
 
-  // 启动手势推理、BLE、WiFi热点
+  // 启动手势推理、BLE
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
   EventBus::publish(EVENT_SYS_BLE);
-  EventBus::publish(EVENT_SYS_AP);
 
   // 检查IMU和电池状态，如果初始化失败则重启
   if (!imu_ok || !batt_ok)

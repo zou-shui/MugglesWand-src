@@ -9,6 +9,7 @@
 #include "DualPrint.h"
 #include "EventBus.h"
 #include "APP/GestureBinding.h"
+#include "APP/APP_HomeAssistant.h"
 #include "APP/APP_POV.h" // pov 命令的图案清单由 APP 层输出
 
 #include <ctype.h>
@@ -45,7 +46,8 @@ static void console_print_help()
     DualSerial.println("gesture <id>   - Simulate gesture detection event with specified ID");
     DualSerial.println("pov [id] [rev] - Set POV pattern params (type 'pov' for usage)");
     DualSerial.println("map            - Configure gesture mappings (type 'map' for usage)");
-    DualSerial.println("config         - Configure AP/BLE identity (type 'config' for usage)");
+    DualSerial.println("config         - Configure AP/BLE/WiFi/MQTT (type 'config' for usage)");
+    DualSerial.println("ha             - Show Home Assistant/MQTT status");
 }
 
 static bool match_command_name(const char *command, const char *name,
@@ -105,6 +107,13 @@ static void console_parse(char *cmd)
     if (match_command_name(cmd, "config", &config_arguments))
     {
         device_config_console(config_arguments);
+        return;
+    }
+
+    const char *ha_arguments = nullptr;
+    if (match_command_name(cmd, "ha", &ha_arguments))
+    {
+        APP_HomeAssistant_console(ha_arguments);
         return;
     }
 

@@ -343,7 +343,7 @@ bool ble_toggle(void)
         device_config_get_ble_name(device_name, sizeof(device_name));
         _device_name = device_name;
 
-        DualSerial.println("[BLE] Initializing BLE service with HID Keyboard...");
+        DualSerial.println("[BLE] Initializing BLE service...");
 
         // 1. 初始化 NimBLE 堆栈
         NimBLEDevice::init(_device_name.c_str());

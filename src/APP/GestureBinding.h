@@ -34,5 +34,9 @@ void APP_binding_init(void);
 // Execute the app currently bound to a gesture ID.
 void APP_binding_execute(int32_t gesture);
 
+// 供其它模块枚举当前映射（例如 HA 自动发现需要知道绑定了哪些事件名）
+size_t APP_binding_count(void);
+bool APP_binding_get(size_t index, GestureBinding *out);
+
 // Handle the raw argument string following the top-level "map" command.
 void APP_binding_console(const char *args);

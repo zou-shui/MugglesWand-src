@@ -1,6 +1,7 @@
 #include "APP.h"
 #include "APP_Lumos.h"
 #include "APP_BLE_HID.h"
+#include "APP_HomeAssistant.h"
 #include "APP_EspNow.h"
 #include "APP_POV.h"
 #include "GestureBinding.h"
@@ -76,6 +77,7 @@ void APP_init()
 
     APP_espnow_init();
     APP_ble_keyboard_init();
+    APP_HomeAssistant_init();
     OPT_WandHeater_init(); // 可选模块：灯带加热助手（OPT = Optional），编译开关见 OPT_WandHeater.h
 
     xTaskCreatePinnedToCore(

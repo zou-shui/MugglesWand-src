@@ -2,10 +2,12 @@
 
 #include "APP_BLE_HID.h"
 #include "APP_EspNow.h"
+#include "APP_HomeAssistant.h"
 #include "APP_Lumos.h"
 #include "APP_POV.h"
 #include "Model/gesture_inference.h"
 #include "Service/DualPrint.h"
+#include "Service/EventBus.h"
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -147,6 +149,7 @@ namespace
         {"ble_keyboard", APP_ble_keyboard_validate, APP_ble_keyboard_execute, false},
         {"ble_mouse", validate_blank, APP_ble_mouse_execute, true},
         {"ble_knob", validate_blank, APP_ble_knob_execute, true},
+        {"ha", APP_HomeAssistant_validate, APP_HomeAssistant_execute, false},
     };
 
     const AppHandler *find_app_handler(const char *app)
@@ -366,7 +369,7 @@ namespace
         DualSerial.println("  map bind <gesture> <app> [parameter]");
         DualSerial.println("  map clear <gesture>");
         DualSerial.println("  map reset");
-        DualSerial.println("apps: espnow, lumos, pov, ble_keyboard, ble_mouse, ble_knob");
+        DualSerial.println("apps: espnow, lumos, pov, ble_keyboard, ble_mouse, ble_knob, ha");
     }
 
     void print_map_list()
@@ -457,6 +460,7 @@ namespace
             return false;
         }
         replace_bindings(candidate);
+        EventBus::publish(EVENT_MAP_CHANGED);
         return true;
     }
 
@@ -714,6 +718,24 @@ void APP_binding_execute(int32_t gesture)
     }
 
     handler->execute(binding.parameter);
+}
+
+size_t APP_binding_count(void)
+{
+    return s_binding_count;
+}
+
+bool APP_binding_get(size_t index, GestureBinding *out)
+{
+    if (out == nullptr || index >= s_binding_count || s_bindings == nullptr)
+        return false;
+
+    if (s_binding_mutex != nullptr)
+        xSemaphoreTake(s_binding_mutex, portMAX_DELAY);
+    copy_binding(*out, s_bindings[index]);
+    if (s_binding_mutex != nullptr)
+        xSemaphoreGive(s_binding_mutex);
+    return true;
 }
 
 void APP_binding_console(const char *args)

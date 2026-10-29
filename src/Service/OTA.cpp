@@ -38,7 +38,7 @@ static void onOTAProgress(size_t current, size_t final)
     {
         ota_progress_millis = millis();
         DualSerial.printf("[OTA] Progress: %u bytes\n", current);
-        ota_progress_pct = (current * 100) / 1200000; // 更新进度百分比
+        ota_progress_pct = final == 0 ? 0 : (uint8_t)((current * 100) / final);
     }
 }
 
@@ -91,11 +91,9 @@ void OTA_begin()
     }
     ota_running = true;
 
-    // OTA 启动时完全接管 WiFi，先停掉 AP 和 ESP-NOW
-    if (ap_is_running())
-        ap_toggle();
-    if (espnow_is_running())
-        espnow_toggle();
+    // OTA 启动时完全接管 WiFi：停止 Web/TCP/mDNS/AP/STA/ESP-NOW，
+    // 避免与下面 WebServer(80) 的端口冲突
+    network_suspend();
 
     DualSerial.println("[OTA] Starting AP mode...");
 

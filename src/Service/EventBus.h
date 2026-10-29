@@ -32,6 +32,10 @@ enum EventID
     EVENT_SYS_AP,       // 无参数
     EVENT_SYS_ESPNOW,   // 无参数
 
+    // --- 网络事件（由 WiFi 事件回调发布，Service 任务处理）---
+    EVENT_NET_STA_GOT_IP,       // STA 获取到 IP, param1: WiFi 信道
+    EVENT_NET_STA_DISCONNECTED, // STA 断开, 无参数
+
     EVENT_BTN_SHORT_PRESS, // 按键短按事件, 参数为连击次数 (1=单击, 2=双击, 3=三击)
 
     // --- IMU 事件 ---
@@ -43,6 +47,9 @@ enum EventID
 
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
+
+    // --- 手势映射事件 ---
+    EVENT_MAP_CHANGED, // 映射表被 bind/clear/reset 修改, 无参数
 
     // --- 电源事件 ---
     EVENT_POWER_CHARGING,     // 充电中, 无参数

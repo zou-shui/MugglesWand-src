@@ -58,6 +58,9 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_AP, service_queue);
     EventBus::subscribe(EVENT_SYS_ESPNOW, service_queue);
     EventBus::subscribe(EVENT_SYS_DEBUG, service_queue);
+    EventBus::subscribe(EVENT_NET_STA_GOT_IP, service_queue);
+    EventBus::subscribe(EVENT_NET_STA_DISCONNECTED, service_queue);
+    EventBus::subscribe(EVENT_BTN_SHORT_PRESS, service_queue);
 
     SystemEvent event;
 
@@ -110,6 +113,22 @@ static void system_service_task(void *param)
 
             case EVENT_SYS_ESPNOW:
                 espnow_toggle();
+                break;
+
+            case EVENT_NET_STA_GOT_IP:
+                network_handle_sta_got_ip(event.param1.i32);
+                break;
+
+            case EVENT_NET_STA_DISCONNECTED:
+                network_handle_sta_disconnected();
+                break;
+
+            case EVENT_BTN_SHORT_PRESS:
+                // 双击硬编码为切换 AP，用于 WiFi 配置错误时从热点恢复
+                if (event.param1.i32 == 2)
+                {
+                    ap_toggle();
+                }
                 break;
 
             case EVENT_SYS_DEBUG:

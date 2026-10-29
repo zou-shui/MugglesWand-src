@@ -1,16 +1,27 @@
 /*
-    WiFi射频管理模块：统一管理 ESP32-S3 的 WiFi 射频资源，避免 AP 与 ESP-NOW 之间的冲突
+    WiFi 网络管理模块：统一管理 AP / STA / ESP-NOW 的射频资源，避免冲突。
+    开机由 network_init() 根据 DeviceConfig 决定接入方式：
+      - 配置了 WiFi SSID：连接 STA，不默认开 AP；Web/TCP 走局域网
+      - 未配置：沿用原有 AP 模式
+    TCP/Web 服务与 AP 射频解耦，ap 命令/双击只切换 AP，不影响 STA 连接。
 */
 #include "AP.h"
 #include "AP_Web.h"
-#include <WiFi.h>
-#include <esp_wifi.h>
-#include <esp_now.h>
-#include <AsyncTCP.h>
+#include "Config.h"
 #include "Service/Console.h"
 #include "Service/DeviceConfig.h"
 #include "Service/DualPrint.h"
+#include "Service/EventBus.h"
+
+#include <Arduino.h>
+#include <AsyncTCP.h>
+#include <ESPmDNS.h>
+#include <WiFi.h>
+#include <ctype.h>
 #include <esp_heap_caps.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+#include <string.h>
 
 // ==================== 配置与常量定义 ====================
 #define TCP_PORT 8080 // TCP 服务器监听端口
@@ -22,26 +33,70 @@ static const uint8_t broadcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static AsyncServer *tcpServer = nullptr;
 static AsyncClient *clients[MAX_CLIENTS] = {nullptr};
 
-static bool is_ap_enabled = false;
-static bool is_espnow_enabled = false;
+static bool s_servers_started = false;
+static bool s_ap_enabled = false;
+static bool s_espnow_enabled = false;
 
 // ESP-NOW readiness：init+add_peer 完成后置 true，deinit 前先置 false
 static volatile bool s_espnow_ready = false;
 
+// ESP-NOW 因信道不为 1 被被动停止；之后回到信道 1 时自动恢复
+static bool s_espnow_blocked = false;
+
+// 是否配置了 WiFi STA（开机后不再改变，重启生效）
+static bool s_sta_configured = false;
+
+// WiFi.begin() 是否已经调用：用于过滤模式切换产生的早期 disconnect 事件
+static bool s_sta_begin_called = false;
+
+// OTA 接管网络后置 true；此时忽略 ap/espnow 切换
+static bool s_network_suspended = false;
+
 // 已下发到 WiFi 驱动的 mode：用于 update_rf_state() 幂等保护，避免重复 WiFi.mode()
 static wifi_mode_t s_current_wifi_mode = WIFI_MODE_NULL;
 
+static char s_sta_ssid[33];
+static char s_sta_pass[64];
+static char s_mdns_hostname[32];
+static bool s_mdns_started = false;
+
+// 串行化 AP/ESP-NOW 状态切换：双击切 AP 与堆内存自愈任务可能并发调用
+static SemaphoreHandle_t s_net_mutex = nullptr;
+
+static void net_lock(void)
+{
+    if (s_net_mutex != nullptr)
+        xSemaphoreTake(s_net_mutex, portMAX_DELAY);
+}
+
+static void net_unlock(void)
+{
+    if (s_net_mutex != nullptr)
+        xSemaphoreGive(s_net_mutex);
+}
+
+// ==================== 前置声明 ====================
+static void update_rf_state(void);
+static void start_espnow(void);
+static void stop_espnow(bool blocked_by_channel);
+static void network_refresh_espnow_gate(void);
+static void servers_start(void);
+static void servers_stop(void);
+static void build_mdns_hostname(void);
+static void start_mdns(void);
+static void on_wifi_event(arduino_event_id_t event);
+
 // ==================== 核心射频(RF)统一调度器 ====================
-// AP 开启时 WiFi 锁定 APSTA，ESP-NOW 切换不触发 WiFi.mode()，
+// AP 开启时 WiFi 锁定 APSTA；ESP-NOW 切换不触发 WiFi.mode()，
 // 避免在 NimBLE 运行期间反复拆装 STA 子接口导致共存状态机崩溃。
 static void update_rf_state(void)
 {
     wifi_mode_t want;
-    if (is_ap_enabled)
+    if (s_ap_enabled)
     {
         want = WIFI_MODE_APSTA;
     }
-    else if (is_espnow_enabled)
+    else if (s_sta_configured || s_espnow_enabled)
     {
         want = WIFI_MODE_STA;
     }
@@ -66,20 +121,60 @@ static void update_rf_state(void)
         char ssid[33];
         char pass[64];
         device_config_get_ap(ssid, sizeof(ssid), pass, sizeof(pass));
-        WiFi.softAP(ssid, pass);
+        if (!WiFi.softAP(ssid, pass))
+        {
+            DualSerial.println("[Net] Failed to start softAP");
+        }
 
-        DualSerial.println("[AP] RF Mode -> WIFI_AP_STA");
+        DualSerial.println("[Net] RF Mode -> WIFI_AP_STA");
         break;
     }
     case WIFI_MODE_STA:
         WiFi.mode(WIFI_STA);
-        DualSerial.println("[AP] RF Mode -> WIFI_STA");
+        DualSerial.println("[Net] RF Mode -> WIFI_STA");
         break;
     default:
         WiFi.softAPdisconnect(true);
         WiFi.mode(WIFI_OFF);
-        DualSerial.println("[AP] RF Mode -> WIFI_OFF");
+        DualSerial.println("[Net] RF Mode -> WIFI_OFF");
         break;
+    }
+}
+
+// ESP-NOW 依赖信道 1。AP/STA 处于其它信道时不允许开启。
+bool network_espnow_allowed(void)
+{
+    if (s_network_suspended)
+        return false;
+
+    if (s_ap_enabled)
+        return WiFi.channel() == 1;
+
+    if (WiFi.status() == WL_CONNECTED)
+        return WiFi.channel() == 1;
+
+    // STA 未连接：若之前因信道被阻塞，保持阻塞直到下一次 GOT_IP 确认信道 1
+    if (s_sta_configured && s_espnow_blocked)
+        return false;
+
+    return true;
+}
+
+// 在 GOT_IP / AP 切换后重新评估 ESP-NOW 是否还能工作
+static void network_refresh_espnow_gate(void)
+{
+    const bool allowed = network_espnow_allowed();
+
+    if (s_espnow_enabled && !allowed)
+    {
+        DualSerial.printf("[Net] WiFi channel %u, stopping ESP-NOW (requires channel 1)\n",
+                          (unsigned)WiFi.channel());
+        stop_espnow(true);
+    }
+    else if (!s_espnow_enabled && s_espnow_blocked && allowed)
+    {
+        DualSerial.println("[Net] WiFi back on channel 1, restarting ESP-NOW");
+        start_espnow();
     }
 }
 
@@ -89,7 +184,7 @@ static void handleData(void *arg, AsyncClient *client, void *data, size_t len)
 {
     if (!console_submit((const char *)data, len))
     {
-        DualSerial.println("[AP] TCP command rejected (empty, too long, or busy)");
+        DualSerial.println("[Net] TCP command rejected (empty, too long, or busy)");
     }
 }
 // 回调：当客户端断开连接时
@@ -101,7 +196,7 @@ static void handleDisconnect(void *arg, AsyncClient *client)
         if (clients[i] == client)
         {
             clients[i] = nullptr;
-            DualSerial.printf("[AP] TCP Client disconnected from slot [%d]\n", i);
+            DualSerial.printf("[Net] TCP Client disconnected from slot [%d]\n", i);
             break;
         }
     }
@@ -124,7 +219,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
     // 如果没有空闲插槽，则拒绝连接
     if (freeIndex == -1)
     {
-        DualSerial.println("[AP] TCP Connection limit reached, rejecting new connection.");
+        DualSerial.println("[Net] TCP Connection limit reached, rejecting new connection.");
         client->close();
         return;
     }
@@ -136,7 +231,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
     client->onData(&handleData, nullptr);
     client->onDisconnect(&handleDisconnect, nullptr);
 
-    DualSerial.printf("[AP] TCP Client connected to slot [%d]\n", freeIndex);
+    DualSerial.printf("[Net] TCP Client connected to slot [%d]\n", freeIndex);
 }
 
 // ==================== 低内存自愈 ====================
@@ -145,7 +240,7 @@ static void handleNewClient(void *arg, AsyncClient *client)
 // 和 lwIP 重传会不断累积，内部堆耗尽后 WiFi 发不出包——表现为 AP 能搜到/
 // 能关联，但网页打不开。
 // 保底策略：堆到临界值后只重启 WiFi 射频回收驱动缓冲，HTTP/TCP 监听保留，
-// 客户端会自动重连（不能调用 stop_ap_server：会丢 80 端口监听）。
+// 客户端会自动重连（不能停止 HTTP/TCP 服务：会丢 80 端口监听）。
 #define AP_HEAP_GUARD_FREE_MIN (32 * 1024)
 #define AP_HEAP_GUARD_LARGEST_MIN (16 * 1024)
 #define AP_HEAP_GUARD_EMERGENCY_LARGEST (8 * 1024)
@@ -154,6 +249,8 @@ static bool s_heap_guard_started = false;
 
 static void ap_rf_restart(void)
 {
+    net_lock();
+
     // 关闭现有连接，但不动监听 socket
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
@@ -165,11 +262,15 @@ static void ap_rf_restart(void)
     }
     ap_web_close_all();
 
-    is_ap_enabled = false;
+    const bool was_ap = s_ap_enabled;
+    s_ap_enabled = false;
     update_rf_state(); // APSTA -> STA(ESP-NOW) / OFF，驱动回收 AP 缓冲
     vTaskDelay(pdMS_TO_TICKS(500));
-    is_ap_enabled = true;
+    s_ap_enabled = was_ap;
     update_rf_state(); // -> APSTA，重新 softAP
+    network_refresh_espnow_gate();
+
+    net_unlock();
 }
 
 static void ap_heap_guard_task(void *param)
@@ -181,7 +282,7 @@ static void ap_heap_guard_task(void *param)
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000));
-        if (!is_ap_enabled)
+        if (!s_ap_enabled)
         {
             low_since = 0;
             continue;
@@ -209,77 +310,256 @@ static void ap_heap_guard_task(void *param)
 
         last_restart = millis();
         low_since = millis();
-        DualSerial.printf("[AP] low heap (int=%u largest=%u), restarting WiFi RF\n",
+        DualSerial.printf("[Net] low heap (int=%u largest=%u), restarting WiFi RF\n",
                           (unsigned)int_free, (unsigned)largest);
         ap_rf_restart();
     }
 }
 
-static void start_ap_server(void)
+// Web/TCP 服务与 AP 射频解耦：两种接入方式下都启动
+static void servers_start(void)
 {
-    is_ap_enabled = true;
-    update_rf_state(); // 统一刷新底层 RF 模式
-
-    if (!s_heap_guard_started)
-    {
-        s_heap_guard_started = true;
-        xTaskCreatePinnedToCore(ap_heap_guard_task, "ap_heap_guard", 3072, nullptr, 1, nullptr, 0);
-    }
+    if (s_servers_started)
+        return;
 
     if (tcpServer == nullptr)
     {
         tcpServer = new AsyncServer(TCP_PORT);
     }
 
-    // 注册新客户端连接的回调函数
-    tcpServer->onClient(&handleNewClient, nullptr);
-    tcpServer->begin();
+    if (tcpServer != nullptr)
+    {
+        tcpServer->onClient(&handleNewClient, nullptr);
+        tcpServer->begin();
+        DualSerial.printf("[Net] TCP console listening on port %u\n",
+                          (unsigned)TCP_PORT);
+    }
+    else
+    {
+        DualSerial.println("[Net] Failed to create TCP server");
+    }
 
-    DualSerial.println("[AP] TCP Server Started");
-    DualSerial.print("[AP] IP Address: ");
-    DualSerial.println(WiFi.softAPIP());
-    ap_web_start(); // 同时启动 Web 控制面板
+    ap_web_start();
+    s_servers_started = true;
 }
 
-static void stop_ap_server(void)
+static void servers_stop(void)
 {
-    // 关闭所有在线的客户端
+    if (!s_servers_started)
+        return;
+
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
-        if (clients[i] && clients[i]->connected())
+        if (clients[i] != nullptr && clients[i]->connected())
         {
             clients[i]->close();
         }
         clients[i] = nullptr;
     }
 
-    if (tcpServer)
+    if (tcpServer != nullptr)
     {
         tcpServer->end();
     }
 
-    is_ap_enabled = false;
-    update_rf_state(); // 如果 ESP-NOW 没开，此时会自动 WiFi.mode(WIFI_OFF)
-    DualSerial.println("[AP] TCP Server Stopped");
-    ap_web_stop(); // 同时停止 Web 控制面板
+    ap_web_stop();
+    s_servers_started = false;
+    DualSerial.println("[Net] TCP + Web servers stopped");
 }
 
+// ==================== 2. 启动与状态 ====================
+void network_init(void)
+{
+    if (s_net_mutex == nullptr)
+        s_net_mutex = xSemaphoreCreateMutex();
+
+    net_lock();
+
+    s_network_suspended = false;
+    s_sta_configured = device_config_has_wifi();
+
+    WiFi.onEvent(on_wifi_event, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    WiFi.onEvent(on_wifi_event, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+    if (s_sta_configured)
+    {
+        device_config_get_wifi(s_sta_ssid, sizeof(s_sta_ssid),
+                               s_sta_pass, sizeof(s_sta_pass));
+        WiFi.setAutoReconnect(true);
+
+        update_rf_state(); // -> WIFI_STA
+        build_mdns_hostname();
+        WiFi.setHostname(s_mdns_hostname);
+
+        DualSerial.printf("[Net] STA mode, connecting to \"%s\"\n", s_sta_ssid);
+        DualSerial.println("[Net] Double-click the button to toggle AP if WiFi fails");
+        s_sta_begin_called = true;
+        WiFi.begin(s_sta_ssid, s_sta_pass);
+    }
+    else
+    {
+        s_ap_enabled = true;
+        update_rf_state(); // -> WIFI_AP_STA + softAP
+        DualSerial.printf("[Net] No WiFi config, AP started: %s\n",
+                          WiFi.softAPIP().toString().c_str());
+    }
+
+    servers_start();
+
+    if (!s_heap_guard_started)
+    {
+        s_heap_guard_started = true;
+        xTaskCreatePinnedToCore(ap_heap_guard_task, "ap_heap_guard", 3072,
+                                nullptr, 1, nullptr, 0);
+    }
+
+    net_unlock();
+}
+
+bool network_is_sta_configured(void)
+{
+    return s_sta_configured;
+}
+
+bool network_is_sta_connected(void)
+{
+    if (!s_sta_configured || s_network_suspended)
+        return false;
+
+    const wifi_mode_t mode = WiFi.getMode();
+    return (mode & WIFI_MODE_STA) != 0 && WiFi.status() == WL_CONNECTED;
+}
+
+const char *network_get_mdns_hostname(void)
+{
+    return s_mdns_hostname;
+}
+
+void network_handle_sta_got_ip(int32_t channel)
+{
+    if (s_network_suspended)
+        return;
+
+    net_lock();
+
+    if (s_network_suspended)
+    {
+        net_unlock();
+        return;
+    }
+
+    const int ch = channel > 0 ? (int)channel : (int)WiFi.channel();
+    char ip[16] = {};
+    WiFi.localIP().toString().toCharArray(ip, sizeof(ip));
+
+    DualSerial.printf("[Net] WiFi connected: \"%s\", IP %s, ch %d, RSSI %d dBm\n",
+                      s_sta_ssid, ip, ch, (int)WiFi.RSSI());
+
+    start_mdns();
+    DualSerial.printf("[Net] Web UI: http://%s/ or http://%s.local/\n",
+                      ip, s_mdns_hostname);
+
+    network_refresh_espnow_gate();
+
+    net_unlock();
+}
+
+void network_handle_sta_disconnected(void)
+{
+    if (s_network_suspended)
+        return;
+
+    static uint32_t last_log_ms = 0;
+    const uint32_t now = millis();
+    if (now - last_log_ms >= 5000)
+    {
+        last_log_ms = now;
+        DualSerial.printf("[Net] WiFi disconnected (status %d), retrying...\n",
+                          (int)WiFi.status());
+    }
+
+    // 不在这里恢复 ESP-NOW：信道可能仍是旧值，等下一次 GOT_IP 再判断
+}
+
+void network_suspend(void)
+{
+    if (s_network_suspended)
+        return;
+
+    net_lock();
+
+    if (s_network_suspended)
+    {
+        net_unlock();
+        return;
+    }
+
+    s_network_suspended = true;
+
+    servers_stop();
+
+    if (s_mdns_started)
+    {
+        MDNS.end();
+        s_mdns_started = false;
+    }
+
+    if (s_espnow_ready || s_espnow_enabled)
+    {
+        s_espnow_ready = false;
+        s_espnow_enabled = false;
+        esp_now_deinit();
+    }
+
+    s_ap_enabled = false;
+    s_current_wifi_mode = WIFI_MODE_NULL;
+    WiFi.disconnect(true);
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_OFF);
+
+    DualSerial.println("[Net] Network suspended for OTA");
+
+    net_unlock();
+}
+
+// ==================== 3. AP 控制 ====================
 void ap_toggle(void)
 {
-    if (is_ap_enabled)
-        stop_ap_server();
+    net_lock();
+
+    if (s_network_suspended)
+    {
+        DualSerial.println("[Net] AP toggle ignored (network suspended)");
+        net_unlock();
+        return;
+    }
+
+    if (s_ap_enabled)
+    {
+        s_ap_enabled = false;
+        update_rf_state();
+        DualSerial.println("[Net] AP stopped");
+    }
     else
-        start_ap_server();
+    {
+        s_ap_enabled = true;
+        update_rf_state();
+        DualSerial.printf("[Net] AP started: %s\n",
+                          WiFi.softAPIP().toString().c_str());
+    }
+
+    network_refresh_espnow_gate();
+    net_unlock();
 }
 
 bool ap_is_running(void)
 {
-    return is_ap_enabled;
+    return s_ap_enabled;
 }
 
 void ap_print(const char *buffer, size_t length)
 {
-    if (!is_ap_enabled)
+    if (!s_servers_started)
         return;
 
     for (int i = 0; i < MAX_CLIENTS; i++)
@@ -294,18 +574,38 @@ void ap_print(const char *buffer, size_t length)
     ap_web_print(buffer, length); // 同时广播到 WebSocket 客户端
 }
 
-// ==================== 2. ESP-NOW 模块实现 ====================
+// ==================== 4. ESP-NOW 模块实现 ====================
 static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {}
 
 static void start_espnow(void)
 {
-    is_espnow_enabled = true;
+    if (s_network_suspended || s_espnow_enabled)
+        return;
+
+    if (!network_espnow_allowed())
+    {
+        DualSerial.printf("[Net] ESP-NOW disabled: WiFi channel %u (requires channel 1)\n",
+                          (unsigned)WiFi.channel());
+        if (s_sta_configured)
+            s_espnow_blocked = true;
+        return;
+    }
+
+    s_espnow_enabled = true;
     update_rf_state();
+
+    // 未与 AP/STA 关联时，射频可能停留在旧信道；显式回到 1
+    if (!s_ap_enabled && WiFi.status() != WL_CONNECTED)
+    {
+        const esp_err_t err = esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);
+        if (err != ESP_OK)
+            DualSerial.printf("[Net] Failed to set channel 1 (%d)\n", (int)err);
+    }
 
     if (esp_now_init() != ESP_OK)
     {
-        DualSerial.println("[AP] ESP-NOW Init Failed!");
-        is_espnow_enabled = false; // init 失败回滚 flag
+        DualSerial.println("[Net] ESP-NOW Init Failed!");
+        s_espnow_enabled = false; // init 失败回滚 flag
         update_rf_state();
         return;
     }
@@ -316,35 +616,71 @@ static void start_espnow(void)
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
     memcpy(peerInfo.peer_addr, broadcastMac, 6);
+    peerInfo.channel = 0;
     peerInfo.encrypt = false;
-    esp_now_add_peer(&peerInfo);
+    if (esp_now_add_peer(&peerInfo) != ESP_OK)
+    {
+        DualSerial.println("[Net] ESP-NOW add broadcast peer failed");
+    }
 
     s_espnow_ready = true;
-    DualSerial.println("[AP] ESP-NOW Started");
+    s_espnow_blocked = false;
+    DualSerial.println("[Net] ESP-NOW Started");
 }
 
-static void stop_espnow(void)
+static void stop_espnow(bool blocked_by_channel)
 {
+    const bool was_running = s_espnow_enabled || s_espnow_ready;
+
     s_espnow_ready = false;
-    is_espnow_enabled = false;
+    s_espnow_enabled = false;
+    s_espnow_blocked = blocked_by_channel;
 
-    esp_now_deinit();
-    update_rf_state();
-
-    DualSerial.println("[AP] ESP-NOW Stopped");
+    if (was_running)
+    {
+        esp_now_deinit();
+        update_rf_state();
+        DualSerial.println("[Net] ESP-NOW Stopped");
+    }
+    else
+    {
+        update_rf_state();
+    }
 }
 
 void espnow_toggle(void)
 {
-    if (is_espnow_enabled)
-        stop_espnow();
-    else
-        start_espnow();
+    net_lock();
+
+    if (s_network_suspended)
+    {
+        DualSerial.println("[Net] ESP-NOW toggle ignored (network suspended)");
+        net_unlock();
+        return;
+    }
+
+    if (s_espnow_enabled)
+    {
+        stop_espnow(false);
+        net_unlock();
+        return;
+    }
+
+    if (!network_espnow_allowed())
+    {
+        DualSerial.printf("[Net] ESP-NOW requires WiFi channel 1 (current %u)\n",
+                          (unsigned)WiFi.channel());
+        net_unlock();
+        return;
+    }
+
+    start_espnow();
+    net_unlock();
 }
 
 bool espnow_is_running(void)
 {
-    return is_espnow_enabled;
+    return s_espnow_enabled;
 }
 
 // 通用底层发送接口：把具体的数据内容与长度完全解耦给外部
@@ -354,4 +690,80 @@ bool espnow_send_data(const uint8_t *data, size_t len)
         return false;
 
     return (esp_now_send(broadcastMac, data, len) == ESP_OK);
+}
+
+// ==================== 5. mDNS 与 WiFi 事件 ====================
+static void build_mdns_hostname(void)
+{
+    char device_name[30] = {};
+    device_config_get_ble_name(device_name, sizeof(device_name));
+
+    char base[24] = {};
+    size_t out = 0;
+    for (const char *p = device_name; *p != '\0' && out + 1 < sizeof(base); ++p)
+    {
+        const char c = (char)tolower((unsigned char)*p);
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+        {
+            base[out++] = c;
+        }
+        else if (out > 0 && base[out - 1] != '-')
+        {
+            base[out++] = '-';
+        }
+    }
+    while (out > 0 && base[out - 1] == '-')
+        --out;
+
+    if (out == 0)
+    {
+        const char *fallback = "muggles-wand";
+        for (size_t i = 0; fallback[i] != '\0' && out + 1 < sizeof(base); ++i)
+            base[out++] = fallback[i];
+    }
+    base[out] = '\0';
+
+    uint8_t mac[6] = {};
+    WiFi.macAddress(mac);
+    snprintf(s_mdns_hostname, sizeof(s_mdns_hostname), "%s-%02x%02x%02x",
+             base, mac[3], mac[4], mac[5]);
+}
+
+static void start_mdns(void)
+{
+    if (s_mdns_started || s_mdns_hostname[0] == '\0')
+        return;
+
+    if (MDNS.begin(s_mdns_hostname))
+    {
+        MDNS.addService("http", "tcp", 80);
+        s_mdns_started = true;
+        DualSerial.printf("[Net] mDNS: http://%s.local/\n", s_mdns_hostname);
+    }
+    else
+    {
+        DualSerial.println("[Net] mDNS start failed");
+    }
+}
+
+static void on_wifi_event(arduino_event_id_t event)
+{
+    // AP-only 模式下 WiFi.mode 切换也可能触发 STA 事件，直接忽略
+    if (!s_sta_configured)
+        return;
+
+    switch (event)
+    {
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+        EventBus::publish(EVENT_NET_STA_GOT_IP, (int32_t)WiFi.channel());
+        break;
+
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        if (s_sta_begin_called)
+            EventBus::publish(EVENT_NET_STA_DISCONNECTED);
+        break;
+
+    default:
+        break;
+    }
 }
