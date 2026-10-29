@@ -115,9 +115,10 @@ namespace
     {
         DualSerial.println("Device config:");
         DualSerial.println("  config list");
-        DualSerial.println("  config ap <ssid>");
-        DualSerial.println("  config pass <password>");
         DualSerial.println("  config ble <name>");
+        DualSerial.println("  config ap <ssid>");
+        DualSerial.println("  config ap-pass <password>");
+
         DualSerial.println("  config reset");
         DualSerial.println("Note: value is the rest of the line (spaces allowed).");
     }
@@ -333,26 +334,6 @@ void device_config_console(const char *args)
         }
         device_config_reset();
     }
-    else if (strcmp(subcommand, "ap") == 0)
-    {
-        const char *value = rest_of_line(cursor);
-        if (value == nullptr || *value == '\0')
-        {
-            DualSerial.println("Usage: config ap <ssid>");
-            return;
-        }
-        device_config_set_ap_ssid(value);
-    }
-    else if (strcmp(subcommand, "pass") == 0)
-    {
-        const char *value = rest_of_line(cursor);
-        if (value == nullptr || *value == '\0')
-        {
-            DualSerial.println("Usage: config pass <password>");
-            return;
-        }
-        device_config_set_ap_pass(value);
-    }
     else if (strcmp(subcommand, "ble") == 0)
     {
         const char *value = rest_of_line(cursor);
@@ -363,6 +344,27 @@ void device_config_console(const char *args)
         }
         device_config_set_ble_name(value);
     }
+    else if (strcmp(subcommand, "ap") == 0)
+    {
+        const char *value = rest_of_line(cursor);
+        if (value == nullptr || *value == '\0')
+        {
+            DualSerial.println("Usage: config ap <ssid>");
+            return;
+        }
+        device_config_set_ap_ssid(value);
+    }
+    else if (strcmp(subcommand, "ap-pass") == 0)
+    {
+        const char *value = rest_of_line(cursor);
+        if (value == nullptr || *value == '\0')
+        {
+            DualSerial.println("Usage: config ap-pass <password>");
+            return;
+        }
+        device_config_set_ap_pass(value);
+    }
+
     else
     {
         DualSerial.printf("Unknown config subcommand: %s\n", subcommand);
