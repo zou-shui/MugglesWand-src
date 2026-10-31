@@ -48,6 +48,9 @@ static bool s_espnow_blocked = false;
 // 是否配置了 WiFi STA（开机后不再改变，重启生效）
 static bool s_sta_configured = false;
 
+// WiFi STA 服务开关：运行时可 toggle，开机默认跟随配置
+static bool s_sta_enabled = false;
+
 // WiFi.begin() 是否已经调用：用于过滤模式切换产生的早期 disconnect 事件
 static bool s_sta_begin_called = false;
 
@@ -109,7 +112,7 @@ static void sta_retry_pause(void)
 
 static void sta_retry_resume(void)
 {
-    if (!s_sta_configured || !s_sta_retry_paused)
+    if (!s_sta_enabled || !s_sta_retry_paused)
         return;
 
     s_sta_retry_paused = false;
@@ -118,7 +121,7 @@ static void sta_retry_resume(void)
     if (WiFi.status() != WL_CONNECTED)
     {
         DualSerial.printf("[Net] Resuming STA connection to \"%s\"\n", s_sta_ssid);
-        WiFi.begin();
+        WiFi.begin(s_sta_ssid, s_sta_pass);
     }
 }
 
@@ -143,7 +146,7 @@ static void update_rf_state(void)
     {
         want = WIFI_MODE_APSTA;
     }
-    else if (s_sta_configured || s_espnow_enabled)
+    else if (s_sta_enabled || s_espnow_enabled)
     {
         want = WIFI_MODE_STA;
     }
@@ -208,8 +211,9 @@ bool network_espnow_allowed(void)
     if (WiFi.status() == WL_CONNECTED)
         return WiFi.channel() == 1;
 
-    // STA 未连接：若之前因信道被阻塞，保持阻塞直到下一次 GOT_IP 确认信道 1
-    if (s_sta_configured && s_espnow_blocked)
+    // STA 未连接：若之前因信道被阻塞，保持阻塞直到下一次 GOT_IP 确认信道 1。
+    // WiFi 开关关闭时不存在 STA 扫描，允许在信道 1 上恢复 ESP-NOW。
+    if (s_sta_enabled && s_espnow_blocked)
         return false;
 
     return true;
@@ -432,6 +436,7 @@ void network_init(void)
 
     s_network_suspended = false;
     s_sta_configured = device_config_has_wifi();
+    s_sta_enabled = s_sta_configured;
 
     WiFi.onEvent(on_wifi_event, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(on_wifi_event, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
@@ -476,9 +481,14 @@ bool network_is_sta_configured(void)
     return s_sta_configured;
 }
 
+bool network_is_sta_enabled(void)
+{
+    return s_sta_configured && s_sta_enabled;
+}
+
 bool network_is_sta_connected(void)
 {
-    if (!s_sta_configured || s_network_suspended)
+    if (!s_sta_enabled || s_network_suspended)
         return false;
 
     const wifi_mode_t mode = WiFi.getMode();
@@ -492,12 +502,12 @@ const char *network_get_mdns_hostname(void)
 
 void network_handle_sta_got_ip(int32_t channel)
 {
-    if (s_network_suspended)
+    if (s_network_suspended || !s_sta_enabled)
         return;
 
     net_lock();
 
-    if (s_network_suspended)
+    if (s_network_suspended || !s_sta_enabled)
     {
         net_unlock();
         return;
@@ -524,6 +534,10 @@ void network_handle_sta_disconnected(void)
     if (s_network_suspended)
         return;
 
+    // 手动关闭 STA 导致的事件：不再重连，也不必打印“retrying”
+    if (!s_sta_enabled)
+        return;
+
     // AP 开启期间不允许 STA 继续扫描重连（会拖走 SoftAP 的信道）。
     // Arduino 核心在断开事件里可能已抢先发起一次重连（首次断开必重试），
     // 这里把它按下去。
@@ -539,8 +553,9 @@ void network_handle_sta_disconnected(void)
     if (now - last_log_ms >= 5000)
     {
         last_log_ms = now;
-        DualSerial.printf("[Net] WiFi disconnected (status %d), retrying...\n",
-                          (int)WiFi.status());
+        DualSerial.printf("[Net] WiFi disconnected (status %d), %s\n",
+                          (int)WiFi.status(),
+                          s_sta_retry_paused ? "auto-retry paused" : "retrying...");
     }
 
     // 不在这里恢复 ESP-NOW：信道可能仍是旧值，等下一次 GOT_IP 再判断
@@ -587,7 +602,7 @@ void network_suspend(void)
     net_unlock();
 }
 
-// ==================== 3. AP 控制 ====================
+// ==================== 3. AP / WiFi STA 控制 ====================
 void ap_toggle(void)
 {
     net_lock();
@@ -624,6 +639,70 @@ void ap_toggle(void)
 bool ap_is_running(void)
 {
     return s_ap_enabled;
+}
+
+// 开/关 WiFi STA。关闭时只断 STA，AP 与 ESP-NOW 保持原状态；
+// 开启时若 AP 也开着，只尝试连接一次（全信道扫描会拖走 SoftAP 的信道）。
+void wifi_toggle(void)
+{
+    net_lock();
+
+    if (s_network_suspended)
+    {
+        DualSerial.println("[Net] WiFi toggle ignored (network suspended)");
+        net_unlock();
+        return;
+    }
+
+    if (!s_sta_configured)
+    {
+        DualSerial.println("[Net] WiFi toggle ignored (no WiFi configured)");
+        net_unlock();
+        return;
+    }
+
+    if (s_sta_enabled)
+    {
+        s_sta_enabled = false;
+        s_sta_retry_paused = true;
+        WiFi.setAutoReconnect(false);
+        esp_wifi_disconnect(); // 只断 STA，AP 不受影响；未连接时静默失败
+
+        if (s_mdns_started)
+        {
+            MDNS.end();
+            s_mdns_started = false;
+        }
+
+        // AP 开着时仍保持 APSTA（避免重启 AP）；否则关掉射频或退回 ESP-NOW 所需模式
+        update_rf_state();
+        DualSerial.println("[Net] WiFi STA stopped");
+    }
+    else
+    {
+        s_sta_enabled = true;
+
+        if (s_ap_enabled)
+        {
+            // 只发起一次连接：失败后保持暂停自动重连，等 AP 关闭再恢复
+            s_sta_retry_paused = true;
+            WiFi.setAutoReconnect(false);
+            update_rf_state(); // 已是 APSTA，不会重启 AP
+            WiFi.begin(s_sta_ssid, s_sta_pass);
+            DualSerial.printf("[Net] WiFi STA enabled (single attempt while AP is on): \"%s\"\n",
+                              s_sta_ssid);
+        }
+        else
+        {
+            s_sta_retry_paused = true; // 统一走 resume：恢复自动重连并发起连接
+            update_rf_state();         // -> WIFI_STA
+            sta_retry_resume();
+            DualSerial.printf("[Net] WiFi STA enabled: \"%s\"\n", s_sta_ssid);
+        }
+    }
+
+    network_refresh_espnow_gate();
+    net_unlock();
 }
 
 void ap_print(const char *buffer, size_t length)

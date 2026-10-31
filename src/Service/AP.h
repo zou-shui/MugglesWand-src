@@ -14,8 +14,15 @@ void network_init(void);
 // 是否配置了 WiFi STA（SSID 非空）
 bool network_is_sta_configured(void);
 
+// WiFi STA 服务是否开启（运行时可切换）
+bool network_is_sta_enabled(void);
+
 // STA 是否已连接并拿到 IP
 bool network_is_sta_connected(void);
+
+// ==================== WiFi STA 控制接口 ====================
+// 开/关 WiFi STA：关闭时断开连接并停止自动重连，AP 与 ESP-NOW 不受影响
+void wifi_toggle(void);
 
 // 当前射频信道是否允许 ESP-NOW（ESP-NOW 依赖信道 1）
 bool network_espnow_allowed(void);

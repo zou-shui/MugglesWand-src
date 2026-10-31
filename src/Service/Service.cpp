@@ -57,6 +57,7 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
     EventBus::subscribe(EVENT_SYS_AP, service_queue);
     EventBus::subscribe(EVENT_SYS_ESPNOW, service_queue);
+    EventBus::subscribe(EVENT_SYS_WIFI, service_queue);
     EventBus::subscribe(EVENT_SYS_DEBUG, service_queue);
     EventBus::subscribe(EVENT_NET_STA_GOT_IP, service_queue);
     EventBus::subscribe(EVENT_NET_STA_DISCONNECTED, service_queue);
@@ -113,6 +114,9 @@ static void system_service_task(void *param)
 
             case EVENT_SYS_ESPNOW:
                 espnow_toggle();
+                break;
+            case EVENT_SYS_WIFI:
+                wifi_toggle();
                 break;
 
             case EVENT_NET_STA_GOT_IP:

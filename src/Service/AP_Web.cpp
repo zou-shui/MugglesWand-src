@@ -196,6 +196,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
       <div class="btn-row">
         <button onclick="sendCmd('ota');setTimeout(function(){window.open('http://192.168.4.1/update','_blank')},500)" class="accent">OTA</button>
         <button onclick="sendCmd('ap')" class="accent">AP</button>
+        <button onclick="sendCmd('wifi')" class="green">WiFi</button>
         <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
         <button onclick="sendCmd('ble')" class="blue">BLE</button>
       </div>

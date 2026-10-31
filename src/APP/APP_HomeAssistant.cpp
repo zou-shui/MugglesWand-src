@@ -630,10 +630,15 @@ void APP_HomeAssistant_console(const char *args)
     }
 
     const bool sta_configured = network_is_sta_configured();
+    const bool sta_enabled = network_is_sta_enabled();
     const bool sta_connected = network_is_sta_connected();
     if (!sta_configured)
     {
         DualSerial.println("  WiFi     : not configured");
+    }
+    else if (!sta_enabled)
+    {
+        DualSerial.println("  WiFi     : disabled (use `wifi` to enable)");
     }
     else
     {

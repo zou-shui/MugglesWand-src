@@ -38,6 +38,7 @@ static void console_print_help()
     DualSerial.println("shutdown       - Turn off the power");
     DualSerial.println("ota            - Enter OTA mode");
     DualSerial.println("ap             - Toggle AP service on/off");
+    DualSerial.println("wifi           - Toggle WiFi STA service on/off");
     DualSerial.println("espnow         - Toggle ESP-NOW service on/off");
     DualSerial.println("ble            - Toggle BLE service on/off");
     DualSerial.println("inference      - Switch IMU to inference mode (push data to gesture buffer)");
@@ -150,6 +151,10 @@ static void console_parse(char *cmd)
     else if (!strcmp(token, "ap"))
     {
         EventBus::publish(EVENT_SYS_AP);
+    }
+    else if (!strcmp(token, "wifi"))
+    {
+        EventBus::publish(EVENT_SYS_WIFI);
     }
     else if (!strcmp(token, "espnow"))
     {

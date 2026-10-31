@@ -31,6 +31,7 @@ enum EventID
     EVENT_SYS_BLE,      // 无参数
     EVENT_SYS_AP,       // 无参数
     EVENT_SYS_ESPNOW,   // 无参数
+    EVENT_SYS_WIFI,     // 无参数
 
     // --- 网络事件（由 WiFi 事件回调发布，Service 任务处理）---
     EVENT_NET_STA_GOT_IP,       // STA 获取到 IP, param1: WiFi 信道
