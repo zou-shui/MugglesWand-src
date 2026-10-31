@@ -738,6 +738,30 @@ bool APP_binding_get(size_t index, GestureBinding *out)
     return true;
 }
 
+bool APP_binding_uses_app(const char *app)
+{
+    if (app == nullptr || app[0] == '\0' ||
+        s_binding_count == 0 || s_bindings == nullptr)
+    {
+        return false;
+    }
+
+    bool found = false;
+    if (s_binding_mutex != nullptr)
+        xSemaphoreTake(s_binding_mutex, portMAX_DELAY);
+    for (size_t i = 0; i < s_binding_count; ++i)
+    {
+        if (strcmp(s_bindings[i].app, app) == 0)
+        {
+            found = true;
+            break;
+        }
+    }
+    if (s_binding_mutex != nullptr)
+        xSemaphoreGive(s_binding_mutex);
+    return found;
+}
+
 void APP_binding_console(const char *args)
 {
     const char *cursor = args == nullptr ? "" : args;

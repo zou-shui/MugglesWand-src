@@ -818,6 +818,9 @@ void espnow_toggle(void)
     {
         DualSerial.printf("[Net] ESP-NOW requires WiFi channel 1 (current %u)\n",
                           (unsigned)WiFi.channel());
+        // 记录本次启动请求，等 WiFi 回到信道 1 时由 network_refresh_espnow_gate 补启
+        if (s_sta_configured)
+            s_espnow_blocked = true;
         net_unlock();
         return;
     }

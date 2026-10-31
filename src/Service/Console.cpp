@@ -5,10 +5,12 @@
 */
 #include <Arduino.h>
 #include "Console.h"
+#include "AP.h"
 #include "DeviceConfig.h"
 #include "DualPrint.h"
 #include "EventBus.h"
 #include "APP/GestureBinding.h"
+#include "APP/APP_EspNow.h"
 #include "APP/APP_HomeAssistant.h"
 #include "APP/APP_POV.h" // pov 命令的图案清单由 APP 层输出
 
@@ -158,6 +160,9 @@ static void console_parse(char *cmd)
     }
     else if (!strcmp(token, "espnow"))
     {
+        // 无 espnow 绑定时开机不会初始化心跳，手动开启需补上
+        if (!espnow_is_running())
+            APP_espnow_ensure_heartbeat();
         EventBus::publish(EVENT_SYS_ESPNOW);
     }
     else if (!strcmp(token, "ble"))

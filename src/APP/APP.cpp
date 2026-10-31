@@ -60,6 +60,11 @@ static void app_task(void *pvParameters)
                 APP_POV_set_params((uint8_t)event.param1.i32, event.param2.i32 != 0);
                 break;
 
+            case EVENT_MAP_CHANGED:
+                // 映射变化后按需补启 ESP-NOW（不会自动关闭）
+                APP_espnow_sync();
+                break;
+
             default:
                 break;
             }
@@ -74,6 +79,7 @@ void APP_init()
     EventBus::subscribe(EVENT_BTN_SHORT_PRESS, app_queue);
     EventBus::subscribe(EVENT_IMU_DATA_UPDATED, app_queue);
     EventBus::subscribe(EVENT_POV_SET, app_queue);
+    EventBus::subscribe(EVENT_MAP_CHANGED, app_queue);
 
     APP_espnow_init();
     APP_ble_keyboard_init();

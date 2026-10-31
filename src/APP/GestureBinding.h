@@ -38,5 +38,8 @@ void APP_binding_execute(int32_t gesture);
 size_t APP_binding_count(void);
 bool APP_binding_get(size_t index, GestureBinding *out);
 
+// 当前是否有手势绑定到指定 app（用于按需启动模块，如 espnow）
+bool APP_binding_uses_app(const char *app);
+
 // Handle the raw argument string following the top-level "map" command.
 void APP_binding_console(const char *args);
