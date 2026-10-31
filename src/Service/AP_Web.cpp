@@ -23,7 +23,7 @@ static const char WEB_PAGE[] = R"raw(
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Muggles' Wand</title>
 <style>
-:root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--purple:#b06fd1;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e;--mono:'Cascadia Code','Fira Code',Consolas,Menlo,Monaco,'DejaVu Sans Mono','Liberation Mono','Roboto Mono','Droid Sans Mono','Courier New','Microsoft YaHei','PingFang SC','Noto Sans CJK SC','Noto Sans SC',monospace}
+:root{--bg:#1a1a2e;--panel:#16213e;--accent:#0f3460;--text:#e0e0e0;--green:#4caf84;--red:#e0556a;--warn:#e47352;--blue:#5b9bd5;--orange:#e8913a;--purple:#b06fd1;--violet:#8a5cd6;--teal:#2f9e95;--rose:#d97884;--btn-bg:#1e3a5f;--btn-hover:#2a4a7f;--border:#2a3a5e;--mono:'Cascadia Code','Fira Code',Consolas,Menlo,Monaco,'DejaVu Sans Mono','Liberation Mono','Roboto Mono','Droid Sans Mono','Courier New','Microsoft YaHei','PingFang SC','Noto Sans CJK SC','Noto Sans SC',monospace}
 *{box-sizing:border-box;margin:0;padding:0}
 html{overflow-anchor:none}
 body{font:14px/1.5 'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -109,6 +109,9 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .btn-row button.green{background:var(--green);border-color:var(--green);color:#fff}
 .btn-row button.blue{background:var(--blue);border-color:var(--blue);color:#fff}
 .btn-row button.purple{background:var(--purple);border-color:var(--purple);color:#fff}
+.btn-row button.violet{background:var(--violet);border-color:var(--violet);color:#fff}
+.btn-row button.teal{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn-row button.rose{background:var(--rose);border-color:var(--rose);color:#fff}
 .btn-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;min-width:0}
 /* 控制分组：手势 / POV */
 .ctrl-group{display:flex;align-items:center;gap:4px;flex:1;min-width:0;background:var(--accent);border:1px solid var(--border);border-radius:6px;padding:2px 5px}
@@ -130,28 +133,54 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 /* 控制面板二级页面：手势绑定 / 参数配置 */
 .ctrl-view{display:none}
 .ctrl-view.active{display:block}
-.subpage-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 12px 0}
+.subpage-bar{display:flex;align-items:center;gap:8px;padding:12px 12px 0}
 .subpage-bar .subpage-title{flex:1;min-width:72px;font-size:13px;font-weight:600}
-.subpage-bar button{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.2}
+.subpage-bar button{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:9px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1.3;min-height:40px}
 .subpage-bar button:hover{background:var(--btn-hover)}
-.subpage-bar button.warning{background:var(--warn);border-color:var(--warn);color:#fff}
+/* 页面末尾的操作按钮：比顶栏按钮更大，便于触屏点按 */
+.subpage-actions{display:flex;flex-wrap:wrap;gap:10px;padding:4px 12px 14px}
+.subpage-actions button{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:10px 20px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1.3;min-height:42px}
+.subpage-actions button:hover{background:var(--btn-hover)}
+.subpage-actions button.warning{background:var(--warn);border-color:var(--warn);color:#fff}
 .subpage-note{padding:6px 12px 0;color:#8892aa;font-size:12px;line-height:1.5}
 .subpage-status{padding:6px 12px 0;font-size:12px;line-height:1.5;min-height:18px;color:var(--green);white-space:pre-wrap;word-break:break-all}
 .subpage-status.pending{color:var(--orange)}
 .subpage-status.error{color:var(--red)}
-.cfg-list{display:flex;flex-direction:column;gap:6px;padding:8px 12px 12px}
-.cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cfg-list{display:flex;flex-direction:column;gap:8px;padding:8px 12px 12px}
+/* 每一行都是一张独立卡片，宽屏窄屏保持统一风格 */
+.cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.025)}
 .cfg-row .cfg-label{flex:0 0 72px;font-size:12px;color:#aab3c9;white-space:nowrap}
-.cfg-row select,.cfg-row input{flex:1 1 130px;min-width:0;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:inherit}
+.cfg-row select,.cfg-row input{flex:1 1 120px;min-width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:inherit}
+.cfg-row input{flex-grow:1.3} /* 参数输入通常比 APP 名称更长，分到更多宽度 */
 .cfg-row select:disabled,.cfg-row input:disabled{opacity:.45}
 .cfg-row button{flex:0 0 auto;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:7px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.4}
 .cfg-row button:hover{background:var(--btn-hover)}
 .cfg-row.saved button{background:var(--green);border-color:var(--green);color:#fff}
 .cfg-row.failed button{background:var(--red);border-color:var(--red);color:#fff}
+/* 窄屏：手势卡两行（手势/APP、参数），保存按钮占满右侧两行；
+   配置卡保持单行，输入框吃掉剩余宽度 */
 @media(max-width:520px){
-  .cfg-row .cfg-label{flex-basis:100%}
-  .cfg-row select,.cfg-row input{flex-basis:100%}
-  .cfg-row button{flex:1 1 100%}
+  .cfg-row.map-row{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"label select save" "input input save";
+    gap:6px 8px;
+  }
+  .map-row .cfg-label{grid-area:label;flex-basis:auto;align-self:center}
+  .map-row select{grid-area:select;min-width:0}
+  .map-row input{grid-area:input;min-width:0}
+  .map-row button{grid-area:save;align-self:stretch;padding:7px 10px}
+  .cfg-row.config-row{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"label input save";
+    gap:6px;
+  }
+  .config-row .cfg-label{grid-area:label;flex-basis:auto}
+  .config-row input{grid-area:input;min-width:0}
+  .config-row button{grid-area:save;padding:7px 12px}
+  .subpage-actions{gap:8px}
+  .subpage-actions button{flex:1 1 auto;padding:10px 10px}
 }
 </style>
 </head>
@@ -258,12 +287,12 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
           <div class="ctrl-group">
             <input type="number" id="pov-id" placeholder="图案 ID" min="0">
             <label class="switch" title="reverse"><input type="checkbox" id="pov-rev"><span class="rocker"><span class="rocker-dir">反向</span></span></label>
-            <button onclick="sendPov()" class="purple">POV</button>
+            <button onclick="sendPov()" class="rose">POV</button>
           </div>
         </div>
         <div class="btn-row">
-          <button onclick="openCtrlPage('map')">手势绑定 &gt;</button>
-          <button onclick="openCtrlPage('config')">参数配置 &gt;</button>
+          <button onclick="openCtrlPage('map')" class="violet">手势绑定 &gt;</button>
+          <button onclick="openCtrlPage('config')" class="teal">参数配置 &gt;</button>
         </div>
       </div>
       <div id="ctrl-map" class="ctrl-view">
@@ -271,24 +300,28 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
           <button type="button" onclick="closeCtrlPage()">&lt; 返回</button>
           <span class="subpage-title">手势绑定</span>
           <button type="button" onclick="requestMapList()">刷新</button>
-          <button type="button" onclick="mapReset()" class="warning">恢复默认值</button>
         </div>
         <div class="subpage-note">为每个手势配置对应的功能，保存后立即生效。</div>
         <div class="subpage-status" id="map-status"></div>
         <div class="cfg-list" id="map-list"></div>
+        <div class="subpage-actions">
+          <button type="button" onclick="mapReset()" class="warning">恢复默认值</button>
+        </div>
       </div>
       <div id="ctrl-config" class="ctrl-view">
         <div class="subpage-bar">
           <button type="button" onclick="closeCtrlPage()">&lt; 返回</button>
           <span class="subpage-title">参数配置</span>
           <button type="button" onclick="requestConfigList()">刷新</button>
-          <button type="button" onclick="configClear('wifi')">清除 WiFi</button>
-          <button type="button" onclick="configClear('mqtt')">清除 MQTT</button>
-          <button type="button" onclick="configReset()" class="warning">恢复默认值</button>
         </div>
         <div class="subpage-note">修改会写入 NVS，重启后生效。</div>
         <div class="subpage-status" id="config-status"></div>
         <div class="cfg-list" id="config-list"></div>
+        <div class="subpage-actions">
+          <button type="button" onclick="configClear('wifi')">清除WiFi配置</button>
+          <button type="button" onclick="configClear('mqtt')">清除MQTT配置</button>
+          <button type="button" onclick="configReset()" class="warning">恢复默认值</button>
+        </div>
       </div>
     </div>
   </div>
@@ -665,7 +698,7 @@ function updateMapParamField(row,keepValue){
 
 function createMapRow(index){
   var rowEl=document.createElement('div');
-  rowEl.className='cfg-row';
+  rowEl.className='cfg-row map-row';
 
   var label=document.createElement('span');
   label.className='cfg-label';
@@ -891,7 +924,7 @@ function buildConfigRows(){
   for(var i=0;i<CONFIG_FIELDS.length;i++){
     var field=CONFIG_FIELDS[i];
     var rowEl=document.createElement('div');
-    rowEl.className='cfg-row';
+    rowEl.className='cfg-row config-row';
 
     var label=document.createElement('span');
     label.className='cfg-label';
