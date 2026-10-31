@@ -127,6 +127,32 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .chart-panel .panel-head{font-size:12px}
 .chart-panel canvas{display:block;width:100%;height:220px;background:#0a0a16}
 @media(max-width:768px){#log-window{height:300px}.chart-panel canvas{height:180px}}
+/* 控制面板二级页面：手势绑定 / 参数配置 */
+.ctrl-view{display:none}
+.ctrl-view.active{display:block}
+.subpage-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 12px 0}
+.subpage-bar .subpage-title{flex:1;min-width:72px;font-size:13px;font-weight:600}
+.subpage-bar button{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.2}
+.subpage-bar button:hover{background:var(--btn-hover)}
+.subpage-bar button.warning{background:var(--warn);border-color:var(--warn);color:#fff}
+.subpage-note{padding:6px 12px 0;color:#8892aa;font-size:12px;line-height:1.5}
+.subpage-status{padding:6px 12px 0;font-size:12px;line-height:1.5;min-height:18px;color:var(--green);white-space:pre-wrap;word-break:break-all}
+.subpage-status.pending{color:var(--orange)}
+.subpage-status.error{color:var(--red)}
+.cfg-list{display:flex;flex-direction:column;gap:6px;padding:8px 12px 12px}
+.cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cfg-row .cfg-label{flex:0 0 72px;font-size:12px;color:#aab3c9;white-space:nowrap}
+.cfg-row select,.cfg-row input{flex:1 1 130px;min-width:0;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:inherit}
+.cfg-row select:disabled,.cfg-row input:disabled{opacity:.45}
+.cfg-row button{flex:0 0 auto;background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:7px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.4}
+.cfg-row button:hover{background:var(--btn-hover)}
+.cfg-row.saved button{background:var(--green);border-color:var(--green);color:#fff}
+.cfg-row.failed button{background:var(--red);border-color:var(--red);color:#fff}
+@media(max-width:520px){
+  .cfg-row .cfg-label{flex-basis:100%}
+  .cfg-row select,.cfg-row input{flex-basis:100%}
+  .cfg-row button{flex:1 1 100%}
+}
 </style>
 </head>
 <body>
@@ -203,36 +229,66 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
       <span class="collapse-toggle" aria-hidden="true"><span class="collapse-text-expanded">收起</span><span class="collapse-text-collapsed">展开</span><span class="collapse-arrow"></span></span>
     </div>
     <div class="panel-body">
-      <div class="btn-row">
-        <button onclick="sendCmd('help')">帮助</button>
-        <button onclick="sendCmd('debug')">调试</button>
-        <button onclick="sendCmd('info')">信息</button>
-        <button onclick="sendCmd('reboot')" class="warning">重启</button>
-        <button onclick="sendCmd('sleep')" class="warning">休眠</button>
-        <button onclick="sendCmd('shutdown')" class="danger">关机</button>
-      </div>
-      <div class="btn-row">
-        <button onclick="sendCmd('ota');setTimeout(function(){window.open('http://192.168.4.1/update','_blank')},500)" class="accent">OTA</button>
-        <button onclick="sendCmd('ble')" class="blue">BLE</button>
-        <button onclick="sendCmd('ap')" class="green">AP</button>
-        <button onclick="sendCmd('wifi')" class="green">WiFi</button>
-        <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
-      </div>
-      <div class="btn-row">
-        <button onclick="sendCmd('inference')">IMU推理</button>
-        <button onclick="sendCmd('imu')">IMU数据</button>
-        <button onclick="sendCmd('stop')">IMU停止</button>
-      </div>
-      <div class="btn-row">
-        <div class="ctrl-group">
-          <input type="number" id="gesture-id" placeholder="手势 ID" min="0">
-          <button onclick="sendGesture()" class="purple">触发手势</button>
+      <div id="ctrl-main" class="ctrl-view active">
+        <div class="btn-row">
+          <button onclick="sendCmd('help')">帮助</button>
+          <button onclick="sendCmd('debug')">调试</button>
+          <button onclick="sendCmd('info')">信息</button>
+          <button onclick="sendCmd('reboot')" class="warning">重启</button>
+          <button onclick="sendCmd('sleep')" class="warning">休眠</button>
+          <button onclick="sendCmd('shutdown')" class="danger">关机</button>
         </div>
-        <div class="ctrl-group">
-          <input type="number" id="pov-id" placeholder="图案 ID" min="0">
-          <label class="switch" title="reverse"><input type="checkbox" id="pov-rev"><span class="rocker"><span class="rocker-dir">反向</span></span></label>
-          <button onclick="sendPov()" class="purple">POV</button>
+        <div class="btn-row">
+          <button onclick="sendCmd('ota');setTimeout(function(){window.open('http://192.168.4.1/update','_blank')},500)" class="accent">OTA</button>
+          <button onclick="sendCmd('ble')" class="blue">BLE</button>
+          <button onclick="sendCmd('ap')" class="green">AP</button>
+          <button onclick="sendCmd('wifi')" class="green">WiFi</button>
+          <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
         </div>
+        <div class="btn-row">
+          <button onclick="sendCmd('inference')">IMU推理</button>
+          <button onclick="sendCmd('imu')">IMU数据</button>
+          <button onclick="sendCmd('stop')">IMU停止</button>
+        </div>
+        <div class="btn-row">
+          <div class="ctrl-group">
+            <input type="number" id="gesture-id" placeholder="手势 ID" min="0">
+            <button onclick="sendGesture()" class="purple">触发手势</button>
+          </div>
+          <div class="ctrl-group">
+            <input type="number" id="pov-id" placeholder="图案 ID" min="0">
+            <label class="switch" title="reverse"><input type="checkbox" id="pov-rev"><span class="rocker"><span class="rocker-dir">反向</span></span></label>
+            <button onclick="sendPov()" class="purple">POV</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button onclick="openCtrlPage('map')">手势绑定 &gt;</button>
+          <button onclick="openCtrlPage('config')">参数配置 &gt;</button>
+        </div>
+      </div>
+      <div id="ctrl-map" class="ctrl-view">
+        <div class="subpage-bar">
+          <button type="button" onclick="closeCtrlPage()">&lt; 返回</button>
+          <span class="subpage-title">手势绑定</span>
+          <button type="button" onclick="requestMapList()">刷新</button>
+          <button type="button" onclick="mapReset()" class="warning">恢复默认值</button>
+        </div>
+        <div class="subpage-note">为每个手势配置对应的功能，保存后立即生效。</div>
+        <div class="subpage-status" id="map-status"></div>
+        <div class="cfg-list" id="map-list"></div>
+      </div>
+      <div id="ctrl-config" class="ctrl-view">
+        <div class="subpage-bar">
+          <button type="button" onclick="closeCtrlPage()">&lt; 返回</button>
+          <span class="subpage-title">参数配置</span>
+          <button type="button" onclick="requestConfigList()">刷新</button>
+          <button type="button" onclick="configClear('wifi')">清除 WiFi</button>
+          <button type="button" onclick="configClear('mqtt')">清除 MQTT</button>
+          <button type="button" onclick="configReset()" class="warning">恢复默认值</button>
+        </div>
+        <div class="subpage-note">修改会写入 NVS，重启后生效。</div>
+        <div class="subpage-status" id="config-status"></div>
+        <div class="cfg-list" id="config-list"></div>
       </div>
     </div>
   </div>
@@ -498,8 +554,9 @@ document.addEventListener('visibilitychange',function(){
 // 网络恢复 / 窗口重新获得焦点时立即重试，缩短连接恢复等待
 window.addEventListener('online',retryNow);
 window.addEventListener('focus',retryNow);
-function sendCmd(cmd){
-  cmd=String(cmd).trim();
+function sendCmd(cmd,keepWhitespace){
+  // config 的值是“行内剩余部分”，首尾空格也可能是值本身，raw 模式不做 trim
+  cmd=keepWhitespace?String(cmd):String(cmd).trim();
   if(!cmd)return false;
   if(new TextEncoder().encode(cmd).length>MAX_COMMAND_BYTES){
     appendLog('[Web] 命令过长，最多 '+MAX_COMMAND_BYTES+' 字节。\n');
@@ -521,6 +578,512 @@ function sendPov(){
   if(v===''){sendCmd('pov');return} // 无参数: 打印图案清单与用法
   var rev=document.getElementById('pov-rev').checked?1:0;
   sendCmd('pov '+v+' '+rev);
+}
+
+// ============ 控制面板二级页面：手势绑定 / 参数配置 ============
+// 页面本身不直接读写 NVS：显示内容来自 map list / config list 的终端回显，
+// 每个保存按钮发送对应的 map / config 控制台命令，与手动输入命令完全等价。
+var ctrlPage='main';
+
+var MAP_APP_INFO=[
+  {value:'',label:'— 未绑定 —',param:false},
+  {value:'espnow',label:'espnow（ESP-NOW 信号）',param:true,placeholder:'信号值，如 0x02'},
+  {value:'lumos',label:'lumos（荧光闪烁）',param:false},
+  {value:'pov',label:'pov（光绘模式）',param:false},
+  {value:'ble_keyboard',label:'ble_keyboard（BLE 键盘宏）',param:true,placeholder:'按键序列，如[win+r],c,m,d,enter ; 具体语法请查看文档'},
+  {value:'ble_mouse',label:'ble_mouse（BLE 鼠标模式）',param:false},
+  {value:'ble_knob',label:'ble_knob（BLE 音量旋钮模式）',param:false},
+  {value:'ha',label:'ha（Home Assistant）',param:true,placeholder:'事件名，如 turn_on ; 只允许小写字母、数字和下划线'},
+];
+var MAP_APP_LOOKUP={};
+for(var mapAppIndex=0;mapAppIndex<MAP_APP_INFO.length;mapAppIndex++){
+  MAP_APP_LOOKUP[MAP_APP_INFO[mapAppIndex].value]=MAP_APP_INFO[mapAppIndex];
+}
+
+var mapListEl=document.getElementById('map-list');
+var mapStatusEl=document.getElementById('map-status');
+var mapRows=[];
+var mapListActive=false;
+var mapListRemain=0;
+var mapListTimer=null;
+var mapSavePending=[];
+
+function setSubpageStatus(el,text,kind){
+  el.textContent=text||'';
+  el.className='subpage-status'+(kind?' '+kind:'');
+}
+
+function openCtrlPage(name){
+  ctrlPage=name;
+  document.getElementById('ctrl-main').classList.remove('active');
+  document.getElementById('ctrl-map').classList.toggle('active',name==='map');
+  document.getElementById('ctrl-config').classList.toggle('active',name==='config');
+  if(name==='map')requestMapList();
+  else requestConfigList();
+}
+
+function closeCtrlPage(){
+  ctrlPage='main';
+  document.getElementById('ctrl-map').classList.remove('active');
+  document.getElementById('ctrl-config').classList.remove('active');
+  document.getElementById('ctrl-main').classList.add('active');
+}
+
+// ---------- 手势绑定 ----------
+function mapAppInfo(app){
+  if(MAP_APP_LOOKUP[app])return MAP_APP_LOOKUP[app];
+  return {value:app,label:app+'（未知）',param:true,placeholder:'参数'};
+}
+
+function ensureMapAppOption(row,app){
+  if(app===''||MAP_APP_LOOKUP[app]||row.knownApps[app])return;
+  var opt=document.createElement('option');
+  opt.value=app;
+  opt.textContent=app+'（未知）';
+  row.select.appendChild(opt);
+  row.knownApps[app]=true;
+}
+
+function updateMapParamField(row,keepValue){
+  var app=row.select.value;
+  var info=mapAppInfo(app);
+  if(app===''){
+    if(!keepValue)row.input.value='';
+    row.input.disabled=true;
+    row.input.placeholder='未绑定';
+    return;
+  }
+  if(!info.param){
+    if(!keepValue)row.input.value='';
+    row.input.disabled=true;
+    row.input.placeholder='此应用无参数';
+    return;
+  }
+  row.input.disabled=false;
+  row.input.placeholder=info.placeholder||'参数';
+}
+
+function createMapRow(index){
+  var rowEl=document.createElement('div');
+  rowEl.className='cfg-row';
+
+  var label=document.createElement('span');
+  label.className='cfg-label';
+  label.textContent='手势 '+index;
+
+  var select=document.createElement('select');
+  for(var i=0;i<MAP_APP_INFO.length;i++){
+    var opt=document.createElement('option');
+    opt.value=MAP_APP_INFO[i].value;
+    opt.textContent=MAP_APP_INFO[i].label;
+    select.appendChild(opt);
+  }
+
+  var input=document.createElement('input');
+  input.type='text';
+  input.maxLength=127;
+  input.autocomplete='off';
+  input.spellcheck=false;
+
+  var button=document.createElement('button');
+  button.type='button';
+  button.textContent='保存';
+
+  rowEl.appendChild(label);
+  rowEl.appendChild(select);
+  rowEl.appendChild(input);
+  rowEl.appendChild(button);
+  mapListEl.appendChild(rowEl);
+
+  var row={index:index,el:rowEl,select:select,input:input,button:button,knownApps:{}};
+  select.addEventListener('change',function(){
+    updateMapParamField(row,false);
+    rowEl.classList.remove('saved','failed');
+  });
+  input.addEventListener('input',function(){rowEl.classList.remove('saved','failed')});
+  button.addEventListener('click',function(){saveMapRow(row)});
+  updateMapParamField(row,false);
+  return row;
+}
+
+function ensureMapRow(index){
+  while(mapRows.length<=index)mapRows.push(createMapRow(mapRows.length));
+  return mapRows[index];
+}
+
+function clearMapRows(count){
+  mapListEl.replaceChildren();
+  mapRows=[];
+  for(var i=0;i<count;i++)ensureMapRow(i);
+}
+
+function requestMapList(){
+  mapListActive=false;
+  mapListRemain=0;
+  if(mapListTimer){clearTimeout(mapListTimer);mapListTimer=null}
+  setSubpageStatus(mapStatusEl,'正在读取手势绑定…','pending');
+  if(!sendCmd('map list'))setSubpageStatus(mapStatusEl,'未连接，无法读取','error');
+}
+
+function scheduleMapListTimeout(){
+  if(mapListTimer)clearTimeout(mapListTimer);
+  mapListTimer=setTimeout(function(){
+    mapListTimer=null;
+    if(mapListActive){
+      mapListActive=false;
+      setSubpageStatus(mapStatusEl,'读取结束（部分行未收到，可点刷新重试）','error');
+    }
+  },1500);
+}
+
+function finishMapList(){
+  if(mapListTimer){clearTimeout(mapListTimer);mapListTimer=null}
+  setSubpageStatus(mapStatusEl,'已读取 '+mapRows.length+' 个手势绑定');
+}
+
+function parseMapBindingLine(line){
+  if(line==='Gesture mappings are unavailable'){
+    mapListActive=false;
+    setSubpageStatus(mapStatusEl,'手势映射表不可用','error');
+    return true;
+  }
+  var header=line.match(/^Gesture bindings \((\d+)\):$/);
+  if(header){
+    var count=parseInt(header[1],10);
+    clearMapRows(count);
+    mapListActive=count>0;
+    mapListRemain=count;
+    if(count>0)setSubpageStatus(mapStatusEl,'正在读取手势绑定…','pending');
+    else setSubpageStatus(mapStatusEl,'当前没有可绑定的手势');
+    scheduleMapListTimeout();
+    return true;
+  }
+  if(!mapListActive)return false;
+  var m=line.match(/^  \[(\d+)\] (.*)$/);
+  if(!m)return false;
+  var index=parseInt(m[1],10);
+  var rest=m[2];
+  var app='',param='';
+  if(rest!=='<unbound>'){
+    var parts=rest.match(/^(\S+)(?: "(.*)")?$/);
+    if(parts){
+      app=parts[1];
+      if(parts[2]!==undefined)param=parts[2];
+    }else{
+      app=rest;
+    }
+  }
+  var row=ensureMapRow(index);
+  ensureMapAppOption(row,app);
+  row.select.value=app;
+  row.input.value=param;
+  updateMapParamField(row,true);
+  row.el.classList.remove('saved','failed');
+  if(mapListRemain>0)mapListRemain--;
+  if(mapListRemain===0){
+    mapListActive=false;
+    finishMapList();
+  }else{
+    scheduleMapListTimeout();
+  }
+  return true;
+}
+
+function saveMapRow(row){
+  var app=row.select.value;
+  var info=mapAppInfo(app);
+  var param=row.input.value;
+  var cmd;
+  if(app===''){
+    cmd='map clear '+row.index;
+  }else if(info.param&&param===''){
+    row.el.classList.add('failed');
+    setSubpageStatus(mapStatusEl,'手势 '+row.index+' 的 APP 需要参数','error');
+    return;
+  }else if(info.param){
+    cmd='map bind '+row.index+' '+app+' '+param;
+  }else{
+    cmd='map bind '+row.index+' '+app;
+  }
+  if(!sendCmd(cmd)){
+    setSubpageStatus(mapStatusEl,'未连接，命令未发送','error');
+    return;
+  }
+  row.el.classList.remove('saved','failed');
+  mapSavePending.push(row.index);
+  setSubpageStatus(mapStatusEl,'手势 '+row.index+'：已发送 '+cmd,'pending');
+}
+
+function markMapRowSaved(index,ok){
+  var pos=mapSavePending.indexOf(index);
+  if(pos>=0)mapSavePending.splice(pos,1);
+  else if(mapSavePending.length)mapSavePending.shift();
+  var row=mapRows[index];
+  if(row){
+    row.el.classList.remove(ok?'failed':'saved');
+    row.el.classList.add(ok?'saved':'failed');
+  }
+  setSubpageStatus(mapStatusEl,'手势 '+index+(ok?' 已保存':' 保存失败'),ok?'':'error');
+}
+
+function processMapResult(line){
+  var m=line.match(/^Saved: gesture (\d+)/);
+  if(m){markMapRowSaved(parseInt(m[1],10),true);return true}
+  m=line.match(/^Cleared: gesture (\d+)/);
+  if(m){markMapRowSaved(parseInt(m[1],10),true);return true}
+  if(line==='Gesture mappings reset to defaults'){
+    mapSavePending=[];
+    setSubpageStatus(mapStatusEl,'已恢复默认手势绑定，正在刷新…','pending');
+    setTimeout(requestMapList,300);
+    return true;
+  }
+  if(line.indexOf('Error:')===0||line.indexOf('[Web] Command rejected')===0){
+    var index=mapSavePending.length?mapSavePending.shift():-1;
+    if(index>=0&&mapRows[index]){
+      mapRows[index].el.classList.remove('saved');
+      mapRows[index].el.classList.add('failed');
+      setSubpageStatus(mapStatusEl,'手势 '+index+' 保存失败：'+line.substring(6).trim(),'error');
+    }else{
+      setSubpageStatus(mapStatusEl,line,'error');
+    }
+    return true;
+  }
+  return false;
+}
+
+function mapReset(){
+  if(!confirm('恢复默认的手势绑定？当前绑定将被覆盖。'))return;
+  if(!sendCmd('map reset')){
+    setSubpageStatus(mapStatusEl,'未连接，命令未发送','error');
+    return;
+  }
+  setSubpageStatus(mapStatusEl,'正在恢复默认手势绑定…','pending');
+}
+
+// ---------- 参数配置 ----------
+var CONFIG_FIELDS=[
+  {key:'ble',label:'BLE 名称',cmd:'ble',saved:'BLE name',max:29,hint:'1-29 字节'},
+  {key:'ap_ssid',label:'AP SSID',cmd:'ap',saved:'AP SSID',max:32,hint:'1-32 字节'},
+  {key:'ap_pass',label:'AP 密码',cmd:'ap-pass',saved:'AP password',max:63,hint:'8-63 字节'},
+  {key:'wifi_ssid',label:'WiFi SSID',cmd:'wifi',saved:'WiFi SSID',max:32,hint:'1-32 字节，清空请用“清除 WiFi”'},
+  {key:'wifi_pass',label:'WiFi 密码',cmd:'wifi-pass',saved:'WiFi password',max:63,hint:'8-63 字节'},
+  {key:'mqtt_host',label:'MQTT 主机',cmd:'mqtt',saved:'MQTT host',max:63,hint:'IP 或域名，不能含空格'},
+  {key:'mqtt_port',label:'MQTT 端口',cmd:'mqtt-port',saved:'MQTT port',max:5,hint:'1-65535'},
+  {key:'mqtt_user',label:'MQTT 用户',cmd:'mqtt-user',saved:'MQTT user',max:31,hint:'用户名'},
+  {key:'mqtt_pass',label:'MQTT 密码',cmd:'mqtt-pass',saved:'MQTT password',max:63,hint:'密码'}
+];
+var CONFIG_LIST_FIELDS={
+  'BLE name':'ble','AP SSID':'ap_ssid','AP PASS':'ap_pass',
+  'WiFi SSID':'wifi_ssid','WiFi PASS':'wifi_pass',
+  'MQTT host':'mqtt_host','MQTT port':'mqtt_port',
+  'MQTT user':'mqtt_user','MQTT pass':'mqtt_pass'
+};
+
+var configListEl=document.getElementById('config-list');
+var configStatusEl=document.getElementById('config-status');
+var configRows={};
+var configListActive=false;
+var configListRemain=0;
+var configListTimer=null;
+var configPending=null;
+
+function buildConfigRows(){
+  for(var i=0;i<CONFIG_FIELDS.length;i++){
+    var field=CONFIG_FIELDS[i];
+    var rowEl=document.createElement('div');
+    rowEl.className='cfg-row';
+
+    var label=document.createElement('span');
+    label.className='cfg-label';
+    label.textContent=field.label;
+
+    var input=document.createElement('input');
+    input.type='text';
+    input.maxLength=field.max;
+    input.autocomplete='off';
+    input.spellcheck=false;
+    if(field.key==='mqtt_port')input.inputMode='numeric';
+    input.placeholder=field.hint||'';
+
+    var button=document.createElement('button');
+    button.type='button';
+    button.textContent='保存';
+
+    rowEl.appendChild(label);
+    rowEl.appendChild(input);
+    rowEl.appendChild(button);
+    configListEl.appendChild(rowEl);
+
+    var row={field:field,el:rowEl,input:input,button:button};
+    registerConfigRowEvents(row);
+    configRows[field.key]=row;
+  }
+}
+
+function registerConfigRowEvents(row){
+  row.button.addEventListener('click',function(){saveConfigRow(row)});
+  row.input.addEventListener('input',function(){row.el.classList.remove('saved','failed')});
+}
+
+function requestConfigList(){
+  configListActive=false;
+  configListRemain=0;
+  if(configListTimer){clearTimeout(configListTimer);configListTimer=null}
+  setSubpageStatus(configStatusEl,'正在读取设备配置…','pending');
+  if(!sendCmd('config list'))setSubpageStatus(configStatusEl,'未连接，无法读取','error');
+}
+
+function scheduleConfigListTimeout(){
+  if(configListTimer)clearTimeout(configListTimer);
+  configListTimer=setTimeout(function(){
+    configListTimer=null;
+    if(configListActive){
+      configListActive=false;
+      setSubpageStatus(configStatusEl,'读取结束（部分字段未收到，可点刷新重试）','error');
+    }
+  },1500);
+}
+
+function parseConfigListLine(line){
+  if(line==='Device config:'){
+    configListActive=true;
+    configListRemain=CONFIG_FIELDS.length;
+    setSubpageStatus(configStatusEl,'正在读取设备配置…','pending');
+    scheduleConfigListTimeout();
+    return true;
+  }
+  if(!configListActive)return false;
+  var m=line.match(/^  (BLE name|AP SSID|AP PASS|WiFi SSID|WiFi PASS|MQTT host|MQTT port|MQTT user|MQTT pass)\s*:\s*(.*)$/);
+  if(!m)return false;
+  var key=CONFIG_LIST_FIELDS[m[1]];
+  var raw=m[2];
+  var value=raw;
+  // config list 用引号包裹字符串；用首尾引号剥离，值内部的引号原样保留
+  if(raw.length>=2&&raw.charAt(0)==='"'&&raw.charAt(raw.length-1)==='"')value=raw.slice(1,-1);
+  var row=configRows[key];
+  if(row){
+    row.input.value=value;
+    row.el.classList.remove('saved','failed');
+  }
+  if(configListRemain>0)configListRemain--;
+  if(configListRemain===0){
+    configListActive=false;
+    if(configListTimer){clearTimeout(configListTimer);configListTimer=null}
+    setSubpageStatus(configStatusEl,'已读取设备配置');
+  }else{
+    scheduleConfigListTimeout();
+  }
+  return true;
+}
+
+function saveConfigRow(row){
+  var field=row.field;
+  var value=row.input.value;
+  if(value===''){
+    row.el.classList.add('failed');
+    setSubpageStatus(configStatusEl,field.label+' 不能为空（清空配置请用上方清除/恢复按钮）','error');
+    return;
+  }
+  if(field.key==='mqtt_port'&&!/^[0-9]+$/.test(value)){
+    row.el.classList.add('failed');
+    setSubpageStatus(configStatusEl,'MQTT 端口必须是数字','error');
+    return;
+  }
+  var cmd='config '+field.cmd+' '+value;
+  if(!sendCmd(cmd,true)){
+    setSubpageStatus(configStatusEl,'未连接，命令未发送','error');
+    return;
+  }
+  row.el.classList.remove('saved','failed');
+  configPending=field.key;
+  setSubpageStatus(configStatusEl,field.label+'：正在保存…','pending');
+}
+
+function processConfigResult(line){
+  if(line.indexOf('Saved: ')===0){
+    var rest=line.substring(7);
+    for(var i=0;i<CONFIG_FIELDS.length;i++){
+      var field=CONFIG_FIELDS[i];
+      if(rest.indexOf(field.saved)===0){
+        configPending=null;
+        var row=configRows[field.key];
+        if(row){
+          row.el.classList.remove('failed');
+          row.el.classList.add('saved');
+        }
+        setSubpageStatus(configStatusEl,field.label+' 已保存（重启后生效）');
+        return true;
+      }
+    }
+    return false;
+  }
+  if(line.indexOf('Cleared: WiFi config')===0){
+    clearConfigInputs(['wifi_ssid','wifi_pass']);
+    setSubpageStatus(configStatusEl,'已清除 WiFi 配置（重启后生效）');
+    return true;
+  }
+  if(line.indexOf('Cleared: MQTT config')===0){
+    clearConfigInputs(['mqtt_host','mqtt_user','mqtt_pass']);
+    configRows.mqtt_port.input.value='1883';
+    setSubpageStatus(configStatusEl,'已清除 MQTT 配置（重启后生效）');
+    return true;
+  }
+  if(line.indexOf('Device config reset to defaults')===0){
+    configPending=null;
+    setSubpageStatus(configStatusEl,'已恢复默认配置，正在刷新…','pending');
+    setTimeout(requestConfigList,300);
+    return true;
+  }
+  if(line.indexOf('Error:')===0||line.indexOf('[Web] Command rejected')===0){
+    if(configPending&&configRows[configPending]){
+      var pendingRow=configRows[configPending];
+      pendingRow.el.classList.remove('saved');
+      pendingRow.el.classList.add('failed');
+      configPending=null;
+      setSubpageStatus(configStatusEl,line,'error');
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+function clearConfigInputs(keys){
+  for(var i=0;i<keys.length;i++){
+    var row=configRows[keys[i]];
+    if(row){
+      row.input.value='';
+      row.el.classList.remove('saved','failed');
+    }
+  }
+}
+
+function configClear(target){
+  var label=target==='wifi'?'WiFi':'MQTT';
+  if(!confirm('清除 '+label+' 配置？重启后生效。'))return;
+  if(!sendCmd('config clear '+target)){
+    setSubpageStatus(configStatusEl,'未连接，命令未发送','error');
+    return;
+  }
+  setSubpageStatus(configStatusEl,'正在清除 '+label+' 配置…','pending');
+}
+
+function configReset(){
+  if(!confirm('恢复默认配置？BLE / AP / WiFi / MQTT 设置都会重置，重启后生效。'))return;
+  if(!sendCmd('config reset')){
+    setSubpageStatus(configStatusEl,'未连接，命令未发送','error');
+    return;
+  }
+  setSubpageStatus(configStatusEl,'正在恢复默认配置…','pending');
+}
+
+buildConfigRows();
+
+// 统一处理设备回显：只解析当前打开页面关心的行
+function processDeviceLine(line){
+  if(ctrlPage==='map')return parseMapBindingLine(line)||processMapResult(line);
+  if(ctrlPage==='config')return parseConfigListLine(line)||processConfigResult(line);
+  return false;
 }
 
 // ============ 可折叠面板 ============
@@ -613,6 +1176,8 @@ function appendLog(text){
     if(l.indexOf('> ')===0)row.className='terminal-command';
     logEl.appendChild(row);
     if(logEl.childElementCount>MAX_LOG)logEl.firstElementChild.remove();
+    // 手势绑定 / 参数配置页面：解析 map list / config list 与保存结果
+    if(processDeviceLine(l))continue;
     // 尝试解析 IMU CSV 数据: valid_gx,valid_gz,current_sta
     var m=l.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*),(-?\d+)$/);
     if(m)addImuPoint(parseFloat(m[1]),parseFloat(m[2]),parseInt(m[3]));
@@ -850,10 +1415,11 @@ void ap_web_start(void)
 
     // 根路径：返回内嵌网页
     // 禁止缓存，确保固件更新后浏览器拿到的是最新页面逻辑
+    // 用 _P 版本直接从 flash 流式发送，避免把整页复制到堆上（AP 模式堆紧张）
     webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
                  {
                    AsyncWebServerResponse *response =
-                       request->beginResponse(200, "text/html; charset=utf-8", WEB_PAGE);
+                       request->beginResponse_P(200, "text/html; charset=utf-8", WEB_PAGE);
                    response->addHeader("Cache-Control", "no-store");
                    request->send(response); });
 

@@ -388,7 +388,8 @@ namespace
         }
         snapshot_bindings(bindings.data());
 
-        DualSerial.println("Gesture bindings:");
+        // 输出总数，Web 控制面板据此确定行数并判断列表是否接收完整
+        DualSerial.printf("Gesture bindings (%u):\n", (unsigned)bindings.count());
         for (size_t i = 0; i < bindings.count(); ++i)
         {
             const GestureBinding &binding = bindings.data()[i];
