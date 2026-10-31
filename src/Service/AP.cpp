@@ -3,7 +3,9 @@
     开机由 network_init() 根据 DeviceConfig 决定接入方式：
       - 配置了 WiFi SSID：连接 STA，不默认开 AP；Web/TCP 走局域网
       - 未配置：沿用原有 AP 模式
-    TCP/Web 服务与 AP 射频解耦，ap 命令/双击只切换 AP，不影响 STA 连接。
+    TCP/Web 服务与 AP 射频解耦，ap 命令/双击只切换 AP，不影响已建立的 STA 连接；
+    STA 未连接时开启 AP 会暂停自动重连（见 sta_retry_pause），避免 STA 扫描
+    把 SoftAP 的信道一起拖走。
 */
 #include "AP.h"
 #include "AP_Web.h"
@@ -49,6 +51,11 @@ static bool s_sta_configured = false;
 // WiFi.begin() 是否已经调用：用于过滤模式切换产生的早期 disconnect 事件
 static bool s_sta_begin_called = false;
 
+// AP 开启期间暂停 STA 自动重连：APSTA 共用一个射频，SoftAP 信道会跟随 STA。
+// 配置的 AP 不存在时，自动重连会不断全信道扫描，把 SoftAP 一起拖到随机信道，
+// 表现为热点能搜到但无法关联。关闭 AP 后恢复重连。
+static bool s_sta_retry_paused = false;
+
 // OTA 接管网络后置 true；此时忽略 ap/espnow 切换
 static bool s_network_suspended = false;
 
@@ -73,6 +80,46 @@ static void net_unlock(void)
 {
     if (s_net_mutex != nullptr)
         xSemaphoreGive(s_net_mutex);
+}
+
+// ==================== STA 重连刹车 ====================
+// APSTA 只有一套射频，SoftAP 的信道跟随 STA。STA 连不上目标 AP 时，
+// arduino-esp32 的自动重连会在断开事件里立刻 WiFi.disconnect() + WiFi.begin()，
+// 反复全信道扫描，SoftAP 随之频繁换信道，客户端能搜到却完不成认证/关联。
+// AP 开启期间先把重连停掉；关闭 AP 后再恢复。以下函数必须在持锁时调用。
+static void sta_retry_pause(void)
+{
+    if (!s_sta_configured)
+        return;
+
+    if (!s_sta_retry_paused)
+    {
+        s_sta_retry_paused = true;
+        WiFi.setAutoReconnect(false);
+        DualSerial.println("[Net] STA retry paused (AP is on)");
+    }
+
+    // 中止正在进行的扫描/连接；已连接时保持链路不动。
+    // 用底层接口是为了在未连接时静默失败（Arduino 封装会打错误日志）。
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        esp_wifi_disconnect();
+    }
+}
+
+static void sta_retry_resume(void)
+{
+    if (!s_sta_configured || !s_sta_retry_paused)
+        return;
+
+    s_sta_retry_paused = false;
+    WiFi.setAutoReconnect(true);
+
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        DualSerial.printf("[Net] Resuming STA connection to \"%s\"\n", s_sta_ssid);
+        WiFi.begin();
+    }
 }
 
 // ==================== 前置声明 ====================
@@ -121,9 +168,17 @@ static void update_rf_state(void)
         char ssid[33];
         char pass[64];
         device_config_get_ap(ssid, sizeof(ssid), pass, sizeof(pass));
-        if (!WiFi.softAP(ssid, pass))
+        if (!WiFi.softAP(ssid, pass, 1))
         {
             DualSerial.println("[Net] Failed to start softAP");
+        }
+
+        // STA 未连接时把信道钉回 1，避免残留的扫描过程让 AP 在信道间漂移；
+        // ESP-NOW 同样依赖信道 1。STA 已连接时不能改，否则会断开 STA。
+        if (WiFi.status() != WL_CONNECTED &&
+            esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE) != ESP_OK)
+        {
+            DualSerial.println("[Net] Failed to pin AP channel to 1");
         }
 
         DualSerial.println("[Net] RF Mode -> WIFI_AP_STA");
@@ -469,6 +524,16 @@ void network_handle_sta_disconnected(void)
     if (s_network_suspended)
         return;
 
+    // AP 开启期间不允许 STA 继续扫描重连（会拖走 SoftAP 的信道）。
+    // Arduino 核心在断开事件里可能已抢先发起一次重连（首次断开必重试），
+    // 这里把它按下去。
+    if (s_ap_enabled)
+    {
+        net_lock();
+        sta_retry_pause();
+        net_unlock();
+    }
+
     static uint32_t last_log_ms = 0;
     const uint32_t now = millis();
     if (now - last_log_ms >= 5000)
@@ -538,14 +603,18 @@ void ap_toggle(void)
     {
         s_ap_enabled = false;
         update_rf_state();
+        sta_retry_resume();
         DualSerial.println("[Net] AP stopped");
     }
     else
     {
+        // 先停 STA 重连，避免 APSTA 启动后 STA 扫描把 AP 信道拖走
+        sta_retry_pause();
         s_ap_enabled = true;
         update_rf_state();
-        DualSerial.printf("[Net] AP started: %s\n",
-                          WiFi.softAPIP().toString().c_str());
+        DualSerial.printf("[Net] AP started: %s (ch %u)\n",
+                          WiFi.softAPIP().toString().c_str(),
+                          (unsigned)WiFi.channel());
     }
 
     network_refresh_espnow_gate();
