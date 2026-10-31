@@ -39,7 +39,7 @@ header h1{font-size:18px;font-weight:600}
 .ws-state{display:inline-flex;align-items:center}
 .batt-icon{width:30px;height:14px;display:block}
 /* 文字墨迹中心略低于行盒几何中心（数字无下伸部），图标下移半像素做视觉居中 */
-.batt-icon,.volt-icon,.ble-icon,.espnow-icon,.status-dot{position:relative;top:.5px}
+.batt-icon,.volt-icon,.ble-icon,.ap-icon,.wifi-icon,.espnow-icon,.status-dot{position:relative;top:.5px}
 .batt-shell{fill:none;stroke:currentColor;stroke-width:1.2;opacity:.75}
 .batt-cap{fill:currentColor;opacity:.75}
 .batt-fill{fill:var(--green);transition:width .3s,fill .3s}
@@ -49,7 +49,7 @@ header h1{font-size:18px;font-weight:600}
 .batt-bolt{fill:#fff;stroke:#fff;stroke-width:1.2;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 .4px .5px rgba(0,0,0,.35));display:none}
 .batt.charging .batt-bolt{display:block}
 /* 断连时状态置灰：数值保留，但当前不可信 */
-.sys-info.stale .batt,.sys-info.stale .volt,.sys-info.stale .ble,.sys-info.stale .espnow{opacity:.4;filter:grayscale(1)}
+.sys-info.stale .batt,.sys-info.stale .volt,.sys-info.stale .ble,.sys-info.stale .ap,.sys-info.stale .wifi,.sys-info.stale .espnow{opacity:.4;filter:grayscale(1)}
 /* 电量/电压文本不预留固定宽度：多出的透明余量会把右侧间距撑大，导致图标疏密不均；
    电压恒为 5 字符且启用等宽数字，宽度本就稳定 */
 /* 电压图标：整块圆角矩形徽标，内嵌万用表直流电压符号 V⎓ */
@@ -58,19 +58,19 @@ header h1{font-size:18px;font-weight:600}
 .volt-icon path{fill:none;stroke:currentColor}
 .volt-icon .volt-v{stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .volt-icon .volt-dc{stroke-width:1.2;stroke-linecap:butt}
-/* 无线状态图标：蓝牙三态（关闭/广播中/已连接）与 ESP-NOW 开关 */
-.ble,.espnow{display:inline-flex;align-items:center;transition:opacity .2s,filter .2s}
+/* 无线状态图标：蓝牙三态（关闭/广播中/已连接）、AP / WiFi 开关与 ESP-NOW 开关 */
+.ble,.ap,.wifi,.espnow{display:inline-flex;align-items:center;transition:opacity .2s,filter .2s}
 .ble-icon{width:14px;height:20px;display:block}
-.espnow-icon{width:20px;height:20px;display:block}
+.ap-icon,.wifi-icon,.espnow-icon{width:20px;height:20px;display:block}
 .wireless-glyph{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .ble-icon .wireless-glyph{stroke-width:1.8} /* 蓝牙 viewBox 16→14px 有缩放，1.8×0.875≈1.6px，与 ESP-NOW 渲染粗细一致 */
-.espnow-icon .node{fill:currentColor}
+.espnow-icon .node,.ap-icon .node,.wifi-icon .node{fill:currentColor}
 .bt-dot{fill:currentColor;display:none} /* 已连接时在两侧空缺处点亮 */
 .ble.connected .bt-dot{display:block}
-.ble.off,.espnow.off{color:#66708a}
-.ble.on{color:var(--blue)} /* 已开启、等待主机连接 */
-.ble.connected,.espnow.on{color:var(--green);filter:drop-shadow(0 0 4px rgba(76,175,132,.5))}
-.ble.unknown,.espnow.unknown{opacity:.35}
+.ble.off,.ap.off,.wifi.off,.espnow.off{color:#66708a}
+.ble.on,.wifi.on{color:var(--blue)} /* 已开启、等待主机连接 */
+.ap.on,.ble.connected,.wifi.connected,.espnow.on{color:var(--green);filter:drop-shadow(0 0 4px rgba(76,175,132,.5))}
+.ble.unknown,.ap.unknown,.wifi.unknown,.espnow.unknown{opacity:.35}
 main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1200px;margin:0 auto;width:100%}
 .panel{background:var(--panel);border-radius:8px;border:1px solid var(--border);overflow:hidden}
 /* 固定高度：有无右侧控件都不会把标题栏撑高 */
@@ -140,6 +140,24 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
         <circle class="bt-dot" cx="14.3" cy="11" r="1.6"/>
       </svg>
     </span>
+    <span class="ap unknown" id="ap" title="AP 状态未知">
+      <svg class="ap-icon" viewBox="0 0 20 20" aria-hidden="true">
+        <circle class="node" cx="10" cy="7" r="1.8"/>
+        <path class="wireless-glyph" d="M7.17 4.17A4 4 0 0 0 7.17 9.83"/>
+        <path class="wireless-glyph" d="M12.83 4.17A4 4 0 0 1 12.83 9.83"/>
+        <path class="wireless-glyph" d="M5.33 2.33A6.6 6.6 0 0 0 5.33 11.67"/>
+        <path class="wireless-glyph" d="M14.67 2.33A6.6 6.6 0 0 1 14.67 11.67"/>
+        <path class="wireless-glyph" d="M10 8.9v2.8M10 11.7 6.7 18.3M10 11.7l3.3 6.6M7.9 15.2h4.2"/>
+      </svg>
+    </span>
+    <span class="wifi unknown" id="wifi" title="WiFi 状态未知">
+      <svg class="wifi-icon" viewBox="0 0 20 20" aria-hidden="true">
+        <circle class="node" cx="10" cy="17" r="1.7"/>
+        <path class="wireless-glyph" d="M7 12.87A5.1 5.1 0 0 1 13 12.87"/>
+        <path class="wireless-glyph" d="M4.3 9.15A9.7 9.7 0 0 1 15.7 9.15"/>
+        <path class="wireless-glyph" d="M1.65 5.51A14.2 14.2 0 0 1 18.35 5.51"/>
+      </svg>
+    </span>
     <span class="espnow unknown" id="espnow" title="ESP-NOW 状态未知">
       <svg class="espnow-icon" viewBox="0 0 20 20" aria-hidden="true">
         <circle class="wireless-glyph" cx="10" cy="10" r="8.3"/>
@@ -195,10 +213,10 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
       </div>
       <div class="btn-row">
         <button onclick="sendCmd('ota');setTimeout(function(){window.open('http://192.168.4.1/update','_blank')},500)" class="accent">OTA</button>
-        <button onclick="sendCmd('ap')" class="accent">AP</button>
+        <button onclick="sendCmd('ble')" class="blue">BLE</button>
+        <button onclick="sendCmd('ap')" class="green">AP</button>
         <button onclick="sendCmd('wifi')" class="green">WiFi</button>
         <button onclick="sendCmd('espnow')" class="green">ESP-NOW</button>
-        <button onclick="sendCmd('ble')" class="blue">BLE</button>
       </div>
       <div class="btn-row">
         <button onclick="sendCmd('inference')">IMU推理</button>
@@ -294,11 +312,21 @@ function updateBattery(soc,mv,chg){
   batt.title='电量 '+pct+'%';
   document.getElementById('volt').title='电压 '+volts;
 }
-function updateWireless(ble,espnowOn){
+function updateWireless(ble,espnowOn,apOn,wifiState){
   var bt=document.getElementById('ble');
   if(isFinite(ble)){
     bt.className='ble '+(ble===2?'connected':ble===1?'on':'off');
     bt.title=ble===2?'蓝牙已连接':ble===1?'蓝牙已开启，未连接':'蓝牙已关闭';
+  }
+  if(apOn!==undefined){
+    var ap=document.getElementById('ap');
+    ap.className='ap '+(apOn?'on':'off');
+    ap.title=apOn?'AP 已开启':'AP 已关闭';
+  }
+  if(isFinite(wifiState)){
+    var wf=document.getElementById('wifi');
+    wf.className='wifi '+(wifiState===2?'connected':wifiState===1?'on':'off');
+    wf.title=wifiState===2?'WiFi 已连接':wifiState===1?'WiFi 已开启，未连接':'WiFi 已关闭';
   }
   var en=document.getElementById('espnow');
   en.className='espnow '+(espnowOn?'on':'off');
@@ -309,10 +337,15 @@ function handleCtrlMessage(msg){
   var parts=msg.split(':');
   if(parts.length<3)return;
   // 服务端在 pong 末尾附带设备状态：
-  // :<蓝牙0/1/2>:<ESP-NOW 0/1>:<电量%>:<电压mV>:<充电标志>
-  // 电量三字段保留在末尾，兼容固件更新时仍开着的旧页面
+  // :<蓝牙0/1/2>:<ESP-NOW 0/1>:<电量%>:<电压mV>:<充电标志>:<AP 0/1>:<WiFi 0/1/2>
+  // AP/WiFi 追加在末尾，旧页面只读前 8 段，忽略新增字段
   if(parts.length>=8){
-    updateWireless(parseInt(parts[3],10),parts[4]==='1');
+    if(parts.length>=10){
+      updateWireless(parseInt(parts[3],10),parts[4]==='1',
+                     parseInt(parts[8],10)!==0,parseInt(parts[9],10));
+    }else{
+      updateWireless(parseInt(parts[3],10),parts[4]==='1');
+    }
     updateBattery(parseFloat(parts[5]),
                   parseInt(parts[6],10),
                   parts[7]==='1');
@@ -757,8 +790,8 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
         if (len >= 5 && memcmp(data + 1, WS_CTRL_PING, 4) == 0)
         {
           // 回显 ":<seq>:<ts>" 供浏览器计算 RTT，并追加设备状态：
-          // :<蓝牙0/1/2>:<ESP-NOW 0/1>:<电量%>:<电压mV>:<是否充电>
-          // 电量三字段保留在末尾，旧页面按末尾三字段解析，固件更新后可继续工作
+          // :<蓝牙0/1/2>:<ESP-NOW 0/1>:<电量%>:<电压mV>:<是否充电>:<AP 0/1>:<WiFi 0/1/2>
+          // AP/WiFi 追加在末尾，旧页面只读前 8 段，固件更新后可继续工作
           int soc = (int)(HAL::MAX17048_getSOC() + 0.5f);
           if (soc < 0)
             soc = 0;
@@ -767,11 +800,14 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
           int mv = (int)(HAL::MAX17048_getVoltage() * 1000.0f + 0.5f);
           // 蓝牙：0=已关闭，1=已开启但未连接，2=已连接
           int ble = !ble_is_enabled() ? 0 : (ble_is_connected() ? 2 : 1);
+          // WiFi：0=未配置/已关闭，1=已开启但未连接，2=已连接
+          int wifi = !network_is_sta_enabled() ? 0 : (network_is_sta_connected() ? 2 : 1);
 
-          char status[32];
-          int statusLen = snprintf(status, sizeof(status), ":%d:%d:%d:%d:%d",
+          char status[40];
+          int statusLen = snprintf(status, sizeof(status), ":%d:%d:%d:%d:%d:%d:%d",
                                    ble, espnow_is_running() ? 1 : 0,
-                                   soc, mv, HAL::power_getChargeStatus() ? 1 : 0);
+                                   soc, mv, HAL::power_getChargeStatus() ? 1 : 0,
+                                   ap_is_running() ? 1 : 0, wifi);
           if (statusLen < 0 || statusLen >= (int)sizeof(status))
             statusLen = 0;
 

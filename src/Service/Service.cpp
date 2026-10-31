@@ -72,6 +72,7 @@ static void system_service_task(void *param)
             switch (event.id)
             {
             case EVENT_SYS_INFO:
+            {
                 DualSerial.printf("%s V%s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2fV, %.1f%%, %s, %.1f%%/h\n",
                                   PROJECT_NAME,
                                   FIRMWARE_VER,
@@ -82,7 +83,21 @@ static void system_service_task(void *param)
                                   HAL::MAX17048_getSOC(),
                                   HAL::power_getChargeStatus() ? "Charging" : "Discharging",
                                   HAL::MAX17048_getChangeRate());
+
+                // 无线开关状态，BLE / WiFi 额外显示连接状态
+                const char *ble_state =
+                    !ble_is_enabled() ? "OFF"
+                                      : (ble_is_connected() ? "Connected" : "Connecting..");
+                const char *wifi_state =
+                    !network_is_sta_enabled()
+                        ? "OFF"
+                        : (network_is_sta_connected() ? "Connected" : "Connecting..");
+                DualSerial.printf("BLE: %s, ", ble_state);
+                DualSerial.printf("AP: %s, ", ap_is_running() ? "ON" : "OFF");
+                DualSerial.printf("WiFi: %s, ", wifi_state);
+                DualSerial.printf("ESP-NOW: %s\n", espnow_is_running() ? "ON" : "OFF");
                 break;
+            }
 
             case EVENT_SYS_REBOOT:
                 DualSerial.println("Rebooting...");
