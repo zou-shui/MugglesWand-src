@@ -3,7 +3,8 @@
 #include "Config.h"
 #include "GestureBinding.h"
 #include "HAL/HAL.h"
-#include "HAL/WS2812_Animation/AnimBlink.hpp"
+#include "HAL/WS2812_Animation/AnimFlatline.hpp"
+#include "HAL/WS2812_Animation/AnimFlow.hpp"
 #include "Service/AP.h"
 #include "Service/DeviceConfig.h"
 #include "Service/DualPrint.h"
@@ -560,14 +561,14 @@ bool APP_HomeAssistant_execute(const char *parameter)
     if (!s_enabled || s_outbox == nullptr)
     {
         DualSerial.println("[HA] MQTT not configured, event ignored");
-        HAL::ws2812_start_fx(new AnimBlink(CRGB::Red, 200));
+        HAL::ws2812_start_fx(new AnimFlatline());
         return false;
     }
 
     if (!s_mqtt_connected)
     {
         DualSerial.printf("[HA] MQTT offline, event '%s' dropped\n", parameter);
-        HAL::ws2812_start_fx(new AnimBlink(CRGB::Red, 200));
+        HAL::ws2812_start_fx(new AnimFlatline());
         return false;
     }
 
@@ -584,12 +585,13 @@ bool APP_HomeAssistant_execute(const char *parameter)
         if (xQueueSend(s_outbox, &event, 0) != pdPASS)
         {
             DualSerial.println("[HA] Event queue full, event dropped");
-            HAL::ws2812_start_fx(new AnimBlink(CRGB::Red, 200));
+            HAL::ws2812_start_fx(new AnimFlatline());
             return false;
         }
     }
 
-    HAL::ws2812_start_fx(new AnimBlink(CRGB::Blue, 120));
+    // 与 ESP-NOW 的发送成功反馈一致：白色光流
+    HAL::ws2812_start_fx(new AnimFlow(CRGB::White));
     return true;
 }
 
