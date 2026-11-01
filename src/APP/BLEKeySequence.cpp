@@ -105,13 +105,18 @@ namespace
         {"rightshift", KEY_MOD_RSHIFT},
         {"rshift", KEY_MOD_RSHIFT},
         {"alt", KEY_MOD_LALT},
+        {"option", KEY_MOD_LALT}, // macOS 名称
+        {"opt", KEY_MOD_LALT},
         {"leftalt", KEY_MOD_LALT},
         {"lalt", KEY_MOD_LALT},
         {"rightalt", KEY_MOD_RALT},
         {"ralt", KEY_MOD_RALT},
         {"altgr", KEY_MOD_RALT},
+        // GUI 位在 Windows 上是 Win 键，在 macOS 上是 Command 键
         {"win", KEY_MOD_LGUI},
         {"windows", KEY_MOD_LGUI},
+        {"cmd", KEY_MOD_LGUI}, // macOS 名称
+        {"command", KEY_MOD_LGUI},
         {"gui", KEY_MOD_LGUI},
         {"super", KEY_MOD_LGUI},
         {"meta", KEY_MOD_LGUI},

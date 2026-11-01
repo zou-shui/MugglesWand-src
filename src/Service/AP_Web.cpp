@@ -627,7 +627,7 @@ var MAP_APP_INFO=[
   {value:'espnow',label:'espnow（ESP-NOW 信号）',param:true,placeholder:'信号值，如 0x02'},
   {value:'lumos',label:'lumos（荧光闪烁）',param:false},
   {value:'pov',label:'pov（光绘模式）',param:false},
-  {value:'ble_keyboard',label:'ble_keyboard（BLE 键盘宏）',param:true,placeholder:'按键序列，如[win+r],c,m,d,enter ; 具体语法请查看文档'},
+  {value:'ble_keyboard',label:'ble_keyboard（BLE 键盘宏）',param:true,placeholder:'按键序列，如 [win+r],c,m,d,enter 或 [cmd+space] ; Mac 键名用 cmd/option，具体语法查看文档'},
   {value:'ble_mouse',label:'ble_mouse（BLE 鼠标模式）',param:false},
   {value:'ble_knob',label:'ble_knob（BLE 音量旋钮模式）',param:false},
   {value:'ha',label:'ha（Home Assistant）',param:true,placeholder:'事件名，如 turn_on ; 只允许小写字母、数字和下划线'},
