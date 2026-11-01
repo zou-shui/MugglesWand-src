@@ -130,6 +130,7 @@ namespace
             return;
 
         memset(bindings, 0, sizeof(GestureBinding) * count);
+        set_default_binding(bindings, count, 0, "ha", "hello_ha");
         set_default_binding(bindings, count, 1, "espnow", "0x02");
         set_default_binding(bindings, count, 2, "espnow", "0x03");
         set_default_binding(bindings, count, 3, "ble_keyboard", "up");
