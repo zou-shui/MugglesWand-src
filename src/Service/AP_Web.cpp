@@ -681,14 +681,15 @@ function ensureMapAppOption(row,app){
 function updateMapParamField(row,keepValue){
   var app=row.select.value;
   var info=mapAppInfo(app);
+  // keepValue 仅在回显 map list 时为 true；用户切换 APP 时必须清空输入框，
+  // 否则上一个应用的参数会残留，看起来像是新应用的参数。
+  if(!keepValue)row.input.value='';
   if(app===''){
-    if(!keepValue)row.input.value='';
     row.input.disabled=true;
     row.input.placeholder='未绑定';
     return;
   }
   if(!info.param){
-    if(!keepValue)row.input.value='';
     row.input.disabled=true;
     row.input.placeholder='此应用无参数';
     return;
