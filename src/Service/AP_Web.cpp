@@ -317,10 +317,11 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
           <span class="subpage-title">参数配置</span>
           <button type="button" onclick="requestConfigList()">刷新</button>
         </div>
-        <div class="subpage-note">修改会写入 NVS，重启后生效。</div>
+        <div class="subpage-note">修改会写入 NVS，重启后生效；也可用底部「全部保存」一次性提交所有修改。</div>
         <div class="subpage-status" id="config-status"></div>
         <div class="cfg-list" id="config-list"></div>
         <div class="subpage-actions">
+          <button type="button" onclick="saveAllConfig()" class="green">全部保存</button>
           <button type="button" onclick="configClear('wifi')">清除WiFi配置</button>
           <button type="button" onclick="configClear('mqtt')">清除MQTT配置</button>
           <button type="button" onclick="configReset()" class="warning">恢复默认值</button>
@@ -645,6 +646,7 @@ var mapListTimer=null;
 var mapSavePending=[];
 var mapBulkQueue=[];      // 批量保存待发送的 {row,cmd}
 var mapBulkActive=false;
+var mapBulkCurrent=-1;
 var mapBulkTotal=0;
 var mapBulkSent=0;
 var mapBulkFail=0;
@@ -666,6 +668,7 @@ function openCtrlPage(name){
 
 function closeCtrlPage(){
   cancelMapBulk();
+  cancelConfigBulk();
   ctrlPage='main';
   document.getElementById('ctrl-map').classList.remove('active');
   document.getElementById('ctrl-config').classList.remove('active');
@@ -917,6 +920,7 @@ function sendNextMapBulk(){
   if(!mapBulkActive)return;
   if(!mapBulkQueue.length){
     mapBulkActive=false;
+    mapBulkCurrent=-1;
     if(mapBulkFail>0)setSubpageStatus(mapStatusEl,'批量保存完成：'+mapBulkSent+' 项中 '+mapBulkFail+' 项失败，失败行已标红','error');
     else setSubpageStatus(mapStatusEl,'批量保存完成：共 '+mapBulkSent+' 项，全部成功','');
     return;
@@ -925,11 +929,13 @@ function sendNextMapBulk(){
   if(!sendCmd(item.cmd)){
     mapBulkActive=false;
     mapBulkQueue=[];
+    mapBulkCurrent=-1;
     mapSavePending=[];
     setSubpageStatus(mapStatusEl,'未连接，批量保存已中止（已发送 '+mapBulkSent+'/'+mapBulkTotal+'）','error');
     return;
   }
   mapBulkSent++;
+  mapBulkCurrent=item.row.index;
   mapSavePending.push(item.row.index);
   setSubpageStatus(mapStatusEl,'正在保存 '+mapBulkSent+'/'+mapBulkTotal+'：手势 '+item.row.index,'pending');
   // 设备无响应时按失败处理，避免整个批量流程卡住
@@ -944,13 +950,13 @@ function cancelMapBulk(){
   if(mapBulkTimer){clearTimeout(mapBulkTimer);mapBulkTimer=null}
   mapBulkActive=false;
   mapBulkQueue=[];
+  mapBulkCurrent=-1;
   mapSavePending=[];
 }
 
 function markMapRowSaved(index,ok,detail){
   var pos=mapSavePending.indexOf(index);
   if(pos>=0)mapSavePending.splice(pos,1);
-  else if(mapSavePending.length)mapSavePending.shift();
   var row=mapRows[index];
   if(row){
     row.el.classList.remove(ok?'failed':'saved');
@@ -958,8 +964,12 @@ function markMapRowSaved(index,ok,detail){
     if(ok)row.dirty=false;
   }
   if(mapBulkActive){
-    if(!ok)mapBulkFail++;
-    sendNextMapBulk();
+    // 只让当前在途命令的回应推进队列，迟到的旧回应不重复触发发送
+    if(mapBulkCurrent===index){
+      mapBulkCurrent=-1;
+      if(!ok)mapBulkFail++;
+      sendNextMapBulk();
+    }
     return;
   }
   setSubpageStatus(mapStatusEl,'手势 '+index+(ok?' 已保存':' 保存失败'+(detail?'：'+detail:'')),ok?'':'error');
@@ -1029,6 +1039,13 @@ var configListActive=false;
 var configListRemain=0;
 var configListTimer=null;
 var configPending=null;
+var configBulkQueue=[];   // 批量保存待发送的 {row,cmd}
+var configBulkActive=false;
+var configBulkCurrent=null;
+var configBulkTotal=0;
+var configBulkSent=0;
+var configBulkFail=0;
+var configBulkTimer=null;
 
 function buildConfigRows(){
   for(var i=0;i<CONFIG_FIELDS.length;i++){
@@ -1057,7 +1074,7 @@ function buildConfigRows(){
     rowEl.appendChild(button);
     configListEl.appendChild(rowEl);
 
-    var row={field:field,el:rowEl,input:input,button:button};
+    var row={field:field,el:rowEl,input:input,button:button,dirty:false};
     registerConfigRowEvents(row);
     configRows[field.key]=row;
   }
@@ -1065,10 +1082,15 @@ function buildConfigRows(){
 
 function registerConfigRowEvents(row){
   row.button.addEventListener('click',function(){saveConfigRow(row)});
-  row.input.addEventListener('input',function(){row.el.classList.remove('saved','failed')});
+  row.input.addEventListener('input',function(){
+    row.dirty=true;
+    row.el.classList.remove('saved','failed');
+  });
 }
 
 function requestConfigList(){
+  cancelConfigBulk();
+  configPending=null;
   configListActive=false;
   configListRemain=0;
   if(configListTimer){clearTimeout(configListTimer);configListTimer=null}
@@ -1107,6 +1129,7 @@ function parseConfigListLine(line){
   if(row){
     row.input.value=value;
     row.el.classList.remove('saved','failed');
+    row.dirty=false;
   }
   if(configListRemain>0)configListRemain--;
   if(configListRemain===0){
@@ -1119,27 +1142,148 @@ function parseConfigListLine(line){
   return true;
 }
 
-function saveConfigRow(row){
+function configRowCommand(row){
   var field=row.field;
   var value=row.input.value;
-  if(value===''){
-    row.el.classList.add('failed');
-    setSubpageStatus(configStatusEl,field.label+' 不能为空（清空配置请用上方清除/恢复按钮）','error');
+  if(value==='')return {needValue:true};
+  if(field.key==='mqtt_port'&&!/^[0-9]+$/.test(value))return {badPort:true};
+  return {cmd:'config '+field.cmd+' '+value};
+}
+
+function saveConfigRow(row){
+  if(configBulkActive){
+    setSubpageStatus(configStatusEl,'正在批量保存，请稍候…','pending');
     return;
   }
-  if(field.key==='mqtt_port'&&!/^[0-9]+$/.test(value)){
+  var plan=configRowCommand(row);
+  if(plan.needValue){
+    row.el.classList.add('failed');
+    setSubpageStatus(configStatusEl,row.field.label+' 不能为空（清空配置请用上方清除/恢复按钮）','error');
+    return;
+  }
+  if(plan.badPort){
     row.el.classList.add('failed');
     setSubpageStatus(configStatusEl,'MQTT 端口必须是数字','error');
     return;
   }
-  var cmd='config '+field.cmd+' '+value;
-  if(!sendCmd(cmd,true)){
+  if(!sendCmd(plan.cmd,true)){
     setSubpageStatus(configStatusEl,'未连接，命令未发送','error');
     return;
   }
   row.el.classList.remove('saved','failed');
-  configPending=field.key;
-  setSubpageStatus(configStatusEl,field.label+'：正在保存…','pending');
+  configPending=row.field.key;
+  setSubpageStatus(configStatusEl,row.field.label+'：正在保存…','pending');
+}
+
+// 与手势绑定页一致：逐条发送并等待上一条结果，避免塞满固件命令队列
+function saveAllConfig(){
+  if(configBulkActive){
+    setSubpageStatus(configStatusEl,'正在批量保存，请稍候…','pending');
+    return;
+  }
+  if(configListActive){
+    setSubpageStatus(configStatusEl,'正在读取设备配置，请稍候…','pending');
+    return;
+  }
+  if(configPending){
+    setSubpageStatus(configStatusEl,'有保存命令尚未完成，请稍候再试','pending');
+    return;
+  }
+  var queue=[];
+  var badRow=null;
+  var badText='';
+  for(var i=0;i<CONFIG_FIELDS.length;i++){
+    var row=configRows[CONFIG_FIELDS[i].key];
+    if(!row||!row.dirty)continue;
+    var plan=configRowCommand(row);
+    if(plan.needValue){
+      badRow=row;
+      badText=row.field.label+' 不能为空（清空配置请用上方清除/恢复按钮），未保存任何修改';
+      break;
+    }
+    if(plan.badPort){
+      badRow=row;
+      badText='MQTT 端口必须是数字，未保存任何修改';
+      break;
+    }
+    queue.push({row:row,cmd:plan.cmd});
+  }
+  if(badRow){
+    badRow.el.classList.remove('saved');
+    badRow.el.classList.add('failed');
+    setSubpageStatus(configStatusEl,badText,'error');
+    return;
+  }
+  if(!queue.length){
+    setSubpageStatus(configStatusEl,'没有需要保存的修改','');
+    return;
+  }
+  configBulkQueue=queue;
+  configBulkTotal=queue.length;
+  configBulkSent=0;
+  configBulkFail=0;
+  configBulkActive=true;
+  sendNextConfigBulk();
+}
+
+function sendNextConfigBulk(){
+  if(configBulkTimer){clearTimeout(configBulkTimer);configBulkTimer=null}
+  if(!configBulkActive)return;
+  if(!configBulkQueue.length){
+    configBulkActive=false;
+    configBulkCurrent=null;
+    if(configBulkFail>0)setSubpageStatus(configStatusEl,'批量保存完成：'+configBulkSent+' 项中 '+configBulkFail+' 项失败，失败行已标红（重启后生效）','error');
+    else setSubpageStatus(configStatusEl,'批量保存完成：共 '+configBulkSent+' 项，全部成功（重启后生效）','');
+    return;
+  }
+  var item=configBulkQueue.shift();
+  if(!sendCmd(item.cmd,true)){
+    configBulkActive=false;
+    configBulkQueue=[];
+    configBulkCurrent=null;
+    configPending=null;
+    setSubpageStatus(configStatusEl,'未连接，批量保存已中止（已发送 '+configBulkSent+'/'+configBulkTotal+'）','error');
+    return;
+  }
+  configBulkSent++;
+  configBulkCurrent=item.row.field.key;
+  configPending=item.row.field.key;
+  setSubpageStatus(configStatusEl,'正在保存 '+configBulkSent+'/'+configBulkTotal+'：'+item.row.field.label,'pending');
+  // 设备无响应时按失败处理，避免整个批量流程卡住
+  configBulkTimer=setTimeout(function(){
+    configBulkTimer=null;
+    if(configBulkActive)markConfigRowSaved(item.row.field.key,false,'保存超时，设备无响应');
+  },3000);
+}
+
+function cancelConfigBulk(){
+  if(!configBulkActive)return;
+  if(configBulkTimer){clearTimeout(configBulkTimer);configBulkTimer=null}
+  configBulkActive=false;
+  configBulkQueue=[];
+  configBulkCurrent=null;
+  configPending=null;
+}
+
+function markConfigRowSaved(key,ok,detail){
+  var row=configRows[key];
+  if(configPending===key)configPending=null;
+  if(row){
+    row.el.classList.remove(ok?'failed':'saved');
+    row.el.classList.add(ok?'saved':'failed');
+    if(ok)row.dirty=false;
+  }
+  if(configBulkActive){
+    // 只让当前在途命令的回应推进队列，迟到的旧回应不重复触发发送
+    if(configBulkCurrent===key){
+      configBulkCurrent=null;
+      if(!ok)configBulkFail++;
+      sendNextConfigBulk();
+    }
+    return;
+  }
+  if(ok)setSubpageStatus(configStatusEl,(row?row.field.label:'配置')+' 已保存（重启后生效）');
+  else setSubpageStatus(configStatusEl,detail||'保存失败','error');
 }
 
 function processConfigResult(line){
@@ -1148,13 +1292,7 @@ function processConfigResult(line){
     for(var i=0;i<CONFIG_FIELDS.length;i++){
       var field=CONFIG_FIELDS[i];
       if(rest.indexOf(field.saved)===0){
-        configPending=null;
-        var row=configRows[field.key];
-        if(row){
-          row.el.classList.remove('failed');
-          row.el.classList.add('saved');
-        }
-        setSubpageStatus(configStatusEl,field.label+' 已保存（重启后生效）');
+        markConfigRowSaved(field.key,true);
         return true;
       }
     }
@@ -1168,10 +1306,12 @@ function processConfigResult(line){
   if(line.indexOf('Cleared: MQTT config')===0){
     clearConfigInputs(['mqtt_host','mqtt_user','mqtt_pass']);
     configRows.mqtt_port.input.value='1883';
+    configRows.mqtt_port.dirty=false;
     setSubpageStatus(configStatusEl,'已清除 MQTT 配置（重启后生效）');
     return true;
   }
   if(line.indexOf('Device config reset to defaults')===0){
+    cancelConfigBulk();
     configPending=null;
     setSubpageStatus(configStatusEl,'已恢复默认配置，正在刷新…','pending');
     setTimeout(requestConfigList,300);
@@ -1179,11 +1319,7 @@ function processConfigResult(line){
   }
   if(line.indexOf('Error:')===0||line.indexOf('[Web] Command rejected')===0){
     if(configPending&&configRows[configPending]){
-      var pendingRow=configRows[configPending];
-      pendingRow.el.classList.remove('saved');
-      pendingRow.el.classList.add('failed');
-      configPending=null;
-      setSubpageStatus(configStatusEl,line,'error');
+      markConfigRowSaved(configPending,false,line);
       return true;
     }
     return false;
@@ -1197,11 +1333,16 @@ function clearConfigInputs(keys){
     if(row){
       row.input.value='';
       row.el.classList.remove('saved','failed');
+      row.dirty=false;
     }
   }
 }
 
 function configClear(target){
+  if(configBulkActive){
+    setSubpageStatus(configStatusEl,'正在批量保存，请稍候…','pending');
+    return;
+  }
   var label=target==='wifi'?'WiFi':'MQTT';
   if(!confirm('清除 '+label+' 配置？重启后生效。'))return;
   if(!sendCmd('config clear '+target)){
@@ -1212,6 +1353,10 @@ function configClear(target){
 }
 
 function configReset(){
+  if(configBulkActive){
+    setSubpageStatus(configStatusEl,'正在批量保存，请稍候…','pending');
+    return;
+  }
   if(!confirm('恢复默认配置？BLE / AP / WiFi / MQTT 设置都会重置，重启后生效。'))return;
   if(!sendCmd('config reset')){
     setSubpageStatus(configStatusEl,'未连接，命令未发送','error');
