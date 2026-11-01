@@ -10,11 +10,11 @@
 #include "Service/AP.h"
 #include <esp_heap_caps.h>
 
-constexpr int kNumClasses = 11; // 输出类别数
+constexpr int kNumClasses = 13; // 输出类别数
 
 // 归一化参数（由训练脚本输出，必须与之一致）
-constexpr float kMean[2] = {0.07379825f, -0.08818149f};
-constexpr float kStd[2] = {1.6787196f, 2.35317555f};
+constexpr float kMean[2] = {0.06210482f, -0.12748019f};
+constexpr float kStd[2] = {1.58566193f, 2.28343889f};
 
 TaskHandle_t inference_task_handle = NULL;
 
