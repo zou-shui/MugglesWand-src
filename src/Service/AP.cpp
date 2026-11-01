@@ -36,7 +36,8 @@ static AsyncServer *tcpServer = nullptr;
 static AsyncClient *clients[MAX_CLIENTS] = {nullptr};
 
 static bool s_servers_started = false;
-static bool s_ap_enabled = false;
+static bool s_ap_enabled = false; // 用户意图：AP 服务开关
+static bool s_ap_started = false; // softAP 实际是否启动成功
 static bool s_espnow_enabled = false;
 
 // ESP-NOW readiness：init+add_peer 完成后置 true，deinit 前先置 false
@@ -139,6 +140,30 @@ static void on_wifi_event(arduino_event_id_t event);
 // ==================== 核心射频(RF)统一调度器 ====================
 // AP 开启时 WiFi 锁定 APSTA；ESP-NOW 切换不触发 WiFi.mode()，
 // 避免在 NimBLE 运行期间反复拆装 STA 子接口导致共存状态机崩溃。
+
+// 启动 SoftAP 并把信道固定到 1。成功返回 true；失败只记录，不影响 STA。
+static bool start_softap(void)
+{
+    char ssid[33];
+    char pass[64];
+    device_config_get_ap(ssid, sizeof(ssid), pass, sizeof(pass));
+    if (!WiFi.softAP(ssid, pass, 1))
+    {
+        DualSerial.println("[Net] Failed to start softAP");
+        return false;
+    }
+
+    // STA 未连接时把信道钉回 1，避免残留的扫描过程让 AP 在信道间漂移；
+    // ESP-NOW 同样依赖信道 1。STA 已连接时不能改，否则会断开 STA。
+    if (WiFi.status() != WL_CONNECTED &&
+        esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE) != ESP_OK)
+    {
+        DualSerial.println("[Net] Failed to pin AP channel to 1");
+    }
+
+    return true;
+}
+
 static void update_rf_state(void)
 {
     wifi_mode_t want;
@@ -158,42 +183,48 @@ static void update_rf_state(void)
     // 幂等保护：避免重复触发 WiFi.mode()
     if (want == s_current_wifi_mode)
     {
+        // 低内存时 softAP 可能启动失败：模式已是 APSTA 但热点不存在，补启动一次
+        if (want == WIFI_MODE_APSTA && s_ap_enabled && !s_ap_started)
+        {
+            s_ap_started = start_softap();
+        }
         return;
     }
-    s_current_wifi_mode = want;
 
     switch (want)
     {
     case WIFI_MODE_APSTA:
-    {
-        WiFi.mode(WIFI_AP_STA);
-
-        char ssid[33];
-        char pass[64];
-        device_config_get_ap(ssid, sizeof(ssid), pass, sizeof(pass));
-        if (!WiFi.softAP(ssid, pass, 1))
+        if (!WiFi.mode(WIFI_AP_STA))
         {
-            DualSerial.println("[Net] Failed to start softAP");
+            // 状态不更新，下次调用继续重试
+            DualSerial.println("[Net] Failed to switch to WIFI_AP_STA");
+            return;
         }
-
-        // STA 未连接时把信道钉回 1，避免残留的扫描过程让 AP 在信道间漂移；
-        // ESP-NOW 同样依赖信道 1。STA 已连接时不能改，否则会断开 STA。
-        if (WiFi.status() != WL_CONNECTED &&
-            esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE) != ESP_OK)
-        {
-            DualSerial.println("[Net] Failed to pin AP channel to 1");
-        }
-
+        s_current_wifi_mode = want;
+        s_ap_started = start_softap();
         DualSerial.println("[Net] RF Mode -> WIFI_AP_STA");
         break;
-    }
+
     case WIFI_MODE_STA:
-        WiFi.mode(WIFI_STA);
+        if (!WiFi.mode(WIFI_STA))
+        {
+            DualSerial.println("[Net] Failed to switch to WIFI_STA");
+            return;
+        }
+        s_current_wifi_mode = want;
+        s_ap_started = false; // 切到纯 STA 会停掉 AP 接口
         DualSerial.println("[Net] RF Mode -> WIFI_STA");
         break;
+
     default:
         WiFi.softAPdisconnect(true);
-        WiFi.mode(WIFI_OFF);
+        if (!WiFi.mode(WIFI_OFF))
+        {
+            DualSerial.println("[Net] Failed to switch WiFi off");
+            return;
+        }
+        s_current_wifi_mode = want;
+        s_ap_started = false;
         DualSerial.println("[Net] RF Mode -> WIFI_OFF");
         break;
     }
@@ -300,9 +331,21 @@ static void handleNewClient(void *arg, AsyncClient *client)
 // 能关联，但网页打不开。
 // 保底策略：堆到临界值后只重启 WiFi 射频回收驱动缓冲，HTTP/TCP 监听保留，
 // 客户端会自动重连（不能停止 HTTP/TCP 服务：会丢 80 端口监听）。
-#define AP_HEAP_GUARD_FREE_MIN (32 * 1024)
-#define AP_HEAP_GUARD_LARGEST_MIN (16 * 1024)
-#define AP_HEAP_GUARD_EMERGENCY_LARGEST (8 * 1024)
+//
+// 阈值按“真的快分配不出缓冲”来定，而不是按 AP-only 时代的宽松值：
+// APSTA + BLE + MQTT + 双 WebSocket 会让内部堆长期低于旧阈值，
+// 32KB/16KB 在健康状态下也会持续误触发。lwIP pbuf 和 WiFi TX buffer
+// 单块约 1.6KB，连续块 8KB 仍有充足余量。
+//
+// 该缺陷只影响 AP 客户端，因此只有 AP 上真的有客户端关联时才自愈。
+#define AP_HEAP_GUARD_FREE_MIN (20 * 1024)
+#define AP_HEAP_GUARD_LARGEST_MIN (8 * 1024)
+#define AP_HEAP_GUARD_EMERGENCY_FREE (10 * 1024)
+#define AP_HEAP_GUARD_EMERGENCY_LARGEST (4 * 1024)
+#define AP_HEAP_GUARD_LOW_HOLD_MS 3000   // 低内存持续 3s 才动手
+#define AP_HEAP_GUARD_RETRY_MIN_MS 10000 // 两次自愈的最小间隔
+#define AP_HEAP_GUARD_RETRY_MAX_MS (5 * 60 * 1000)
+#define AP_HEAP_GUARD_HEALTHY_MS 30000 // 恢复健康 30s 后重置退避
 
 static bool s_heap_guard_started = false;
 
@@ -336,41 +379,91 @@ static void ap_heap_guard_task(void *param)
 {
     (void)param;
     uint32_t low_since = 0;
-    uint32_t last_restart = 0;
+    uint32_t healthy_since = 0;
+    uint32_t retry_interval_ms = 0;
+    uint32_t next_restart_ms = 0;
 
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000));
         if (!s_ap_enabled)
         {
+            // 新一次 AP 会话从最小间隔重新开始
             low_since = 0;
+            healthy_since = 0;
+            retry_interval_ms = 0;
+            next_restart_ms = 0;
             continue;
         }
 
-        uint32_t int_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        if (int_free >= AP_HEAP_GUARD_FREE_MIN && largest >= AP_HEAP_GUARD_LARGEST_MIN)
+        const uint32_t int_free =
+            heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        const uint32_t largest =
+            heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        const bool low = int_free < AP_HEAP_GUARD_FREE_MIN ||
+                         largest < AP_HEAP_GUARD_LARGEST_MIN;
+
+        if (!low)
+        {
+            low_since = 0;
+
+            // 只有明显高于阈值才算健康，避免贴着阈值来回抖动时反复重置退避
+            if (int_free >= AP_HEAP_GUARD_FREE_MIN + 4096 &&
+                largest >= AP_HEAP_GUARD_LARGEST_MIN + 4096)
+            {
+                if (healthy_since == 0)
+                    healthy_since = millis();
+                else if (millis() - healthy_since >= AP_HEAP_GUARD_HEALTHY_MS)
+                {
+                    retry_interval_ms = 0;
+                    next_restart_ms = 0;
+                }
+            }
+            else
+            {
+                healthy_since = 0;
+            }
+            continue;
+        }
+
+        healthy_since = 0;
+
+        // 没有 AP 客户端时这个缺陷不可能在起作用，重启射频只会打断 STA 页面
+        const uint8_t stations = WiFi.softAPgetStationNum();
+        if (stations == 0)
         {
             low_since = 0;
             continue;
         }
 
         if (low_since == 0)
-        {
             low_since = millis();
-        }
 
-        // 连续 2 秒低内存才动手，避免页面加载等瞬时分配误触发；
-        // 已经逼近 WiFi 发不出去包（最大块 <8KB）时立即处理。
-        if (largest >= AP_HEAP_GUARD_EMERGENCY_LARGEST && millis() - low_since < 2000)
-            continue;
-        if (millis() - last_restart < 10000)
+        // 非紧急情况要求低内存持续 3 秒，过滤页面加载等瞬时分配；
+        // 已经逼近分配失败（连续块 <4KB 或空闲 <10KB）时立即处理。
+        const bool emergency =
+            int_free < AP_HEAP_GUARD_EMERGENCY_FREE ||
+            largest < AP_HEAP_GUARD_EMERGENCY_LARGEST;
+        if (!emergency && millis() - low_since < AP_HEAP_GUARD_LOW_HOLD_MS)
             continue;
 
-        last_restart = millis();
-        low_since = millis();
-        DualSerial.printf("[Net] low heap (int=%u largest=%u), restarting WiFi RF\n",
-                          (unsigned)int_free, (unsigned)largest);
+        const uint32_t now = millis();
+        if (next_restart_ms != 0 && (int32_t)(now - next_restart_ms) < 0)
+            continue;
+
+        // 重启后水位仍不恢复说明不是 AP 缓冲造成的：指数退避，避免无限重启
+        retry_interval_ms = retry_interval_ms == 0
+                                ? AP_HEAP_GUARD_RETRY_MIN_MS
+                                : retry_interval_ms * 2;
+        if (retry_interval_ms > AP_HEAP_GUARD_RETRY_MAX_MS)
+            retry_interval_ms = AP_HEAP_GUARD_RETRY_MAX_MS;
+        next_restart_ms = now + retry_interval_ms;
+        low_since = now;
+
+        DualSerial.printf("[Net] low heap (int=%uKB largest=%uKB sta=%u), "
+                          "restarting WiFi RF (retry in %us)\n",
+                          (unsigned)(int_free / 1024), (unsigned)(largest / 1024),
+                          (unsigned)stations, (unsigned)(retry_interval_ms / 1000));
         ap_rf_restart();
     }
 }
@@ -460,8 +553,11 @@ void network_init(void)
     {
         s_ap_enabled = true;
         update_rf_state(); // -> WIFI_AP_STA + softAP
-        DualSerial.printf("[Net] No WiFi config, AP started: %s\n",
-                          WiFi.softAPIP().toString().c_str());
+        if (s_ap_started)
+            DualSerial.printf("[Net] No WiFi config, AP started: %s\n",
+                              WiFi.softAPIP().toString().c_str());
+        else
+            DualSerial.println("[Net] No WiFi config, AP failed to start");
     }
 
     servers_start();
@@ -592,6 +688,7 @@ void network_suspend(void)
     }
 
     s_ap_enabled = false;
+    s_ap_started = false;
     s_current_wifi_mode = WIFI_MODE_NULL;
     WiFi.disconnect(true);
     WiFi.softAPdisconnect(true);
@@ -627,9 +724,12 @@ void ap_toggle(void)
         sta_retry_pause();
         s_ap_enabled = true;
         update_rf_state();
-        DualSerial.printf("[Net] AP started: %s (ch %u)\n",
-                          WiFi.softAPIP().toString().c_str(),
-                          (unsigned)WiFi.channel());
+        if (s_ap_started)
+            DualSerial.printf("[Net] AP started: %s (ch %u)\n",
+                              WiFi.softAPIP().toString().c_str(),
+                              (unsigned)WiFi.channel());
+        else
+            DualSerial.println("[Net] AP failed to start");
     }
 
     network_refresh_espnow_gate();
@@ -638,7 +738,8 @@ void ap_toggle(void)
 
 bool ap_is_running(void)
 {
-    return s_ap_enabled;
+    // 返回实际状态：softAP 启动失败时网页图标不应显示“已开启”
+    return s_ap_enabled && s_ap_started;
 }
 
 // 开/关 WiFi STA。关闭时只断 STA，AP 与 ESP-NOW 保持原状态；

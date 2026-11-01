@@ -11,6 +11,7 @@
 #include "AP.h"
 #include "Sleep.h"
 #include "HAL/HAL.h"
+#include <esp_heap_caps.h>
 #include <esp_system.h>
 
 // 把 esp_reset_reason_t 枚举翻译成可读字符串。
@@ -96,6 +97,11 @@ static void system_service_task(void *param)
                 DualSerial.printf("AP: %s, ", ap_is_running() ? "ON" : "OFF");
                 DualSerial.printf("WiFi: %s, ", wifi_state);
                 DualSerial.printf("ESP-NOW: %s\n", espnow_is_running() ? "ON" : "OFF");
+                /*
+                // 内部堆水位，用于核对低内存自愈阈值
+                DualSerial.printf("Internal heap: %uKB free, %uKB largest block\n",
+                                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024),
+                                  (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024));*/
                 break;
             }
 

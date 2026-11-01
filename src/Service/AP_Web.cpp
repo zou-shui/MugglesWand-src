@@ -12,6 +12,7 @@
 #include "HAL/HAL.h"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
+#include <string.h>
 
 // ==================== 内嵌网页 ====================
 // 完整的单页应用（HTML + CSS + JS），使用原始字符串字面量嵌入
@@ -898,7 +899,7 @@ var CONFIG_FIELDS=[
   {key:'ble',label:'BLE 名称',cmd:'ble',saved:'BLE name',max:29,hint:'1-29 字节'},
   {key:'ap_ssid',label:'AP SSID',cmd:'ap',saved:'AP SSID',max:32,hint:'1-32 字节'},
   {key:'ap_pass',label:'AP 密码',cmd:'ap-pass',saved:'AP password',max:63,hint:'8-63 字节'},
-  {key:'wifi_ssid',label:'WiFi SSID',cmd:'wifi',saved:'WiFi SSID',max:32,hint:'1-32 字节，清空请用“清除 WiFi”'},
+  {key:'wifi_ssid',label:'WiFi SSID',cmd:'wifi',saved:'WiFi SSID',max:32,hint:'1-32 字节'},
   {key:'wifi_pass',label:'WiFi 密码',cmd:'wifi-pass',saved:'WiFi password',max:63,hint:'8-63 字节'},
   {key:'mqtt_host',label:'MQTT 主机',cmd:'mqtt',saved:'MQTT host',max:63,hint:'IP 或域名，不能含空格'},
   {key:'mqtt_port',label:'MQTT 端口',cmd:'mqtt-port',saved:'MQTT port',max:5,hint:'1-65535'},
@@ -1355,6 +1356,60 @@ static AsyncWebSocket webSocket("/ws");
 static bool webRunning = false;
 static bool webRoutesSet = false;
 
+// AP 侧 WebSocket 客户端登记：自愈只断开走 SoftAP 的页面，保留 STA 页面。
+// 只记录 client id——客户端对象可能随时被 AsyncTCP 任务销毁，不能存指针。
+#define AP_WEB_MAX_AP_CLIENTS 8
+static uint32_t s_ap_client_ids[AP_WEB_MAX_AP_CLIENTS] = {0};
+static SemaphoreHandle_t s_ap_client_lock = nullptr;
+
+static bool ip_is_ap_side(const IPAddress &ip)
+{
+  const IPAddress ap = WiFi.softAPIP();
+  return ip[0] == ap[0] && ip[1] == ap[1] && ip[2] == ap[2];
+}
+
+static void ap_web_track_client(AsyncWebSocketClient *client)
+{
+  if (s_ap_client_lock == nullptr || !ip_is_ap_side(client->remoteIP()))
+    return;
+
+  // SoftAP 最多 4 个客户端，8 个槽位足够；满了就放弃登记
+  xSemaphoreTake(s_ap_client_lock, portMAX_DELAY);
+  for (int i = 0; i < AP_WEB_MAX_AP_CLIENTS; ++i)
+  {
+    if (s_ap_client_ids[i] == 0)
+    {
+      s_ap_client_ids[i] = client->id();
+      break;
+    }
+  }
+  xSemaphoreGive(s_ap_client_lock);
+}
+
+static void ap_web_untrack_client(uint32_t id)
+{
+  if (s_ap_client_lock == nullptr)
+    return;
+
+  xSemaphoreTake(s_ap_client_lock, portMAX_DELAY);
+  for (int i = 0; i < AP_WEB_MAX_AP_CLIENTS; ++i)
+  {
+    if (s_ap_client_ids[i] == id)
+      s_ap_client_ids[i] = 0;
+  }
+  xSemaphoreGive(s_ap_client_lock);
+}
+
+static void ap_web_clear_tracked(void)
+{
+  if (s_ap_client_lock == nullptr)
+    return;
+
+  xSemaphoreTake(s_ap_client_lock, portMAX_DELAY);
+  memset(s_ap_client_ids, 0, sizeof(s_ap_client_ids));
+  xSemaphoreGive(s_ap_client_lock);
+}
+
 // 应用层心跳：0x01 开头的文本帧不进入终端日志，只用于判断链路质量
 static const uint8_t WS_CTRL_PREFIX = 0x01;
 static const char WS_CTRL_PING[] = "PING";
@@ -1366,13 +1421,13 @@ static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
   switch (type)
   {
   case WS_EVT_CONNECT:
-    // 服务端定期 ping：客户端失联时尽快触发 ACK 超时并清理，
-    // 避免浏览器换页/重启后残留大量僵尸连接
-    client->keepAlivePeriod(2);
+    // 不设置服务端 keepAlive：页面每 1s 发应用层心跳，额外 PING 只会增加 AP 下行流量
+    ap_web_track_client(client);
     DualSerial.printf("[Web] Client #%u connected\n", client->id());
     break;
 
   case WS_EVT_DISCONNECT:
+    ap_web_untrack_client(client->id());
     DualSerial.printf("[Web] Client #%u disconnected\n", client->id());
     break;
 
@@ -1441,6 +1496,9 @@ void ap_web_start(void)
   if (webRunning)
     return;
 
+  if (s_ap_client_lock == nullptr)
+    s_ap_client_lock = xSemaphoreCreateMutex();
+
   if (!webRoutesSet)
   {
     webSocket.onEvent(onWsEvent);
@@ -1469,6 +1527,7 @@ void ap_web_stop(void)
   if (!webRunning)
     return;
 
+  ap_web_clear_tracked();
   webSocket.closeAll();
   webServer.end();
   webRunning = false;
@@ -1491,6 +1550,26 @@ void ap_web_print(const char *buffer, size_t length)
 
 void ap_web_close_all(void)
 {
-  if (webRunning)
+  if (!webRunning)
+    return;
+
+  if (s_ap_client_lock == nullptr)
+  {
     webSocket.closeAll();
+    return;
+  }
+
+  uint32_t ids[AP_WEB_MAX_AP_CLIENTS];
+  xSemaphoreTake(s_ap_client_lock, portMAX_DELAY);
+  memcpy(ids, s_ap_client_ids, sizeof(ids));
+  memset(s_ap_client_ids, 0, sizeof(s_ap_client_ids));
+  xSemaphoreGive(s_ap_client_lock);
+
+  // close() 只是排队 close 帧；发送窗口卡死的客户端只能靠射频重启
+  // 和 AsyncTCP 5s ACK 超时回收，应用层无法安全地拿到对象做 abort()。
+  for (int i = 0; i < AP_WEB_MAX_AP_CLIENTS; ++i)
+  {
+    if (ids[i] != 0)
+      webSocket.close(ids[i]);
+  }
 }
