@@ -143,6 +143,7 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
 .subpage-actions button{background:var(--btn-bg);color:var(--text);border:1px solid var(--border);padding:10px 20px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1.3;min-height:42px}
 .subpage-actions button:hover{background:var(--btn-hover)}
 .subpage-actions button.warning{background:var(--warn);border-color:var(--warn);color:#fff}
+.subpage-actions button.green{background:var(--green);border-color:var(--green);color:#fff}
 .subpage-note{padding:6px 12px 0;color:#8892aa;font-size:12px;line-height:1.5}
 .subpage-status{padding:6px 12px 0;font-size:12px;line-height:1.5;min-height:18px;color:var(--green);white-space:pre-wrap;word-break:break-all}
 .subpage-status.pending{color:var(--orange)}
@@ -302,10 +303,11 @@ main{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:1
           <span class="subpage-title">手势绑定</span>
           <button type="button" onclick="requestMapList()">刷新</button>
         </div>
-        <div class="subpage-note">为每个手势配置对应的功能，保存后立即生效。</div>
+        <div class="subpage-note">为每个手势配置对应的功能，保存后立即生效；也可用底部「全部保存」一次性提交所有修改。</div>
         <div class="subpage-status" id="map-status"></div>
         <div class="cfg-list" id="map-list"></div>
         <div class="subpage-actions">
+          <button type="button" onclick="saveAllMap()" class="green">全部保存</button>
           <button type="button" onclick="mapReset()" class="warning">恢复默认值</button>
         </div>
       </div>
@@ -641,6 +643,12 @@ var mapListActive=false;
 var mapListRemain=0;
 var mapListTimer=null;
 var mapSavePending=[];
+var mapBulkQueue=[];      // 批量保存待发送的 {row,cmd}
+var mapBulkActive=false;
+var mapBulkTotal=0;
+var mapBulkSent=0;
+var mapBulkFail=0;
+var mapBulkTimer=null;
 
 function setSubpageStatus(el,text,kind){
   el.textContent=text||'';
@@ -657,6 +665,7 @@ function openCtrlPage(name){
 }
 
 function closeCtrlPage(){
+  cancelMapBulk();
   ctrlPage='main';
   document.getElementById('ctrl-map').classList.remove('active');
   document.getElementById('ctrl-config').classList.remove('active');
@@ -730,12 +739,16 @@ function createMapRow(index){
   rowEl.appendChild(button);
   mapListEl.appendChild(rowEl);
 
-  var row={index:index,el:rowEl,select:select,input:input,button:button,knownApps:{}};
+  var row={index:index,el:rowEl,select:select,input:input,button:button,knownApps:{},dirty:false};
   select.addEventListener('change',function(){
+    row.dirty=true;
     updateMapParamField(row,false);
     rowEl.classList.remove('saved','failed');
   });
-  input.addEventListener('input',function(){rowEl.classList.remove('saved','failed')});
+  input.addEventListener('input',function(){
+    row.dirty=true;
+    rowEl.classList.remove('saved','failed');
+  });
   button.addEventListener('click',function(){saveMapRow(row)});
   updateMapParamField(row,false);
   return row;
@@ -753,6 +766,8 @@ function clearMapRows(count){
 }
 
 function requestMapList(){
+  cancelMapBulk();
+  mapSavePending=[];
   mapListActive=false;
   mapListRemain=0;
   if(mapListTimer){clearTimeout(mapListTimer);mapListTimer=null}
@@ -814,6 +829,7 @@ function parseMapBindingLine(line){
   row.input.value=param;
   updateMapParamField(row,true);
   row.el.classList.remove('saved','failed');
+  row.dirty=false;
   if(mapListRemain>0)mapListRemain--;
   if(mapListRemain===0){
     mapListActive=false;
@@ -824,32 +840,114 @@ function parseMapBindingLine(line){
   return true;
 }
 
-function saveMapRow(row){
+function mapRowCommand(row){
   var app=row.select.value;
   var info=mapAppInfo(app);
   var param=row.input.value;
-  var cmd;
-  if(app===''){
-    cmd='map clear '+row.index;
-  }else if(info.param&&param===''){
+  if(app==='')return {cmd:'map clear '+row.index};
+  if(info.param&&param==='')return {needParam:true};
+  if(info.param)return {cmd:'map bind '+row.index+' '+app+' '+param};
+  return {cmd:'map bind '+row.index+' '+app};
+}
+
+function saveMapRow(row){
+  if(mapBulkActive){
+    setSubpageStatus(mapStatusEl,'正在批量保存，请稍候…','pending');
+    return;
+  }
+  var plan=mapRowCommand(row);
+  if(plan.needParam){
     row.el.classList.add('failed');
     setSubpageStatus(mapStatusEl,'手势 '+row.index+' 的 APP 需要参数','error');
     return;
-  }else if(info.param){
-    cmd='map bind '+row.index+' '+app+' '+param;
-  }else{
-    cmd='map bind '+row.index+' '+app;
   }
-  if(!sendCmd(cmd)){
+  if(!sendCmd(plan.cmd)){
     setSubpageStatus(mapStatusEl,'未连接，命令未发送','error');
     return;
   }
   row.el.classList.remove('saved','failed');
   mapSavePending.push(row.index);
-  setSubpageStatus(mapStatusEl,'手势 '+row.index+'：已发送 '+cmd,'pending');
+  setSubpageStatus(mapStatusEl,'手势 '+row.index+'：已发送 '+plan.cmd,'pending');
 }
 
-function markMapRowSaved(index,ok){
+// 一次性保存所有改动过的行。固件命令队列只有 4 格且满了会直接拒绝，
+// 因此这里逐条发送，收到上一条结果后再发下一条。
+function saveAllMap(){
+  if(mapBulkActive){
+    setSubpageStatus(mapStatusEl,'正在批量保存，请稍候…','pending');
+    return;
+  }
+  if(mapListActive){
+    setSubpageStatus(mapStatusEl,'正在读取手势绑定，请稍候…','pending');
+    return;
+  }
+  if(mapSavePending.length){
+    setSubpageStatus(mapStatusEl,'有保存命令尚未完成，请稍候再试','pending');
+    return;
+  }
+  var queue=[];
+  var badRow=null;
+  for(var i=0;i<mapRows.length;i++){
+    var row=mapRows[i];
+    if(!row.dirty)continue;
+    var plan=mapRowCommand(row);
+    if(plan.needParam){badRow=row;break}
+    queue.push({row:row,cmd:plan.cmd});
+  }
+  if(badRow){
+    badRow.el.classList.remove('saved');
+    badRow.el.classList.add('failed');
+    setSubpageStatus(mapStatusEl,'手势 '+badRow.index+' 的 APP 需要参数，未保存任何修改','error');
+    return;
+  }
+  if(!queue.length){
+    setSubpageStatus(mapStatusEl,'没有需要保存的修改','');
+    return;
+  }
+  mapBulkQueue=queue;
+  mapBulkTotal=queue.length;
+  mapBulkSent=0;
+  mapBulkFail=0;
+  mapBulkActive=true;
+  sendNextMapBulk();
+}
+
+function sendNextMapBulk(){
+  if(mapBulkTimer){clearTimeout(mapBulkTimer);mapBulkTimer=null}
+  if(!mapBulkActive)return;
+  if(!mapBulkQueue.length){
+    mapBulkActive=false;
+    if(mapBulkFail>0)setSubpageStatus(mapStatusEl,'批量保存完成：'+mapBulkSent+' 项中 '+mapBulkFail+' 项失败，失败行已标红','error');
+    else setSubpageStatus(mapStatusEl,'批量保存完成：共 '+mapBulkSent+' 项，全部成功','');
+    return;
+  }
+  var item=mapBulkQueue.shift();
+  if(!sendCmd(item.cmd)){
+    mapBulkActive=false;
+    mapBulkQueue=[];
+    mapSavePending=[];
+    setSubpageStatus(mapStatusEl,'未连接，批量保存已中止（已发送 '+mapBulkSent+'/'+mapBulkTotal+'）','error');
+    return;
+  }
+  mapBulkSent++;
+  mapSavePending.push(item.row.index);
+  setSubpageStatus(mapStatusEl,'正在保存 '+mapBulkSent+'/'+mapBulkTotal+'：手势 '+item.row.index,'pending');
+  // 设备无响应时按失败处理，避免整个批量流程卡住
+  mapBulkTimer=setTimeout(function(){
+    mapBulkTimer=null;
+    if(mapBulkActive)markMapRowSaved(item.row.index,false,'设备无响应');
+  },3000);
+}
+
+function cancelMapBulk(){
+  if(!mapBulkActive)return;
+  if(mapBulkTimer){clearTimeout(mapBulkTimer);mapBulkTimer=null}
+  mapBulkActive=false;
+  mapBulkQueue=[];
+  mapSavePending=[];
+}
+
+function markMapRowSaved(index,ok,detail){
   var pos=mapSavePending.indexOf(index);
   if(pos>=0)mapSavePending.splice(pos,1);
   else if(mapSavePending.length)mapSavePending.shift();
@@ -857,8 +955,14 @@ function markMapRowSaved(index,ok){
   if(row){
     row.el.classList.remove(ok?'failed':'saved');
     row.el.classList.add(ok?'saved':'failed');
+    if(ok)row.dirty=false;
   }
-  setSubpageStatus(mapStatusEl,'手势 '+index+(ok?' 已保存':' 保存失败'),ok?'':'error');
+  if(mapBulkActive){
+    if(!ok)mapBulkFail++;
+    sendNextMapBulk();
+    return;
+  }
+  setSubpageStatus(mapStatusEl,'手势 '+index+(ok?' 已保存':' 保存失败'+(detail?'：'+detail:'')),ok?'':'error');
 }
 
 function processMapResult(line){
@@ -867,17 +971,17 @@ function processMapResult(line){
   m=line.match(/^Cleared: gesture (\d+)/);
   if(m){markMapRowSaved(parseInt(m[1],10),true);return true}
   if(line==='Gesture mappings reset to defaults'){
+    cancelMapBulk();
     mapSavePending=[];
     setSubpageStatus(mapStatusEl,'已恢复默认手势绑定，正在刷新…','pending');
     setTimeout(requestMapList,300);
     return true;
   }
   if(line.indexOf('Error:')===0||line.indexOf('[Web] Command rejected')===0){
-    var index=mapSavePending.length?mapSavePending.shift():-1;
+    var index=mapSavePending.length?mapSavePending[0]:-1;
+    var detail=line.substring(6).trim();
     if(index>=0&&mapRows[index]){
-      mapRows[index].el.classList.remove('saved');
-      mapRows[index].el.classList.add('failed');
-      setSubpageStatus(mapStatusEl,'手势 '+index+' 保存失败：'+line.substring(6).trim(),'error');
+      markMapRowSaved(index,false,detail);
     }else{
       setSubpageStatus(mapStatusEl,line,'error');
     }
@@ -887,6 +991,10 @@ function processMapResult(line){
 }
 
 function mapReset(){
+  if(mapBulkActive){
+    setSubpageStatus(mapStatusEl,'正在批量保存，请稍候…','pending');
+    return;
+  }
   if(!confirm('恢复默认的手势绑定？当前绑定将被覆盖。'))return;
   if(!sendCmd('map reset')){
     setSubpageStatus(mapStatusEl,'未连接，命令未发送','error');
