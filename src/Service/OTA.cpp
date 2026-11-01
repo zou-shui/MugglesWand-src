@@ -17,7 +17,8 @@ WebServer server(80);
 
 /************ OTA状态 ************/
 unsigned long ota_progress_millis = 0;
-uint8_t ota_progress_pct = 0; // OTA 进度百分比（0~100），供 AnimProgress 读取
+uint8_t ota_progress_pct = 0;     // OTA 进度百分比（0~100），供 AnimProgress 读取
+static size_t ota_total_size = 0; // 本次上传的总字节数（固件 + multipart 头部开销）
 
 /************ OTA IP地址 ************/
 static IPAddress ota_ip;
@@ -27,6 +28,7 @@ static void onOTAStart()
 {
     DualSerial.println("[OTA] update started!");
     ota_progress_pct = 0;
+    ota_total_size = 0;
 
     // 启动进度条动画
     HAL::ws2812_set_overlay(new AnimProgress(ota_progress_pct));
@@ -34,11 +36,28 @@ static void onOTAStart()
 
 static void onOTAProgress(size_t current, size_t final)
 {
+    // 注意：ESP32 核心 WebServer 的 upload.totalSize（即这里的 final）是
+    // “已处理字节数”的累计值，不是固件总大小，不能用来算百分比。
+    // 总量只能取本次 POST 请求的 Content-Length（含约 200 字节 multipart 开销）。
+    (void) final;
+    if (ota_total_size == 0)
+    {
+        int content_length = server.clientContentLength();
+        if (content_length > 0)
+            ota_total_size = (size_t)content_length;
+    }
+
     if (millis() - ota_progress_millis > 500)
     {
         ota_progress_millis = millis();
-        DualSerial.printf("[OTA] Progress: %u bytes\n", current);
-        ota_progress_pct = final == 0 ? 0 : (uint8_t)((current * 100) / final);
+        if (ota_total_size > 0)
+        {
+            ota_progress_pct = (uint8_t)(((uint64_t)current * 100) / ota_total_size);
+            if (ota_progress_pct > 99) // 100% 留给 onOTAEnd 置位
+                ota_progress_pct = 99;
+        }
+        DualSerial.printf("[OTA] Progress: %u / %u bytes (%u%%)\n",
+                          (unsigned)current, (unsigned)ota_total_size, ota_progress_pct);
     }
 }
 
