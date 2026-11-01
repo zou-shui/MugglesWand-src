@@ -130,17 +130,19 @@ namespace
             return;
 
         memset(bindings, 0, sizeof(GestureBinding) * count);
-        set_default_binding(bindings, count, 0, "ha", "hello_ha");
+        set_default_binding(bindings, count, 0, "ha", "hello_homeassistant");
         set_default_binding(bindings, count, 1, "espnow", "0x02");
         set_default_binding(bindings, count, 2, "espnow", "0x03");
         set_default_binding(bindings, count, 3, "ble_keyboard", "up");
         set_default_binding(bindings, count, 4, "ble_keyboard", "down");
-        set_default_binding(bindings, count, 5, "ble_keyboard", "left");
-        set_default_binding(bindings, count, 6, "ble_keyboard", "right");
+        set_default_binding(bindings, count, 5, "ble_keyboard", "[win+ctrl+left]");
+        set_default_binding(bindings, count, 6, "ble_keyboard", "[win+ctrl+right]");
         set_default_binding(bindings, count, 7, "ble_mouse");
         set_default_binding(bindings, count, 8, "lumos");
         set_default_binding(bindings, count, 9, "ble_knob");
-        set_default_binding(bindings, count, 10, "pov");
+        set_default_binding(bindings, count, 10, "ble_keyboard", "[win+x](,200),u,s");
+        set_default_binding(bindings, count, 11, "ble_keyboard", "playpause");
+        set_default_binding(bindings, count, 12, "pov");
     }
 
     const AppHandler kAppHandlers[] = {
