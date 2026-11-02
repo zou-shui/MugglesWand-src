@@ -56,6 +56,9 @@ namespace
     volatile bool s_mqtt_connected = false;
     bool s_enabled = false;
     bool s_discovery_dirty = true;
+    bool s_map_changed = false;
+    bool s_ha_signature_valid = false;
+    uint32_t s_ha_signature = 0;
     bool s_battery_dirty = false;
     uint32_t s_next_reconnect_ms = 0;
     uint32_t s_backoff_ms = kReconnectMinMs;
@@ -91,6 +94,42 @@ namespace
                 return false;
         }
         return true;
+    }
+
+    void hash_mix(uint32_t &hash, const void *data, size_t length)
+    {
+        const uint8_t *bytes = (const uint8_t *)data;
+        for (size_t i = 0; i < length; ++i)
+        {
+            hash ^= bytes[i];
+            hash *= 16777619u;
+        }
+    }
+
+    // 发现配置只受 HA 绑定影响：app == "ha" 且事件名合法的手势才会写入
+    // device trigger / event_types。映射变更时用该签名判断是否真的需要
+    // 重发，避免绑定 lumos、espnow 等无关 app 也触发整表 retained 重发。
+    uint32_t ha_binding_signature(void)
+    {
+        uint32_t hash = 2166136261u;
+        const size_t total = APP_binding_count();
+        hash_mix(hash, &total, sizeof(total));
+
+        for (size_t i = 0; i < total; ++i)
+        {
+            GestureBinding binding;
+            if (!APP_binding_get(i, &binding))
+                continue;
+            if (strcmp(binding.app, "ha") != 0 ||
+                !is_valid_event_name(binding.parameter))
+                continue;
+
+            hash_mix(hash, &i, sizeof(i));
+            const size_t length = strlen(binding.parameter);
+            hash_mix(hash, &length, sizeof(length));
+            hash_mix(hash, binding.parameter, length);
+        }
+        return hash;
     }
 
     void clear_outbox(void)
@@ -293,6 +332,9 @@ namespace
 
         publish_battery_discovery();
 
+        s_ha_signature = ha_binding_signature();
+        s_ha_signature_valid = true;
+
         DualSerial.printf("[HA] Discovery published %u HA gesture(s)\n",
                           (unsigned)ha_binding_count);
     }
@@ -410,13 +452,13 @@ namespace
 
         for (;;)
         {
-            // 映射变更：重新发布 HA 发现配置
+            // 映射变更：仅当 HA 绑定集合变化时才重新发布发现配置
             SystemEvent control;
             while (s_ctrl_queue != nullptr &&
                    xQueueReceive(s_ctrl_queue, &control, 0) == pdPASS)
             {
                 if (control.id == EVENT_MAP_CHANGED)
-                    s_discovery_dirty = true;
+                    s_map_changed = true;
                 else if (control.id == EVENT_POWER_CHARGING ||
                          control.id == EVENT_POWER_NOT_CHARGING)
                     s_battery_dirty = true;
@@ -457,8 +499,20 @@ namespace
 
             if (s_discovery_dirty)
             {
+                // 首次连接 / MQTT 重连：强制完整重发
                 s_discovery_dirty = false;
+                s_map_changed = false;
                 publish_discovery();
+            }
+            else if (s_map_changed)
+            {
+                // 仅当 HA 绑定集合真的变化时才重发发现配置
+                s_map_changed = false;
+                if (!s_ha_signature_valid ||
+                    ha_binding_signature() != s_ha_signature)
+                {
+                    publish_discovery();
+                }
             }
 
             HaEvent event;
