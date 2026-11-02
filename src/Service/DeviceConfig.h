@@ -27,6 +27,10 @@ void device_config_get_wifi(char *ssid, size_t ssid_size,
                             char *pass, size_t pass_size);
 void device_config_get_mqtt(DeviceMqttConfig *config);
 
+// 上次成功连接的信道缓存（用于开机从该信道开始扫描）
+bool device_config_get_wifi_channel(uint8_t *channel);
+bool device_config_set_wifi_channel(uint8_t channel);
+
 // WiFi SSID 非空表示开机进入 STA 模式；MQTT host 非空表示启用 HA
 bool device_config_has_wifi(void);
 bool device_config_has_mqtt(void);

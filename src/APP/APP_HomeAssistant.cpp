@@ -14,6 +14,7 @@
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -38,6 +39,8 @@ namespace
     constexpr uint32_t kReconnectMaxMs = 30000;
     constexpr uint32_t kBatteryIntervalMs = 60000;
     constexpr uint32_t kLoopDelayMs = 20;
+    // WiFi/MQTT 未就绪时的轮询周期：尽量缩短 GOT_IP 到 MQTT connect 的等待
+    constexpr uint32_t kConnectPollMs = 50;
 
     struct HaEvent
     {
@@ -329,8 +332,39 @@ namespace
 
     void mqtt_connect(void)
     {
-        DualSerial.printf("[HA] Connecting to %s:%u...\n",
-                          s_host, (unsigned)s_port);
+        // 预热：向网关（AP）发一个 UDP 包，让 AP 刷新该 MAC 的 bridge/省电状态。
+        // 某些 AP 在客户端快速重启后会短暂丢弃上行单播，导致首个 TCP SYN 丢失。
+        // 注意：这里不能调用 WiFi.setSleep(false)，ESP32-S3 在 BLE 共存下
+        // 会触发异常重启（已实测）。
+        {
+            const IPAddress gateway = WiFi.gatewayIP();
+            if ((uint32_t)gateway != 0)
+            {
+                WiFiUDP warmup;
+                if (warmup.beginPacket(gateway, 9))
+                {
+                    const uint8_t payload = 0;
+                    warmup.write(&payload, sizeof(payload));
+                    warmup.endPacket();
+                }
+            }
+        }
+
+        // 先用两个短超时尝试，让被 AP 丢弃的首个 SYN 能更早重发；
+        // 两次都失败则交给 PubSubClient 用默认超时再试。
+        bool tcp_ok = s_wifi_client.connected();
+        if (!tcp_ok)
+        {
+            for (uint8_t attempt = 0; attempt < 2; ++attempt)
+            {
+                tcp_ok = s_wifi_client.connect(s_host, s_port, 600);
+                if (tcp_ok)
+                    break;
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+        }
+        if (!tcp_ok)
+            DualSerial.println("[HA] TCP pre-connect failed, MQTT will retry");
 
         bool connected;
         if (s_user[0] != '\0')
@@ -400,8 +434,10 @@ namespace
 
                 clear_outbox();
                 s_backoff_ms = kReconnectMinMs;
-                s_next_reconnect_ms = millis() + 1000;
-                vTaskDelay(pdMS_TO_TICKS(250));
+                // WiFi 恢复后立即尝试 MQTT；这里若用 millis()+1000，
+                // 每 50ms 一轮的轮询会把等待不断推迟，导致 WiFi 连上后固定多等约 1s。
+                s_next_reconnect_ms = millis();
+                vTaskDelay(pdMS_TO_TICKS(kConnectPollMs));
                 continue;
             }
 
@@ -413,7 +449,7 @@ namespace
                 if ((int32_t)(millis() - s_next_reconnect_ms) >= 0)
                     mqtt_connect();
 
-                vTaskDelay(pdMS_TO_TICKS(250));
+                vTaskDelay(pdMS_TO_TICKS(kConnectPollMs));
                 continue;
             }
 
@@ -524,9 +560,6 @@ void APP_HomeAssistant_init(void)
         DualSerial.println("[HA] Failed to create task; HA disabled");
         return;
     }
-
-    DualSerial.printf("[HA] MQTT broker: %s:%u\n", s_host, (unsigned)s_port);
-    DualSerial.printf("[HA] Base topic: %s\n", s_base_topic);
 }
 
 bool APP_HomeAssistant_validate(const char *parameter)

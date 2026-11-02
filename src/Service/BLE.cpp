@@ -343,8 +343,6 @@ bool ble_toggle(void)
         device_config_get_ble_name(device_name, sizeof(device_name));
         _device_name = device_name;
 
-        DualSerial.println("[BLE] Initializing BLE service...");
-
         // 1. 初始化 NimBLE 堆栈
         NimBLEDevice::init(_device_name.c_str());
 
@@ -393,7 +391,8 @@ bool ble_toggle(void)
                 0);                    // 固定在核心 0
         }
 
-        DualSerial.println("[BLE] Service started, advertising as '" + _device_name + "'\n");
+        DualSerial.printf("[BLE] Service started, advertising as '%s'\n",
+                          _device_name.c_str());
     }
     else
     {

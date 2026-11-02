@@ -55,6 +55,15 @@ static bool s_sta_enabled = false;
 // WiFi.begin() 是否已经调用：用于过滤模式切换产生的早期 disconnect 事件
 static bool s_sta_begin_called = false;
 
+// 上次成功连接的信道缓存：开机从该信道开始扫描，跳过该信道之前的扫描。
+// s_sta_config_uses_cached_channel 表示当前 STA 配置是否使用了缓存信道；
+// 连接失败时回退到从信道 1 开始的全信道扫描。
+static uint8_t s_cached_channel = 0;
+static bool s_has_cached_channel = false;
+static bool s_sta_config_uses_cached_channel = false;
+static bool s_got_ip_since_begin = false;
+static uint8_t s_cached_failures = 0;
+
 // AP 开启期间暂停 STA 自动重连：APSTA 共用一个射频，SoftAP 信道会跟随 STA。
 // 配置的 AP 不存在时，自动重连会不断全信道扫描，把 SoftAP 一起拖到随机信道，
 // 表现为热点能搜到但无法关联。关闭 AP 后恢复重连。
@@ -122,6 +131,8 @@ static void sta_retry_resume(void)
     if (WiFi.status() != WL_CONNECTED)
     {
         DualSerial.printf("[Net] Resuming STA connection to \"%s\"\n", s_sta_ssid);
+        s_sta_config_uses_cached_channel = false;
+        s_cached_failures = 0;
         WiFi.begin(s_sta_ssid, s_sta_pass);
     }
 }
@@ -213,7 +224,6 @@ static void update_rf_state(void)
         }
         s_current_wifi_mode = want;
         s_ap_started = false; // 切到纯 STA 会停掉 AP 接口
-        DualSerial.println("[Net] RF Mode -> WIFI_STA");
         break;
 
     default:
@@ -231,6 +241,9 @@ static void update_rf_state(void)
 }
 
 // ESP-NOW 依赖信道 1。AP/STA 处于其它信道时不允许开启。
+// STA 已启用但尚未拿到 IP 时也暂不允许：开机/重连阶段 WiFi 正在扫描，
+// 此时启动 ESP-NOW 会强制信道 1 并占用射频，拖慢首次连接。
+// 现有 s_espnow_blocked 机制会在 GOT_IP 且信道为 1 时自动补启。
 bool network_espnow_allowed(void)
 {
     if (s_network_suspended)
@@ -239,14 +252,10 @@ bool network_espnow_allowed(void)
     if (s_ap_enabled)
         return WiFi.channel() == 1;
 
-    if (WiFi.status() == WL_CONNECTED)
-        return WiFi.channel() == 1;
+    if (s_sta_enabled)
+        return WiFi.status() == WL_CONNECTED && WiFi.channel() == 1;
 
-    // STA 未连接：若之前因信道被阻塞，保持阻塞直到下一次 GOT_IP 确认信道 1。
-    // WiFi 开关关闭时不存在 STA 扫描，允许在信道 1 上恢复 ESP-NOW。
-    if (s_sta_enabled && s_espnow_blocked)
-        return false;
-
+    // WiFi 开关关闭时不存在 STA 扫描，允许在信道 1 上使用 ESP-NOW
     return true;
 }
 
@@ -263,7 +272,6 @@ static void network_refresh_espnow_gate(void)
     }
     else if (!s_espnow_enabled && s_espnow_blocked && allowed)
     {
-        DualSerial.println("[Net] WiFi back on channel 1, restarting ESP-NOW");
         start_espnow();
     }
 }
@@ -483,8 +491,6 @@ static void servers_start(void)
     {
         tcpServer->onClient(&handleNewClient, nullptr);
         tcpServer->begin();
-        DualSerial.printf("[Net] TCP console listening on port %u\n",
-                          (unsigned)TCP_PORT);
     }
     else
     {
@@ -530,6 +536,8 @@ void network_init(void)
     s_network_suspended = false;
     s_sta_configured = device_config_has_wifi();
     s_sta_enabled = s_sta_configured;
+    s_got_ip_since_begin = false;
+    s_cached_failures = 0;
 
     WiFi.onEvent(on_wifi_event, ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(on_wifi_event, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
@@ -544,10 +552,25 @@ void network_init(void)
         build_mdns_hostname();
         WiFi.setHostname(s_mdns_hostname);
 
-        DualSerial.printf("[Net] STA mode, connecting to \"%s\"\n", s_sta_ssid);
-        DualSerial.println("[Net] Double-click the button to toggle AP if WiFi fails");
         s_sta_begin_called = true;
-        WiFi.begin(s_sta_ssid, s_sta_pass);
+
+        uint8_t cached_channel = 0;
+        if (device_config_get_wifi_channel(&cached_channel))
+        {
+            s_cached_channel = cached_channel;
+            s_has_cached_channel = true;
+            s_sta_config_uses_cached_channel = true;
+            DualSerial.printf("[Net] STA mode, connecting to \"%s\" (cached ch %u)\n",
+                              s_sta_ssid, (unsigned)cached_channel);
+            WiFi.begin(s_sta_ssid, s_sta_pass, (int32_t)cached_channel);
+        }
+        else
+        {
+            s_has_cached_channel = false;
+            s_sta_config_uses_cached_channel = false;
+            DualSerial.printf("[Net] STA mode, connecting to \"%s\"\n", s_sta_ssid);
+            WiFi.begin(s_sta_ssid, s_sta_pass);
+        }
     }
     else
     {
@@ -616,6 +639,22 @@ void network_handle_sta_got_ip(int32_t channel)
     DualSerial.printf("[Net] WiFi connected: \"%s\", IP %s, ch %d, RSSI %d dBm\n",
                       s_sta_ssid, ip, ch, (int)WiFi.RSSI());
 
+    s_got_ip_since_begin = true;
+    s_cached_failures = 0;
+
+    // 记录本次实际连接的信道，供下次开机从该信道开始扫描。
+    // 只有变化时才写 NVS，避免频繁擦写。
+    const uint8_t current_channel = WiFi.channel();
+    if (current_channel >= 1 && current_channel <= 14 &&
+        (!s_has_cached_channel || current_channel != s_cached_channel))
+    {
+        if (device_config_set_wifi_channel(current_channel))
+        {
+            s_cached_channel = current_channel;
+            s_has_cached_channel = true;
+        }
+    }
+
     start_mdns();
     DualSerial.printf("[Net] Web UI: http://%s/ or http://%s.local/\n",
                       ip, s_mdns_hostname);
@@ -642,6 +681,29 @@ void network_handle_sta_disconnected(void)
         net_lock();
         sta_retry_pause();
         net_unlock();
+    }
+
+    // 缓存信道连不上时回退到全信道扫描：
+    //   - 开机后首次连接就失败：立即回退，避免 Arduino 核心再次撞同一个信道
+    //   - 已经成功连接过：连续失败两次再回退，避免路由器短暂抖动就丢弃缓存
+    if (s_sta_config_uses_cached_channel && !s_ap_enabled)
+    {
+        if (s_cached_failures < 0xFF)
+            ++s_cached_failures;
+
+        const bool fallback = !s_got_ip_since_begin || s_cached_failures >= 2;
+        if (fallback)
+        {
+            net_lock();
+            if (!s_ap_enabled)
+            {
+                s_sta_config_uses_cached_channel = false;
+                s_cached_failures = 0;
+                DualSerial.println("[Net] First connect attempt timed out, rescanning");
+                WiFi.begin(s_sta_ssid, s_sta_pass);
+            }
+            net_unlock();
+        }
     }
 
     static uint32_t last_log_ms = 0;
@@ -789,6 +851,8 @@ void wifi_toggle(void)
             s_sta_retry_paused = true;
             WiFi.setAutoReconnect(false);
             update_rf_state(); // 已是 APSTA，不会重启 AP
+            s_sta_config_uses_cached_channel = false;
+            s_cached_failures = 0;
             WiFi.begin(s_sta_ssid, s_sta_pass);
             DualSerial.printf("[Net] WiFi STA enabled (single attempt while AP is on): \"%s\"\n",
                               s_sta_ssid);
@@ -833,8 +897,11 @@ static void start_espnow(void)
 
     if (!network_espnow_allowed())
     {
-        DualSerial.printf("[Net] ESP-NOW disabled: WiFi channel %u (requires channel 1)\n",
-                          (unsigned)WiFi.channel());
+        if (s_sta_enabled && WiFi.status() == WL_CONNECTED)
+        {
+            DualSerial.printf("[Net] ESP-NOW disabled: WiFi channel %u (requires channel 1)\n",
+                              (unsigned)WiFi.channel());
+        }
         if (s_sta_configured)
             s_espnow_blocked = true;
         return;
@@ -917,8 +984,11 @@ void espnow_toggle(void)
 
     if (!network_espnow_allowed())
     {
-        DualSerial.printf("[Net] ESP-NOW requires WiFi channel 1 (current %u)\n",
-                          (unsigned)WiFi.channel());
+        if (s_sta_enabled && WiFi.status() == WL_CONNECTED)
+        {
+            DualSerial.printf("[Net] ESP-NOW requires WiFi channel 1 (current %u)\n",
+                              (unsigned)WiFi.channel());
+        }
         // 记录本次启动请求，等 WiFi 回到信道 1 时由 network_refresh_espnow_gate 补启
         if (s_sta_configured)
             s_espnow_blocked = true;
@@ -990,7 +1060,6 @@ static void start_mdns(void)
     {
         MDNS.addService("http", "tcp", 80);
         s_mdns_started = true;
-        DualSerial.printf("[Net] mDNS: http://%s.local/\n", s_mdns_hostname);
     }
     else
     {

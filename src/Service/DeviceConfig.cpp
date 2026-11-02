@@ -24,6 +24,7 @@ namespace
     constexpr char kKeyApPass[] = "ap_pass";
     constexpr char kKeyWifiSsid[] = "wifi_ssid";
     constexpr char kKeyWifiPass[] = "wifi_pass";
+    constexpr char kKeyWifiCh[] = "wifi_ch";
     constexpr char kKeyMqttHost[] = "mqtt_host";
     constexpr char kKeyMqttPort[] = "mqtt_port";
     constexpr char kKeyMqttUser[] = "mqtt_user";
@@ -44,6 +45,9 @@ namespace
     char s_ap_pass[kPassMax + 1];
     char s_wifi_ssid[kSsidMax + 1];
     char s_wifi_pass[kPassMax + 1];
+    // 上次成功连接的信道，用于开机从该信道开始扫描
+    uint8_t s_wifi_channel = 0;
+    bool s_wifi_channel_cached = false;
     char s_mqtt_host[kMqttHostMax + 1];
     char s_mqtt_user[kMqttUserMax + 1];
     char s_mqtt_pass[kPassMax + 1];
@@ -98,6 +102,11 @@ namespace
     {
         const size_t length = text_length(value);
         return length == 0 || (length >= kPassMin && length <= kPassMax);
+    }
+
+    bool valid_wifi_channel(uint8_t channel)
+    {
+        return channel >= 1 && channel <= 14;
     }
 
     bool valid_mqtt_host(const char *value)
@@ -287,6 +296,11 @@ namespace
         DualSerial.printf("  AP PASS  : \"%s\"\n", ap_pass);
         DualSerial.printf("  WiFi SSID: \"%s\"\n", wifi_ssid);
         DualSerial.printf("  WiFi PASS: \"%s\"\n", wifi_pass);
+
+        uint8_t cached_channel = 0;
+        if (device_config_get_wifi_channel(&cached_channel))
+            DualSerial.printf("  Cached channel: %u\n", (unsigned)cached_channel);
+
         DualSerial.printf("  MQTT host: \"%s\"\n", mqtt.host);
         DualSerial.printf("  MQTT port: %u\n", (unsigned)mqtt.port);
         DualSerial.printf("  MQTT user: \"%s\"\n", mqtt.user);
@@ -342,6 +356,8 @@ void device_config_init(void)
     char loaded_mqtt_user[kMqttUserMax + 1];
     char loaded_mqtt_pass[kPassMax + 1];
     uint16_t loaded_mqtt_port = kMqttPortDefault;
+    uint8_t loaded_channel = 0;
+    bool loaded_cache = false;
 
     copy_text(loaded_ble_name, sizeof(loaded_ble_name), BLE_DEVICE_NAME);
     copy_text(loaded_ap_ssid, sizeof(loaded_ap_ssid), AP_SSID);
@@ -372,6 +388,9 @@ void device_config_init(void)
         load_string(preferences, kKeyMqttPass, "", loaded_mqtt_pass,
                     sizeof(loaded_mqtt_pass), valid_mqtt_pass);
         loaded_mqtt_port = load_mqtt_port(preferences);
+
+        loaded_channel = preferences.getUChar(kKeyWifiCh, 0);
+        loaded_cache = valid_wifi_channel(loaded_channel);
         preferences.end();
     }
     else
@@ -386,6 +405,8 @@ void device_config_init(void)
     copy_text(s_ap_pass, sizeof(s_ap_pass), loaded_ap_pass);
     copy_text(s_wifi_ssid, sizeof(s_wifi_ssid), loaded_wifi_ssid);
     copy_text(s_wifi_pass, sizeof(s_wifi_pass), loaded_wifi_pass);
+    s_wifi_channel = loaded_channel;
+    s_wifi_channel_cached = loaded_cache;
     copy_text(s_mqtt_host, sizeof(s_mqtt_host), loaded_mqtt_host);
     copy_text(s_mqtt_user, sizeof(s_mqtt_user), loaded_mqtt_user);
     copy_text(s_mqtt_pass, sizeof(s_mqtt_pass), loaded_mqtt_pass);
@@ -429,6 +450,53 @@ void device_config_get_wifi(char *ssid, size_t ssid_size,
     copy_text(ssid, ssid_size, s_wifi_ssid);
     copy_text(pass, pass_size, s_wifi_pass);
     portEXIT_CRITICAL(&s_lock);
+}
+
+bool device_config_get_wifi_channel(uint8_t *channel)
+{
+    if (channel == nullptr)
+        return false;
+
+    portENTER_CRITICAL(&s_lock);
+    const bool cached = s_wifi_channel_cached;
+    if (cached)
+        *channel = s_wifi_channel;
+    portEXIT_CRITICAL(&s_lock);
+    return cached;
+}
+
+bool device_config_set_wifi_channel(uint8_t channel)
+{
+    if (!valid_wifi_channel(channel))
+        return false;
+
+    portENTER_CRITICAL(&s_lock);
+    const bool unchanged = s_wifi_channel_cached && s_wifi_channel == channel;
+    portEXIT_CRITICAL(&s_lock);
+    if (unchanged)
+        return true;
+
+    Preferences preferences;
+    if (!preferences.begin(kNamespace, false))
+    {
+        DualSerial.println("Error: failed to open NVS");
+        return false;
+    }
+
+    const size_t written = preferences.putUChar(kKeyWifiCh, channel);
+    preferences.end();
+
+    if (written != sizeof(uint8_t))
+    {
+        DualSerial.println("Error: failed to save WiFi channel");
+        return false;
+    }
+
+    portENTER_CRITICAL(&s_lock);
+    s_wifi_channel = channel;
+    s_wifi_channel_cached = true;
+    portEXIT_CRITICAL(&s_lock);
+    return true;
 }
 
 void device_config_get_mqtt(DeviceMqttConfig *config)
@@ -607,13 +675,15 @@ bool device_config_set_mqtt_pass(const char *value)
 
 bool device_config_clear_wifi(void)
 {
-    static const char *const keys[] = {kKeyWifiSsid, kKeyWifiPass};
+    static const char *const keys[] = {kKeyWifiSsid, kKeyWifiPass, kKeyWifiCh};
     if (!remove_keys(keys, sizeof(keys) / sizeof(keys[0])))
         return false;
 
     portENTER_CRITICAL(&s_lock);
     s_wifi_ssid[0] = '\0';
     s_wifi_pass[0] = '\0';
+    s_wifi_channel = 0;
+    s_wifi_channel_cached = false;
     portEXIT_CRITICAL(&s_lock);
 
     DualSerial.println("Cleared: WiFi config (reboot to apply)");
@@ -662,6 +732,8 @@ bool device_config_reset(void)
     copy_text(s_ap_pass, sizeof(s_ap_pass), AP_PASS);
     s_wifi_ssid[0] = '\0';
     s_wifi_pass[0] = '\0';
+    s_wifi_channel = 0;
+    s_wifi_channel_cached = false;
     s_mqtt_host[0] = '\0';
     s_mqtt_user[0] = '\0';
     s_mqtt_pass[0] = '\0';
