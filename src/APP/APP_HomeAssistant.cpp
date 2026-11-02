@@ -293,7 +293,7 @@ namespace
 
         publish_battery_discovery();
 
-        DualSerial.printf("[HA] Discovery published (%u HA gesture(s))\n",
+        DualSerial.printf("[HA] Discovery published %u HA gesture(s)\n",
                           (unsigned)ha_binding_count);
     }
 

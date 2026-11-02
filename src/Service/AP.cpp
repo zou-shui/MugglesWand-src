@@ -241,9 +241,10 @@ static void update_rf_state(void)
 }
 
 // ESP-NOW 依赖信道 1。AP/STA 处于其它信道时不允许开启。
-// STA 已启用但尚未拿到 IP 时也暂不允许：开机/重连阶段 WiFi 正在扫描，
-// 此时启动 ESP-NOW 会强制信道 1 并占用射频，拖慢首次连接。
-// 现有 s_espnow_blocked 机制会在 GOT_IP 且信道为 1 时自动补启。
+// STA 已启用时：
+//   - 已连接：只允许信道 1
+//   - 未连接：仅当缓存信道为 1 时提前启动，避免盲目强制信道 1 拖慢扫描；
+//     其它情况等 GOT_IP 后由 network_refresh_espnow_gate 补启。
 bool network_espnow_allowed(void)
 {
     if (s_network_suspended)
@@ -253,7 +254,12 @@ bool network_espnow_allowed(void)
         return WiFi.channel() == 1;
 
     if (s_sta_enabled)
-        return WiFi.status() == WL_CONNECTED && WiFi.channel() == 1;
+    {
+        if (WiFi.status() == WL_CONNECTED)
+            return WiFi.channel() == 1;
+
+        return s_has_cached_channel && s_cached_channel == 1;
+    }
 
     // WiFi 开关关闭时不存在 STA 扫描，允许在信道 1 上使用 ESP-NOW
     return true;
