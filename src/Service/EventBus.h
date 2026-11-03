@@ -31,18 +31,26 @@ enum EventID
     EVENT_SYS_BLE,      // 无参数
     EVENT_SYS_AP,       // 无参数
     EVENT_SYS_ESPNOW,   // 无参数
+    EVENT_SYS_WIFI,     // 无参数
+
+    // --- 网络事件（由 WiFi 事件回调发布，Service 任务处理）---
+    EVENT_NET_STA_GOT_IP,       // STA 获取到 IP, param1: WiFi 信道
+    EVENT_NET_STA_DISCONNECTED, // STA 断开, 无参数
 
     EVENT_BTN_SHORT_PRESS, // 按键短按事件, 参数为连击次数 (1=单击, 2=双击, 3=三击)
 
     // --- IMU 事件 ---
-    EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 数据流向 (1=实时输出, 2=训练缓冲区, 3=通过EventBus总线流向其它地方 -1=已停止)
+    EVENT_IMU_SET_MUX,        // 设定IMU数据流向, param1: 1=实时输出, 2=训练缓冲区, 3=角速度(鼠标), 4=修正角度(音量), 5=线性加速度(POV), -1=已停止
     EVENT_IMU_RESET_MUX,      // 关闭IMU输出, 无参数
     EVENT_IMU_SET_WOM,        // 设定IMU进入Wake on Motion模式, 无参数
     EVENT_IMU_STATUS_CHANGED, // 手势状态机改变事件, param1: 当前状态机状态, param2: 当前数据流向
-    EVENT_IMU_DATA_UPDATED,   // IMU数据更新事件，用于传输数据到其它模块,参数由具体模块定义，一般是 param1: valid_gx(弧度/秒), param2: valid_gz(弧度/秒)
+    EVENT_IMU_DATA_UPDATED,   // IMU数据更新事件, 参数随 mux: 3=param1 gx,param2 gz(弧度/秒), 4=param1 修正角度(度), 5=param1 ax,param2 az(单位g)
 
     // --- 手势推理事件 ---
     EVENT_GESTURE_DETECTED, // 手势推理结果事件 param1: 手势 ID
+
+    // --- 手势映射事件 ---
+    EVENT_MAP_CHANGED, // 映射表被 bind/clear/reset 修改, 无参数
 
     // --- 电源事件 ---
     EVENT_POWER_CHARGING,     // 充电中, 无参数

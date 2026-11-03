@@ -11,6 +11,7 @@
 #include "AP.h"
 #include "Sleep.h"
 #include "HAL/HAL.h"
+#include <esp_heap_caps.h>
 #include <esp_system.h>
 
 // 把 esp_reset_reason_t 枚举翻译成可读字符串。
@@ -57,7 +58,11 @@ static void system_service_task(void *param)
     EventBus::subscribe(EVENT_SYS_BLE, service_queue);
     EventBus::subscribe(EVENT_SYS_AP, service_queue);
     EventBus::subscribe(EVENT_SYS_ESPNOW, service_queue);
+    EventBus::subscribe(EVENT_SYS_WIFI, service_queue);
     EventBus::subscribe(EVENT_SYS_DEBUG, service_queue);
+    EventBus::subscribe(EVENT_NET_STA_GOT_IP, service_queue);
+    EventBus::subscribe(EVENT_NET_STA_DISCONNECTED, service_queue);
+    EventBus::subscribe(EVENT_BTN_SHORT_PRESS, service_queue);
 
     SystemEvent event;
 
@@ -68,6 +73,7 @@ static void system_service_task(void *param)
             switch (event.id)
             {
             case EVENT_SYS_INFO:
+            {
                 DualSerial.printf("%s V%s\nBuild Time: %s\nCore Temperature: %d°C\nSystem Uptime: %d seconds\nBattery: %.2fV, %.1f%%, %s, %.1f%%/h\n",
                                   PROJECT_NAME,
                                   FIRMWARE_VER,
@@ -78,7 +84,26 @@ static void system_service_task(void *param)
                                   HAL::MAX17048_getSOC(),
                                   HAL::power_getChargeStatus() ? "Charging" : "Discharging",
                                   HAL::MAX17048_getChangeRate());
+
+                // 无线开关状态，BLE / WiFi 额外显示连接状态
+                const char *ble_state =
+                    !ble_is_enabled() ? "OFF"
+                                      : (ble_is_connected() ? "Connected" : "Connecting..");
+                const char *wifi_state =
+                    !network_is_sta_enabled()
+                        ? "OFF"
+                        : (network_is_sta_connected() ? "Connected" : "Connecting..");
+                DualSerial.printf("BLE: %s, ", ble_state);
+                DualSerial.printf("AP: %s, ", ap_is_running() ? "ON" : "OFF");
+                DualSerial.printf("WiFi: %s, ", wifi_state);
+                DualSerial.printf("ESP-NOW: %s\n", espnow_is_running() ? "ON" : "OFF");
+                /*
+                // 内部堆水位，用于核对低内存自愈阈值
+                DualSerial.printf("Internal heap: %uKB free, %uKB largest block\n",
+                                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024),
+                                  (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) / 1024));*/
                 break;
+            }
 
             case EVENT_SYS_REBOOT:
                 DualSerial.println("Rebooting...");
@@ -110,6 +135,25 @@ static void system_service_task(void *param)
 
             case EVENT_SYS_ESPNOW:
                 espnow_toggle();
+                break;
+            case EVENT_SYS_WIFI:
+                wifi_toggle();
+                break;
+
+            case EVENT_NET_STA_GOT_IP:
+                network_handle_sta_got_ip(event.param1.i32);
+                break;
+
+            case EVENT_NET_STA_DISCONNECTED:
+                network_handle_sta_disconnected();
+                break;
+
+            case EVENT_BTN_SHORT_PRESS:
+                // 双击硬编码为切换 AP，用于 WiFi 配置错误时从热点恢复
+                if (event.param1.i32 == 2)
+                {
+                    ap_toggle();
+                }
                 break;
 
             case EVENT_SYS_DEBUG:

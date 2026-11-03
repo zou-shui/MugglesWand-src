@@ -1,8 +1,11 @@
 #include <Arduino.h>
+#include <WiFi.h>
 
 #include "Service/DualPrint.h"
 #include "Service/EventBus.h"
 #include "Service/Console.h"
+#include "Service/DeviceConfig.h"
+#include "Service/AP.h"
 #include "Service/Service.h"
 
 #include "HAL/HAL.h"
@@ -10,6 +13,7 @@
 #include "Model/gesture_inference.h"
 
 #include "APP/APP.h"
+#include "APP/GestureBinding.h"
 #include "HAL/WS2812_Animation/AnimBootup.hpp"
 
 /*
@@ -21,7 +25,9 @@ Core 0:
 | Service           | 3
 | Console parser    | 2
 | Button handling   | 1
-| BLE battery task  | 0
+| BLE keyboard task | 1
+| BLE battery task  | 1
+| HA MQTT task      | 1
 | Power task        | 0
 
 Core 1:
@@ -30,7 +36,7 @@ Core 1:
 | WS2812 animation  | 4
 | IMU sampling      | 3
 | APP task          | 2
-| Gesture reference | 1
+| Gesture inference | 1
 | ESP-NOW heartbeat | 1
 */
 
@@ -41,7 +47,12 @@ void setup()
 
   DualSerial.println("[System] Initializing...");
 
+  // WiFi 驱动默认会把 AP 配置持久化到自己的 NVS，旧值可能与运行时配置冲突。
+  // 关闭后由 DeviceConfig 统一管理 AP 凭据，也避免驱动反复写 flash。
+  WiFi.persistent(false);
+
   // 系统服务初始化
+  device_config_init();
   EventBus::init();
   console_init();
   service_init();
@@ -60,12 +71,16 @@ void setup()
   HAL::button_init();
 
   // 用户APP初始化
+  APP_binding_init();
+
+  // 网络接入：根据 DeviceConfig 选择 STA 或 AP，并启动 TCP/Web 服务
+  network_init();
+
   APP_init();
 
-  // 启动手势推理、BLE、WiFi热点
+  // 启动手势推理、BLE
   EventBus::publish(EVENT_IMU_SET_MUX, 2);
   EventBus::publish(EVENT_SYS_BLE);
-  EventBus::publish(EVENT_SYS_AP);
 
   // 检查IMU和电池状态，如果初始化失败则重启
   if (!imu_ok || !batt_ok)

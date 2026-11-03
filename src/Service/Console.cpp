@@ -1,16 +1,32 @@
 /*
-    解析串口控制台命令输入，并将命令通过CommandBus发送给Dispatcher处理
+    解析串口/网络终端输入的控制台命令。
+    串口输入由 console_task 轮询收集，网络回调通过 console_submit() 投递，
+    统一由 console_task 串行解析，再通过 EventBus 或 APP 映射模块执行。
 */
 #include <Arduino.h>
 #include "Console.h"
+#include "AP.h"
+#include "DeviceConfig.h"
 #include "DualPrint.h"
 #include "EventBus.h"
+#include "APP/GestureBinding.h"
+#include "APP/APP_EspNow.h"
+#include "APP/APP_HomeAssistant.h"
 #include "APP/APP_POV.h" // pov 命令的图案清单由 APP 层输出
 
-#define CONSOLE_BUF_SIZE 64
+#include <ctype.h>
+
+#define CONSOLE_BUF_SIZE 256
+#define CONSOLE_QUEUE_DEPTH 4
+
+struct ConsoleCommand
+{
+    char text[CONSOLE_BUF_SIZE];
+};
 
 static char rx_buf[CONSOLE_BUF_SIZE];
 static uint8_t rx_index = 0;
+static QueueHandle_t command_queue = nullptr;
 
 /************ 显示帮助信息 ************/
 static void console_print_help()
@@ -24,27 +40,90 @@ static void console_print_help()
     DualSerial.println("shutdown       - Turn off the power");
     DualSerial.println("ota            - Enter OTA mode");
     DualSerial.println("ap             - Toggle AP service on/off");
+    DualSerial.println("wifi           - Toggle WiFi STA service on/off");
     DualSerial.println("espnow         - Toggle ESP-NOW service on/off");
     DualSerial.println("ble            - Toggle BLE service on/off");
     DualSerial.println("inference      - Switch IMU to inference mode (push data to gesture buffer)");
     DualSerial.println("imu            - Switch IMU to real-time output mode (send data via AP&UART)");
     DualSerial.println("stop           - Stop IMU task and cut off data output");
     DualSerial.println("gesture <id>   - Simulate gesture detection event with specified ID");
-    DualSerial.println("pov [id] [rev] - Set POV pattern params");
+    DualSerial.println("pov [id] [rev] - Set POV pattern params (type 'pov' for usage)");
+    DualSerial.println("map            - Configure gesture mappings (type 'map' for usage)");
+    DualSerial.println("config         - Configure AP/BLE/WiFi/MQTT (type 'config' for usage)");
+    DualSerial.println("ha             - Show Home Assistant/MQTT status");
 }
 
-/************ 串口命令解析 ************/
-void console_parse(char *cmd)
+static bool match_command_name(const char *command, const char *name,
+                               const char **arguments)
 {
+    while (*command != '\0' && isspace((unsigned char)*command))
+        ++command;
+
+    const char *start = command;
+    while (*command != '\0' && !isspace((unsigned char)*command))
+        ++command;
+
+    size_t length = (size_t)(command - start);
+    if (length != strlen(name) || strncmp(start, name, length) != 0)
+        return false;
+
+    *arguments = command;
+    return true;
+}
+
+/************ 命令回显 ************/
+static void console_print_echo(const char *cmd)
+{
+    while (cmd != nullptr && isspace((unsigned char)*cmd))
+        ++cmd;
+
+    if (cmd == nullptr || *cmd == '\0')
+        return;
+
+    const char *end = cmd + strlen(cmd);
+    while (end > cmd && isspace((unsigned char)end[-1]))
+        --end;
+
+    DualSerial.print("\n> ");
+    DualSerial.write((const uint8_t *)cmd, (size_t)(end - cmd));
+    DualSerial.println();
+}
+
+/************ 命令解析（仅由 console_task 调用） ************/
+static void console_parse(char *cmd)
+{
+    if (cmd == nullptr)
+        return;
+
+    console_print_echo(cmd);
+
     int32_t arg1 = 0, arg2 = 0;
+
+    const char *map_arguments = nullptr;
+    if (match_command_name(cmd, "map", &map_arguments))
+    {
+        APP_binding_console(map_arguments);
+        return;
+    }
+
+    const char *config_arguments = nullptr;
+    if (match_command_name(cmd, "config", &config_arguments))
+    {
+        device_config_console(config_arguments);
+        return;
+    }
+
+    const char *ha_arguments = nullptr;
+    if (match_command_name(cmd, "ha", &ha_arguments))
+    {
+        APP_HomeAssistant_console(ha_arguments);
+        return;
+    }
 
     // 使用 strtok 分割字符串
     char *token = strtok(cmd, " \r\n"); // 第一个单词是命令
     if (token == NULL)
         return;
-
-    DualSerial.print("\n> ");
-    DualSerial.println(token);
 
     if (!strcmp(token, "debug"))
     {
@@ -75,8 +154,15 @@ void console_parse(char *cmd)
     {
         EventBus::publish(EVENT_SYS_AP);
     }
+    else if (!strcmp(token, "wifi"))
+    {
+        EventBus::publish(EVENT_SYS_WIFI);
+    }
     else if (!strcmp(token, "espnow"))
     {
+        // 无 espnow 绑定时开机不会初始化心跳，手动开启需补上
+        if (!espnow_is_running())
+            APP_espnow_ensure_heartbeat();
         EventBus::publish(EVENT_SYS_ESPNOW);
     }
     else if (!strcmp(token, "ble"))
@@ -144,11 +230,45 @@ void console_parse(char *cmd)
     }
 }
 
+/************ 外部命令提交 ************/
+bool console_submit(const char *command, size_t length)
+{
+    if (command_queue == nullptr || command == nullptr || length == 0)
+        return false;
+
+    // 网络消息可能包含行尾，去除后再检查固件缓冲区容量
+    while (length > 0 &&
+           (command[length - 1] == '\0' || command[length - 1] == '\r' ||
+            command[length - 1] == '\n'))
+    {
+        --length;
+    }
+
+    if (length == 0 || length >= CONSOLE_BUF_SIZE)
+        return false;
+
+    ConsoleCommand queued = {};
+    memcpy(queued.text, command, length);
+    queued.text[length] = '\0';
+
+    // 不阻塞 AsyncTCP 回调；队列满时由调用方反馈错误
+    return xQueueSend(command_queue, &queued, 0) == pdPASS;
+}
+
 /************ Console Task ************/
 static void console_task(void *param)
 {
+    bool rx_overflow = false;
+
     while (1)
     {
+        ConsoleCommand queued;
+        while (command_queue != nullptr &&
+               xQueueReceive(command_queue, &queued, 0) == pdPASS)
+        {
+            console_parse(queued.text);
+        }
+
         while (Serial.available())
         {
             char c = Serial.read();
@@ -158,18 +278,28 @@ static void console_task(void *param)
             {
                 rx_buf[rx_index] = 0;
 
-                if (rx_index > 0)
+                if (rx_overflow)
+                {
+                    DualSerial.printf("Error: command exceeds %u bytes\n",
+                                      CONSOLE_BUF_SIZE - 1);
+                }
+                else if (rx_index > 0)
                 {
                     console_parse(rx_buf);
                 }
 
                 rx_index = 0;
+                rx_overflow = false;
             }
             else
             {
                 if (rx_index < CONSOLE_BUF_SIZE - 1)
                 {
                     rx_buf[rx_index++] = c;
+                }
+                else
+                {
+                    rx_overflow = true;
                 }
             }
         }
@@ -181,10 +311,16 @@ static void console_task(void *param)
 /************ Init ************/
 void console_init()
 {
+    command_queue = xQueueCreate(CONSOLE_QUEUE_DEPTH, sizeof(ConsoleCommand));
+    if (command_queue == nullptr)
+    {
+        DualSerial.println("[Console] Failed to create command queue");
+    }
+
     xTaskCreatePinnedToCore(
         console_task,
         "console_task",
-        4096,
+        6144,
         NULL,
         2,
         NULL,

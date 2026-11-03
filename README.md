@@ -4,18 +4,18 @@
 
 ## 工程简介
 
-源码按 `src/` 目录分为四层：
+源码按 `src/` 目录分为四大板块：
 
-- **HAL** — 硬件抽象层：WS2812 灯带、ICM42670P 六轴 IMU、MAX17048 电池电量计、电源与按键管理
+- **HAL** — 硬件抽象层：WS2812 灯带、ICM42670P 六轴 IMU、MAX17048 电池电量计、电源与按键管理。
 - **Model** — TensorFlow Lite 手势识别：缓存IMU数据，在手势有效时对数据进行推理并发布推理结果。
-- **Service** — 系统服务：EventBus 事件总线、Console 串口指令、BLE（NimBLE）、AP 热点 + Web 管理页、OTA 升级、低功耗睡眠
-- **APP** — 用户应用层：将手势映射为具体功能，如 Lumos、BLE HID（键盘/鼠标/音量）、ESP-NOW 信号联动、POV 光绘。可自行编写更多APP模块实现更多创意功能。
+- **Service** — 系统服务：EventBus 事件总线、Console 串口指令、BLE（NimBLE）、AP 热点 + Web 可视化界面、OTA 升级、低功耗睡眠
+- **APP** — 用户应用层：将手势映射为具体功能，如 Lumos、BLE HID（键盘/鼠标/音量）、ESP-NOW 信号联动、POV 光绘、Home Assistant MQTT。可自行编写更多APP模块实现更多创意功能。
 
 各层通过 EventBus 解耦：HAL 上报 IMU/按键事件，Model 发布手势推理结果，APP 监听并执行相应动作。
 
-> 另外，在Config.h中可以修改AP、BLE名称。
-
 ## OTA
 
-固件支持以OTA方式更新，在Console中发送ota指令使其进入OTA模式，连接魔杖热点并访问[192.168.4.1/update](http://192.168.4.1/update)即可上传固件进行更新。
+固件支持以OTA方式更新，在 Console 中发送 ota 指令使魔杖进入 OTA 模式，连接魔杖热点并访问[192.168.4.1/update](http://192.168.4.1/update)即可上传固件进行更新。
 编译好的固件在`.pio/build/esp32-s3-fh4r2/firmware.bin`
+
+

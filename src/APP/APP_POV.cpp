@@ -114,3 +114,10 @@ void APP_POV_list(void)
                           i, kPovPatterns[i].name, kPovPatterns[i].rows, kPovPatterns[i].width);
     }
 }
+
+bool APP_POV_execute(const char *parameter)
+{
+    (void)parameter;
+    APP_POV_mode_enter();
+    return true;
+}

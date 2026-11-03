@@ -3,25 +3,22 @@
 */
 #include <Arduino.h>
 #include "OTA.h"
-#include "Config.h"
 #include "HAL/HAL.h"
 #include "HAL/WS2812_Animation/AnimProgress.hpp"
 #include "HAL/WS2812_Animation/AnimBreathe.hpp"
 #include "Service/AP.h"
+#include "Service/DeviceConfig.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ElegantOTA.h>
-
-/************ AP配置 ************/
-const char *ap_ssid = AP_SSID;     // WiFi AP名称
-const char *ap_password = AP_PASS; // WiFi AP密码
 
 /************ Web服务器 ************/
 WebServer server(80);
 
 /************ OTA状态 ************/
 unsigned long ota_progress_millis = 0;
-uint8_t ota_progress_pct = 0; // OTA 进度百分比（0~100），供 AnimProgress 读取
+uint8_t ota_progress_pct = 0;     // OTA 进度百分比（0~100），供 AnimProgress 读取
+static size_t ota_total_size = 0; // 本次上传的总字节数（固件 + multipart 头部开销）
 
 /************ OTA IP地址 ************/
 static IPAddress ota_ip;
@@ -31,6 +28,7 @@ static void onOTAStart()
 {
     DualSerial.println("[OTA] update started!");
     ota_progress_pct = 0;
+    ota_total_size = 0;
 
     // 启动进度条动画
     HAL::ws2812_set_overlay(new AnimProgress(ota_progress_pct));
@@ -38,11 +36,28 @@ static void onOTAStart()
 
 static void onOTAProgress(size_t current, size_t final)
 {
+    // 注意：ESP32 核心 WebServer 的 upload.totalSize（即这里的 final）是
+    // “已处理字节数”的累计值，不是固件总大小，不能用来算百分比。
+    // 总量只能取本次 POST 请求的 Content-Length（含约 200 字节 multipart 开销）。
+    (void) final;
+    if (ota_total_size == 0)
+    {
+        int content_length = server.clientContentLength();
+        if (content_length > 0)
+            ota_total_size = (size_t)content_length;
+    }
+
     if (millis() - ota_progress_millis > 500)
     {
         ota_progress_millis = millis();
-        DualSerial.printf("[OTA] Progress: %u bytes\n", current);
-        ota_progress_pct = (current * 100) / 1200000; // 更新进度百分比
+        if (ota_total_size > 0)
+        {
+            ota_progress_pct = (uint8_t)(((uint64_t)current * 100) / ota_total_size);
+            if (ota_progress_pct > 99) // 100% 留给 onOTAEnd 置位
+                ota_progress_pct = 99;
+        }
+        DualSerial.printf("[OTA] Progress: %u / %u bytes (%u%%)\n",
+                          (unsigned)current, (unsigned)ota_total_size, ota_progress_pct);
     }
 }
 
@@ -78,6 +93,10 @@ IPAddress OTA_get_ip()
 /************ OTA启动 ************/
 void OTA_begin()
 {
+    char ap_ssid[33];
+    char ap_password[64];
+    device_config_get_ap(ap_ssid, sizeof(ap_ssid), ap_password, sizeof(ap_password));
+
     static bool ota_running = false;
     if (ota_running)
     {
@@ -91,11 +110,9 @@ void OTA_begin()
     }
     ota_running = true;
 
-    // OTA 启动时完全接管 WiFi，先停掉 AP 和 ESP-NOW
-    if (ap_is_running())
-        ap_toggle();
-    if (espnow_is_running())
-        espnow_toggle();
+    // OTA 启动时完全接管 WiFi：停止 Web/TCP/mDNS/AP/STA/ESP-NOW，
+    // 避免与下面 WebServer(80) 的端口冲突
+    network_suspend();
 
     DualSerial.println("[OTA] Starting AP mode...");
 

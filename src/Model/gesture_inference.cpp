@@ -8,14 +8,20 @@
 #include "gesture_buffer.h"
 #include "gesture_model.h" // 你的模型头文件
 #include "Service/AP.h"
+#include <esp_heap_caps.h>
 
-constexpr int kNumClasses = 8; // 输出类别数
+constexpr int kNumClasses = 13; // 输出类别数
 
 // 归一化参数（由训练脚本输出，必须与之一致）
-constexpr float kMean[2] = {0.06793611f, -0.10970584f};
-constexpr float kStd[2] = {1.5366218f, 2.53526731f};
+constexpr float kMean[2] = {0.05884283f, -0.13447834f};
+constexpr float kStd[2] = {1.54697472f, 2.16689735f};
 
 TaskHandle_t inference_task_handle = NULL;
+
+int gesture_inference_num_classes()
+{
+    return kNumClasses;
+}
 
 namespace
 {
@@ -25,8 +31,9 @@ namespace
     TfLiteTensor *input = nullptr;
     TfLiteTensor *output = nullptr;
 
+    // 50KB 张量区放内部 RAM 会挤占 WiFi/Web 的堆，优先使用 PSRAM。
     constexpr int kTensorArenaSize = 50 * 1024;
-    uint8_t tensor_arena[kTensorArenaSize];
+    uint8_t *tensor_arena = nullptr;
 }
 
 void handleGesture(int gesture_id)
@@ -156,6 +163,24 @@ void inference_init()
     {
         DualSerial.println("Model version mismatch!");
         return;
+    }
+
+    if (tensor_arena == nullptr)
+    {
+        // TFLite 要求 16 字节对齐；优先 PSRAM，不可用时回退内部 RAM
+        tensor_arena = (uint8_t *)heap_caps_aligned_alloc(16, kTensorArenaSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        bool in_psram = (tensor_arena != nullptr);
+        if (tensor_arena == nullptr)
+        {
+            tensor_arena = (uint8_t *)heap_caps_aligned_alloc(16, kTensorArenaSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        }
+        if (tensor_arena == nullptr)
+        {
+            DualSerial.println("[CNN] Tensor arena alloc failed!");
+            return;
+        }
+        DualSerial.printf("[CNN] Tensor arena %uKB in %s\n",
+                          (unsigned)(kTensorArenaSize / 1024), in_psram ? "PSRAM" : "internal");
     }
 
     static tflite::AllOpsResolver resolver;

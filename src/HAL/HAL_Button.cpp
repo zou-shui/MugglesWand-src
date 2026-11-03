@@ -91,16 +91,18 @@ static void button_task(void *param)
             {
             case 1:
                 DualSerial.println("[Button] 1 short press action");
-                EventBus::publish(EVENT_BTN_SHORT_PRESS, 1);
                 HAL::ws2812_start_fx(new AnimCombo(1)); // 仅点亮 1-3（绿色）
+                EventBus::publish(EVENT_BTN_SHORT_PRESS, 1);
                 break;
             case 2:
                 DualSerial.println("[Button] 2 short press action");
-                HAL::ws2812_start_fx(new AnimCombo(2)); // 点亮 1-3（绿）+ 4-6（黄）
+                HAL::ws2812_start_fx(new AnimCombo(2));      // 点亮 1-3（绿）+ 4-6（黄）
+                EventBus::publish(EVENT_BTN_SHORT_PRESS, 2); // 硬编码：切换 AP
                 break;
             case 3:
                 DualSerial.println("[Button] 3 short press action");
                 HAL::ws2812_start_fx(new AnimCombo(3)); // 点亮 1-3（绿）+ 4-6（黄）+ 7-9（红）
+                EventBus::publish(EVENT_BTN_SHORT_PRESS, 3);
                 break;
             default:
                 DualSerial.println("[Button] 4 or more short presses, ignore");

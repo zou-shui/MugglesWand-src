@@ -12,7 +12,7 @@
 
 // 创建 ICM42670 实例（LSB 地址 = 0）
 ICM42670 IMU(Wire, 0, 400000);
-int8_t imu_data_mux = -1; // 1表示数据用于实时输出, 2表示数据压入推理缓冲区, -1表示imu未启动
+int8_t imu_data_mux = -1; // 1=实时输出, 2=推理缓冲区, 3=角速度(鼠标), 4=修正角度(音量), 5=线性加速度(POV), -1=IMU未启动
 TaskHandle_t icm42670p_task_handle = NULL;
 QueueHandle_t icm42670p_queue = NULL;
 SemaphoreHandle_t imu_sem = NULL;
