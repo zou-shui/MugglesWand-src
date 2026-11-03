@@ -41,6 +41,10 @@ namespace
     constexpr uint32_t kLoopDelayMs = 20;
     // WiFi/MQTT 未就绪时的轮询周期：尽量缩短 GOT_IP 到 MQTT connect 的等待
     constexpr uint32_t kConnectPollMs = 50;
+    // 开机 / WiFi 恢复后的快速重试：首个 SYN 有概率被 AP 丢弃，
+    // 窗口内失败后不等正常退避（1s 起），改用短间隔再试，避免白白拖慢开机。
+    constexpr uint32_t kFastRetryDelayMs = 150;
+    constexpr uint32_t kFastRetryWindowMs = 5000;
 
     struct HaEvent
     {
@@ -59,10 +63,14 @@ namespace
     bool s_map_changed = false;
     bool s_ha_signature_valid = false;
     uint32_t s_ha_signature = 0;
+    bool s_first_discovery_logged = false;
     bool s_battery_dirty = false;
     uint32_t s_next_reconnect_ms = 0;
     uint32_t s_backoff_ms = kReconnectMinMs;
     uint32_t s_last_battery_ms = 0;
+    // 本次 WiFi 会话的快速重试截止时刻。0 = 尚未开始（下次尝试时开启），
+    // 非 0 后即使过期也保留时间戳，避免每次失败都重新开启窗口。
+    uint32_t s_fast_retry_until_ms = 0;
 
     char s_host[64];
     uint16_t s_port = 1883;
@@ -337,6 +345,15 @@ namespace
 
         DualSerial.printf("[HA] Discovery published %u HA gesture(s)\n",
                           (unsigned)ha_binding_count);
+
+        // 开机后第一次发现完成：打印从复位到 HA 可用的总耗时。
+        // 只打一次；后续重连/映射变更不再重复。
+        if (!s_first_discovery_logged)
+        {
+            s_first_discovery_logged = true;
+            DualSerial.printf("[HA] First discovery completed in %u ms since boot\n",
+                              (unsigned)millis());
+        }
     }
 
     void publish_event(const char *name)
@@ -437,13 +454,28 @@ namespace
         }
 
         s_mqtt_connected = false;
-        s_next_reconnect_ms = millis() + s_backoff_ms;
-        DualSerial.printf("[HA] MQTT connect failed (state %d), retry in %u ms\n",
-                          s_mqtt.state(), (unsigned)s_backoff_ms);
+        const uint32_t now = millis();
+        const bool fast_retry =
+            s_fast_retry_until_ms != 0 &&
+            (int32_t)(now - s_fast_retry_until_ms) < 0;
+        const uint32_t retry_delay_ms =
+            fast_retry ? kFastRetryDelayMs : s_backoff_ms;
 
-        s_backoff_ms *= 2;
-        if (s_backoff_ms > kReconnectMaxMs)
-            s_backoff_ms = kReconnectMaxMs;
+        s_next_reconnect_ms = now + retry_delay_ms;
+        DualSerial.printf("[HA] MQTT connect failed (state %d), retry in %u ms\n",
+                          s_mqtt.state(), (unsigned)retry_delay_ms);
+
+        if (fast_retry)
+        {
+            // 窗口内不累加退避，窗口结束后仍从最小间隔开始
+            s_backoff_ms = kReconnectMinMs;
+        }
+        else
+        {
+            s_backoff_ms *= 2;
+            if (s_backoff_ms > kReconnectMaxMs)
+                s_backoff_ms = kReconnectMaxMs;
+        }
     }
 
     void ha_task(void *param)
@@ -479,6 +511,8 @@ namespace
                 // WiFi 恢复后立即尝试 MQTT；这里若用 millis()+1000，
                 // 每 50ms 一轮的轮询会把等待不断推迟，导致 WiFi 连上后固定多等约 1s。
                 s_next_reconnect_ms = millis();
+                // 本次 WiFi 恢复后重新开启快速重试窗口
+                s_fast_retry_until_ms = 0;
                 vTaskDelay(pdMS_TO_TICKS(kConnectPollMs));
                 continue;
             }
@@ -489,7 +523,12 @@ namespace
                 clear_outbox();
 
                 if ((int32_t)(millis() - s_next_reconnect_ms) >= 0)
+                {
+                    // 本次 WiFi 会话的第一次 MQTT 尝试：开启快速重试窗口
+                    if (s_fast_retry_until_ms == 0)
+                        s_fast_retry_until_ms = millis() + kFastRetryWindowMs;
                     mqtt_connect();
+                }
 
                 vTaskDelay(pdMS_TO_TICKS(kConnectPollMs));
                 continue;
