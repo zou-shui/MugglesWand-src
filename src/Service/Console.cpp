@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include "Console.h"
 #include "AP.h"
+#include "CrashReport.h"
 #include "DeviceConfig.h"
 #include "DualPrint.h"
 #include "EventBus.h"
@@ -127,7 +128,13 @@ static void console_parse(char *cmd)
 
     if (!strcmp(token, "debug"))
     {
-        EventBus::publish(EVENT_SYS_DEBUG);
+        // 非正式调试子命令：debug crash 打印上次 panic 的 core dump 报告。
+        // 故意不写进 help，也不触发 EVENT_SYS_DEBUG（不改变自动关机行为）。
+        char *sub_command = strtok(NULL, " \r\n");
+        if (sub_command != NULL && !strcmp(sub_command, "crash"))
+            crash_report_print();
+        else
+            EventBus::publish(EVENT_SYS_DEBUG);
     }
     else if (!strcmp(token, "info"))
     {
