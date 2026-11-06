@@ -119,7 +119,9 @@ static void system_service_task(void *param)
 
             case EVENT_SYS_SHUTDOWN:
                 DualSerial.println("Shutting down...");
-                HAL::power_off();
+                EventBus::publish(EVENT_IMU_RESET_MUX); // IMU 进入 sleep 模式
+                HAL::ws2812_stop();
+                shutdown_sleep_enter();
                 break;
 
             case EVENT_SYS_OTA:
