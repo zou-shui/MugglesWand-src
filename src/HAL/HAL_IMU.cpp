@@ -275,6 +275,94 @@ int8_t detect_valid_gesture(float gx, float gy)
 static float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;
 static float exInt = 0.0f, eyInt = 0.0f, ezInt = 0.0f;
 
+// ======================== 启动初始姿态对齐 ========================
+// 单位四元数只对应一个固定的“默认姿态”，从它慢慢收敛到真实姿态需要 1~3 秒，
+// 期间 corrected_angle_deg 与手势旋转矩阵都是错的。加速度计在静止时可直接给出
+// 重力方向，因此每次启动后等第一个静止窗口，用它一步完成倾斜对齐。
+// 不能只取首帧：开机/唤醒瞬间可能在挥动，线性加速度会污染对齐结果。
+#define ALIGN_ACCEL_TOL_G 0.15f       // 静止判定：加速度计模长相对 1g 的容差 (g)
+#define ALIGN_STILL_SAMPLES 5         // 连续静止帧数，100Hz 下约 50ms
+static bool imu_align_pending = true; // 由 resetAttitude() 在每次启动时置位
+static uint8_t imu_align_still_cnt = 0;
+
+// 把姿态四元数直接对齐到实测重力方向（只约束倾斜；偏航不可观测，本模块也未使用）
+static void alignAttitudeFromAccel(float ax, float ay, float az)
+{
+    float inv_norm = 1.0f / sqrtf(ax * ax + ay * ay + az * az);
+    ax *= inv_norm;
+    ay *= inv_norm;
+    az *= inv_norm;
+
+    // 求把机体坐标系的“上”方向 (0,0,1) 旋转到实测重力方向的最小旋转
+    float s = sqrtf(ax * ax + ay * ay); // 水平分量，即旋转角的正弦
+    if (s > 1e-3f)
+    {
+        float half = 0.5f * atan2f(s, az);
+        float k = sinf(half) / s;
+        q0 = cosf(half);
+        q1 = ay * k;
+        q2 = -ax * k;
+        q3 = 0.0f;
+    }
+    else if (az < 0.0f)
+    {
+        // 恰好倒置（180°），绕任意水平轴翻转
+        q0 = 0.0f;
+        q1 = 1.0f;
+        q2 = 0.0f;
+        q3 = 0.0f;
+    }
+    else
+    {
+        q0 = 1.0f;
+        q1 = 0.0f;
+        q2 = 0.0f;
+        q3 = 0.0f;
+    }
+
+    // 清零对齐前积累的积分量，避免对齐瞬间产生跳变
+    exInt = 0.0f;
+    eyInt = 0.0f;
+    ezInt = 0.0f;
+}
+
+// 等待静止窗口再对齐；一直处于运动状态时就继续等（此时手势本来也无法识别）
+static void tryAlignAttitude(float ax, float ay, float az, float gx, float gy, float gz)
+{
+    float accel_mag = sqrtf(ax * ax + ay * ay + az * az);
+    bool still = fabsf(accel_mag - 1.0f) < ALIGN_ACCEL_TOL_G &&
+                 fabsf(gx) < THRESHOLD_STILL &&
+                 fabsf(gy) < THRESHOLD_STILL &&
+                 fabsf(gz) < THRESHOLD_STILL;
+
+    if (!still)
+    {
+        imu_align_still_cnt = 0;
+        return;
+    }
+
+    if (++imu_align_still_cnt < ALIGN_STILL_SAMPLES)
+        return;
+
+    alignAttitudeFromAccel(ax, ay, az);
+    imu_align_pending = false;
+    imu_align_still_cnt = 0;
+}
+
+// 重置姿态解算状态（每次从睡眠启动时调用）
+static void resetAttitude()
+{
+    q0 = 1.0f;
+    q1 = 0.0f;
+    q2 = 0.0f;
+    q3 = 0.0f;
+    exInt = 0.0f;
+    eyInt = 0.0f;
+    ezInt = 0.0f;
+    imu_align_pending = true;
+    imu_align_still_cnt = 0;
+}
+
 void event_cb(inv_imu_sensor_event_t *evt)
 {
     ICM42670::IMU_PhysicalData_t Data;
@@ -298,6 +386,10 @@ void event_cb(inv_imu_sensor_event_t *evt)
         float gx = gx_raw;
         float gy = gy_raw;
         float gz = gz_raw;
+
+        // 启动后先用加速度计完成初始姿态对齐，避免从单位四元数慢慢收敛
+        if (imu_align_pending)
+            tryAlignAttitude(ax, ay, az, gx_raw, gy_raw, gz_raw);
 
         // 1.Mahony 互补滤波实时更新姿态四元数 (保持对重力方向的追踪)
         float norm = 1.0 / sqrtf(ax * ax + ay * ay + az * az);
@@ -478,14 +570,8 @@ void HAL::ICM42670P_start(int8_t data_mux)
     {
         // 之前未启动，直接设置模式并启动IMU
         imu_data_mux = data_mux;
-        // 初始化算法变量
-        q0 = 1.0f;
-        q1 = 0.0f;
-        q2 = 0.0f;
-        q3 = 0.0f;
-        exInt = 0.0f;
-        eyInt = 0.0f;
-        ezInt = 0.0f;
+        // 初始化算法变量，并等待第一个静止窗口做加速度计初始对齐
+        resetAttitude();
         IMU.enableDataFromFifoInterrupt(PIN_IMU_INT, imuDataReady);
         DualSerial.printf("[IMU] Started in mode %d\n", data_mux);
     }

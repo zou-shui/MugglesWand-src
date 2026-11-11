@@ -140,7 +140,7 @@ namespace
         set_default_binding(bindings, count, 7, "ble_mouse");
         set_default_binding(bindings, count, 8, "lumos");
         set_default_binding(bindings, count, 9, "ble_knob");
-        set_default_binding(bindings, count, 10, "ble_keyboard", "[win+x](,200),u,s");
+        set_default_binding(bindings, count, 10, "ble_keyboard", "[win+x](,200),[alt+u],[alt+s]");
         set_default_binding(bindings, count, 11, "ble_keyboard", "playpause");
         set_default_binding(bindings, count, 12, "pov");
     }
